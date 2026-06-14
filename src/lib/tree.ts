@@ -3,11 +3,11 @@
 // terurut untuk ditampilkan di grid ala SAKTI, lengkap dengan kedalaman (depth),
 // agregasi jumlah ke atas, dan baris-info (Lokasi / Jumlah Komponen Utama / KPPN).
 
-import type { Level, UsulanStruktur } from '@/types/database';
+import type { Level, UsulanStruktur } from "@/types/database";
 
 export interface GridRow {
   id: string;
-  type: Level | 'INFO' | 'PROGRAM' | 'KEGIATAN';
+  type: Level | "INFO" | "PROGRAM" | "KEGIATAN";
   depth: number;
   kode: string;
   uraian: string;
@@ -16,12 +16,20 @@ export interface GridRow {
   harga?: number | null;
   jumlah: number;
   sumber_dana?: string | null;
+  jenis_belanja?: string | null;
   selectable: boolean;
   ref?: UsulanStruktur;
 }
 
 const DEPTH: Record<string, number> = {
-  PROGRAM: 0, KEGIATAN: 1, KRO: 2, RO: 3, KOMPONEN: 4, SUB_KOMPONEN: 5, AKUN: 6, DETAIL: 7,
+  PROGRAM: 0,
+  KEGIATAN: 1,
+  KRO: 2,
+  RO: 3,
+  KOMPONEN: 4,
+  SUB_KOMPONEN: 5,
+  AKUN: 6,
+  DETAIL: 7,
 };
 
 interface Node extends UsulanStruktur {
@@ -35,15 +43,21 @@ export function buildTree(rows: UsulanStruktur[]): { roots: Node[] } {
   rows.forEach((r) => map.set(r.id, { ...r, children: [], agg: 0 }));
   const roots: Node[] = [];
   map.forEach((n) => {
-    if (n.parent_id && map.has(n.parent_id)) map.get(n.parent_id)!.children.push(n);
+    if (n.parent_id && map.has(n.parent_id))
+      map.get(n.parent_id)!.children.push(n);
     else roots.push(n);
   });
-  const byUrut = (a: Node, b: Node) => a.urutan - b.urutan || a.kode!.localeCompare(b.kode || '');
-  const sortRec = (n: Node) => { n.children.sort(byUrut); n.children.forEach(sortRec); };
-  roots.sort(byUrut); roots.forEach(sortRec);
+  const byUrut = (a: Node, b: Node) =>
+    a.urutan - b.urutan || a.kode!.localeCompare(b.kode || "");
+  const sortRec = (n: Node) => {
+    n.children.sort(byUrut);
+    n.children.forEach(sortRec);
+  };
+  roots.sort(byUrut);
+  roots.forEach(sortRec);
 
   const agg = (n: Node): number => {
-    if (n.level === 'DETAIL') return (n.agg = Number(n.jumlah) || 0);
+    if (n.level === "DETAIL") return (n.agg = Number(n.jumlah) || 0);
     n.agg = n.children.reduce((s, c) => s + agg(c), 0);
     return n.agg;
   };
@@ -58,43 +72,63 @@ export function flattenForGrid(
 ): { gridRows: GridRow[]; total: number } {
   const { roots } = buildTree(rows);
   const out: GridRow[] = [];
-  const lokus = opts.lokus || '19.51-KOTA MAKASSAR';
-  const kppn = opts.kppn || '054-Makassar I';
+  const lokus = opts.lokus || "19.51-KOTA MAKASSAR";
+  const kppn = opts.kppn || "054-Makassar I";
 
   const push = (n: Node, detailIndex?: number) => {
     out.push({
       id: n.id,
       type: n.level,
       depth: DEPTH[n.level],
-      kode: n.kode || '',
+      kode: n.kode || "",
       uraian:
-        n.level === 'DETAIL'
-          ? `00.00. ${(detailIndex || 0) + 1} -${n.uraian || ''}`
-          : n.uraian || '',
-      volume: n.level === 'DETAIL' || n.level === 'KRO' || n.level === 'RO' ? n.volume : null,
+        n.level === "DETAIL"
+          ? `00.00. ${(detailIndex || 0) + 1} -${n.uraian || ""}`
+          : n.uraian || "",
+      volume:
+        n.level === "DETAIL" || n.level === "KRO" || n.level === "RO"
+          ? n.volume
+          : null,
       satuan: n.satuan,
-      harga: n.level === 'DETAIL' ? n.harga : null,
+      harga: n.level === "DETAIL" ? n.harga : null,
       jumlah: n.agg,
       sumber_dana: n.sumber_dana,
+      jenis_belanja: n.level === "DETAIL" ? n.jenis_belanja : null,
       selectable: true,
       ref: n,
     });
   };
 
-  const info = (ownerId: string, depth: number, kode: string, uraian: string, jumlah = 0): GridRow => ({
-    id: `info:${ownerId}:${uraian}`, type: 'INFO', depth, kode, uraian, jumlah, selectable: false,
+  const info = (
+    ownerId: string,
+    depth: number,
+    kode: string,
+    uraian: string,
+    jumlah = 0,
+  ): GridRow => ({
+    id: `info:${ownerId}:${uraian}`,
+    type: "INFO",
+    depth,
+    kode,
+    uraian,
+    jumlah,
+    selectable: false,
   });
 
   const walk = (n: Node) => {
     push(n);
     const d = DEPTH[n.level];
-    if (n.level === 'KRO') out.push(info(n.id, d + 1, '', `(Lokasi :${lokus}) (KDIB=00 Base Line)`));
-    if (n.level === 'RO') out.push(info(n.id, d + 1, '', 'Jumlah Komponen Utama [100.00%]', n.agg));
-    if (n.level === 'AKUN') out.push(info(n.id, d + 1, '', `(KPPN.${kppn})`));
-    if (n.level === 'AKUN') {
-      n.children.filter((c) => c.level === 'DETAIL').forEach((c, i) => push(c, i));
+    if (n.level === "KRO")
+      out.push(info(n.id, d + 1, "", `(Lokasi :${lokus}) (KDIB=00 Base Line)`));
+    if (n.level === "RO")
+      out.push(info(n.id, d + 1, "", "Jumlah Komponen Utama [100.00%]", n.agg));
+    if (n.level === "AKUN") out.push(info(n.id, d + 1, "", `(KPPN.${kppn})`));
+    if (n.level === "AKUN") {
+      n.children
+        .filter((c) => c.level === "DETAIL")
+        .forEach((c, i) => push(c, i));
     } else {
-      n.children.filter((c) => c.level !== 'DETAIL').forEach(walk);
+      n.children.filter((c) => c.level !== "DETAIL").forEach(walk);
     }
   };
   roots.forEach(walk);
