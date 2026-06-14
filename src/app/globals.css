@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SIPPT — palet dominan biru (gaya SAKTI), light & dark. HSL agar mudah ditematik. */
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 15%;
+    --primary: 214 90% 42%;          /* biru SAKTI */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 32% 95%;
+    --secondary-foreground: 222 47% 20%;
+    --muted: 214 30% 94%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 214 95% 93%;
+    --accent-foreground: 214 90% 30%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 25% 88%;
+    --input: 214 25% 86%;
+    --ring: 214 90% 50%;
+    --sidebar: 215 60% 17%;          /* navy sidebar */
+    --sidebar-foreground: 210 30% 90%;
+    --sidebar-accent: 214 90% 48%;
+    --radius: 0.5rem;
+  }
+  .dark {
+    --background: 222 47% 9%;
+    --foreground: 210 30% 92%;
+    --card: 222 45% 12%;
+    --card-foreground: 210 30% 92%;
+    --primary: 214 90% 56%;
+    --primary-foreground: 222 47% 10%;
+    --secondary: 217 33% 18%;
+    --secondary-foreground: 210 30% 90%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 40% 22%;
+    --accent-foreground: 210 40% 92%;
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 33% 22%;
+    --input: 217 33% 24%;
+    --ring: 214 90% 56%;
+    --sidebar: 222 47% 11%;
+    --sidebar-foreground: 210 30% 85%;
+    --sidebar-accent: 214 90% 50%;
+  }
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground; }
+}
+
+/* SAKTI tree-grid */
+@layer components {
+  .saktigrid { @apply w-full border-collapse text-xs; }
+  .saktigrid thead th {
+    @apply sticky top-0 z-10 bg-primary text-primary-foreground px-2 py-2 text-center font-semibold;
+  }
+  .saktigrid td { @apply border-b border-border px-2 py-[5px] align-middle; }
+  .saktigrid td.num { @apply text-right tabular-nums; }
+  .saktigrid td.ctr { @apply text-center; }
+  .saktigrid tr.row-program td { @apply bg-amber-50 dark:bg-amber-950/30 font-bold; }
+  .saktigrid tr.row-kro td, .saktigrid tr.row-ro td { @apply italic; }
+  .saktigrid tr.row-komponen td.ur { @apply font-bold; }
+  .saktigrid tr.row-akun td.ur { @apply underline; }
+  .saktigrid tr.row-info td { @apply text-muted-foreground; }
+  .saktigrid tr.is-selected td { @apply bg-primary text-primary-foreground !important; }
+  .saktigrid tr.selectable { @apply cursor-pointer; }
+  .saktigrid tr.selectable:hover td { @apply bg-accent; }
+  .code-cell { @apply font-mono bg-muted/60 text-center whitespace-nowrap; }
+}
+
+/* Baris Program/Kegiatan dari header */
+.saktigrid tr.row-program td { @apply bg-amber-50 dark:bg-amber-950/30 font-bold; }
+.saktigrid tr.row-program td.ur, .saktigrid tr.row-program td.code-cell { @apply underline; }
+.saktigrid tr.row-kegiatan td.ur, .saktigrid tr.row-kegiatan td.code-cell { @apply underline; }
