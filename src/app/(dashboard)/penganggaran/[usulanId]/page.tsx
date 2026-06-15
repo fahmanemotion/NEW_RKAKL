@@ -9,7 +9,6 @@ import { NewUsulanButton } from "@/components/penganggaran/new-usulan-dialog";
 
 export default async function PenganggaranListPage() {
   await requireUser();
-  // Client longgar: kolom tahap_pagu mungkin belum ada di tipe Database.
   const supabase = (await createServerSupabase()) as unknown as {
     from: (t: string) => any;
   };
@@ -22,7 +21,6 @@ export default async function PenganggaranListPage() {
     )
     .order("created_at", { ascending: false });
 
-  // Ambil tahap_pagu terpisah & aman (tetap jalan bila kolom belum ada di DB).
   const tahapMap: Record<string, string> = {};
   try {
     const { data: t } = await supabase
