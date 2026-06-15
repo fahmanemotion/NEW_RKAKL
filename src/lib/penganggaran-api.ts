@@ -1,3 +1,4 @@
+// SIPPT — operasi penganggaran via Supabase (browser client). RLS membatasi tulis ke Administrator.
 import { createClient } from "@/lib/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Level, UsulanStruktur } from "@/types/database";
@@ -6,6 +7,9 @@ import { refQueryFor, type RefQuery } from "@/lib/ref-query";
 export { refQueryFor };
 export type { RefQuery };
 
+// Tipe tabel di proyek ini belum memetakan Insert/Update, sehingga client bertipe
+// ketat akan menyimpulkan `never`. Pakai client longgar di sini; keamanan tetap
+// dijaga oleh RLS + trigger database.
 const sb = (): SupabaseClient => createClient() as unknown as SupabaseClient;
 
 export interface PathCtx {
@@ -103,6 +107,15 @@ export async function setUsulanStatus(
   const { error } = await sb()
     .from("usulan_anggaran")
     .update({ status })
+    .eq("id", usulanId);
+  if (error) throw error;
+}
+
+/** Hapus usulan beserta seluruh strukturnya (cascade di DB). RLS menegakkan izin. */
+export async function deleteUsulan(usulanId: string): Promise<void> {
+  const { error } = await sb()
+    .from("usulan_anggaran")
+    .delete()
     .eq("id", usulanId);
   if (error) throw error;
 }

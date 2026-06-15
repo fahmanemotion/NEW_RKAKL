@@ -9,18 +9,31 @@ import { NewUsulanButton } from "@/components/penganggaran/new-usulan-dialog";
 
 export default async function PenganggaranListPage() {
   await requireUser();
-  // Client longgar: kolom tahap_pagu belum dipetakan di tipe Database.
+  // Client longgar: kolom tahap_pagu mungkin belum ada di tipe Database.
   const supabase = (await createServerSupabase()) as unknown as {
     from: (t: string) => any;
   };
   const { data: list } = await supabase
     .from("usulan_anggaran")
     .select(
-      `id, tahun_anggaran, status, total_anggaran, tahap_pagu,
+      `id, tahun_anggaran, status, total_anggaran,
       program:master_program!program_id(kode_program, nama_program),
       kegiatan:master_kegiatan!kegiatan_id(kode_kegiatan, nama_kegiatan)`,
     )
     .order("created_at", { ascending: false });
+
+  // Ambil tahap_pagu terpisah & aman (tetap jalan bila kolom belum ada di DB).
+  const tahapMap: Record<string, string> = {};
+  try {
+    const { data: t } = await supabase
+      .from("usulan_anggaran")
+      .select("id, tahap_pagu");
+    (t ?? []).forEach((r: any) => {
+      tahapMap[r.id] = r.tahap_pagu;
+    });
+  } catch {
+    /* kolom belum ada */
+  }
 
   return (
     <div className="space-y-5">
@@ -51,7 +64,7 @@ export default async function PenganggaranListPage() {
               <div className="flex-1">
                 <div className="font-medium">
                   TA {u.tahun_anggaran} —{" "}
-                  {TAHAP_LABEL[u.tahap_pagu as TahapPagu] ?? "Usulan"}
+                  {TAHAP_LABEL[tahapMap[u.id] as TahapPagu] ?? "Usulan"}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {u.kegiatan?.nama_kegiatan
