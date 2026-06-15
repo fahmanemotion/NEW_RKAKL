@@ -1,61 +1,67 @@
-'use server';
-import { createServerSupabase } from '@/lib/supabase-server';
-import { requireUser } from '@/lib/auth';
+"use server";
+import { createServerSupabase } from "@/lib/supabase-server";
+import { requireUser } from "@/lib/auth";
+import {
+  tahapWorkflowState,
+  TAHAP_ORDER,
+  TAHAP_LABEL,
+  type TahapPagu,
+} from "@/lib/tahap-pagu";
 
 /**
- * Buat usulan Draft + seed node PROGRAM & KEGIATAN awal ke dalam pohon
- * (boleh ditambah Program/Kegiatan lain dari dalam grid). Kembalikan id usulan.
+ * Buat usulan Draft untuk satu Tahap Pagu. Program/Kegiatan ditambahkan
+ * di dalam grid (bukan di modal). Server memvalidasi bahwa tahap yang dibuat
+ * memang tahap berikutnya yang sah untuk satker + tahun ini (anti-bypass).
  */
 export async function createUsulanAction(input: {
-  programId: string;
-  kegiatanId: string;
   tahun: number;
+  tahapPagu: TahapPagu;
 }): Promise<string> {
   const user = await requireUser();
-  if (!user.satker_id) throw new Error('Akun Anda belum memiliki satker. Hubungi Administrator.');
-  const supabase = await createServerSupabase();
+  if (!user.satker_id)
+    throw new Error("Akun Anda belum memiliki satker. Hubungi Administrator.");
+  if (!TAHAP_ORDER.includes(input.tahapPagu))
+    throw new Error("Tahap pagu tidak valid.");
 
-  const [{ data: prog }, { data: keg }, { data: ba }] = await Promise.all([
-    supabase.from('master_program').select('kode_program, nama_program').eq('id', input.programId).single(),
-    supabase.from('master_kegiatan').select('kode_kegiatan, nama_kegiatan').eq('id', input.kegiatanId).single(),
-    supabase.from('master_ba').select('kode_ba').limit(1).single(),
-  ]);
+  // Client longgar: tipe tabel belum memetakan kolom baru tahap_pagu.
+  const sb = (await createServerSupabase()) as unknown as {
+    from: (t: string) => any;
+  };
 
-  const { data: usulan, error } = await supabase
-    .from('usulan_anggaran')
+  // Ambil usulan yang ada untuk satker + tahun → tentukan tahap berikutnya yang sah.
+  const { data: existing } = await sb
+    .from("usulan_anggaran")
+    .select("tahap_pagu, status")
+    .eq("satker_id", user.satker_id)
+    .eq("tahun_anggaran", input.tahun);
+
+  const state = tahapWorkflowState(
+    (existing ?? []) as { tahap_pagu: string | null; status: string }[],
+  );
+  if (!state.canCreate) {
+    throw new Error(
+      state.reason === "all_done"
+        ? "Semua tahap pagu untuk tahun ini sudah selesai."
+        : "Selesaikan (finalkan) tahap yang sedang berjalan terlebih dahulu.",
+    );
+  }
+  if (state.nextTahap !== input.tahapPagu) {
+    throw new Error(
+      `Tahap berikutnya yang harus dikerjakan adalah ${TAHAP_LABEL[state.nextTahap!]}.`,
+    );
+  }
+
+  const { data: usulan, error } = await sb
+    .from("usulan_anggaran")
     .insert({
       tahun_anggaran: input.tahun,
       satker_id: user.satker_id,
-      program_id: input.programId,
-      kegiatan_id: input.kegiatanId,
-      status: 'Draft',
+      tahap_pagu: input.tahapPagu,
+      status: "Draft",
       created_by: user.id,
     })
-    .select('id')
+    .select("id")
     .single();
   if (error) throw new Error(error.message);
-  const usulanId = usulan!.id as string;
-
-  // Seed node PROGRAM (akar) lalu KEGIATAN di bawahnya.
-  const kodeBa = (ba?.kode_ba as string) ?? '022';
-  const { data: progNode, error: e1 } = await supabase
-    .from('usulan_struktur')
-    .insert({
-      usulan_id: usulanId, parent_id: null, level: 'PROGRAM',
-      referensi_id: input.programId,
-      kode: `${kodeBa}.${prog?.kode_program ?? ''}`,
-      uraian: prog?.nama_program ?? '', urutan: 0,
-    })
-    .select('id')
-    .single();
-  if (e1) throw new Error(e1.message);
-
-  const { error: e2 } = await supabase.from('usulan_struktur').insert({
-    usulan_id: usulanId, parent_id: progNode!.id, level: 'KEGIATAN',
-    referensi_id: input.kegiatanId,
-    kode: keg?.kode_kegiatan ?? '', uraian: keg?.nama_kegiatan ?? '', urutan: 0,
-  });
-  if (e2) throw new Error(e2.message);
-
-  return usulanId;
+  return usulan!.id as string;
 }

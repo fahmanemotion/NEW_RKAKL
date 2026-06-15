@@ -1,11 +1,20 @@
 "use client";
 import * as React from "react";
-import { Pencil, Plus, Trash2, CheckCircle2, Lock } from "lucide-react";
+import {
+  Pencil,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  Lock,
+  Save,
+  Loader2,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { Button, Card } from "@/components/ui";
 import { flattenForGrid, type GridRow } from "@/lib/tree";
 import { toolbarActions, type ToolbarAction } from "@/lib/toolbar";
 import { fmtN, type Level } from "@/lib/constants";
+import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
 import { usePenganggaran } from "@/store/penganggaran";
 import {
   addNode,
@@ -27,6 +36,7 @@ export interface UsulanHeader {
   id: string;
   tahun_anggaran: number;
   status: string;
+  tahap_pagu?: string;
   ba: string;
   kementerian: string;
   unit: string;
@@ -70,6 +80,8 @@ export function PenganggaranClient({
   const [rows, setRows] = React.useState<UsulanStruktur[]>(initialRows);
   const [status, setStatus] = React.useState<string>(header.status);
   const [finalizing, setFinalizing] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [lastSavedAt, setLastSavedAt] = React.useState<Date | null>(null);
   const { selectedId, selectedRow, select } = usePenganggaran();
   const [picker, setPicker] = React.useState<PickerState>(null);
   const [subkompParent, setSubkompParent] = React.useState<{
@@ -77,10 +89,24 @@ export function PenganggaranClient({
   } | null>(null);
   const [detail, setDetail] = React.useState<DetailState>(null);
 
-  const refresh = React.useCallback(
-    async () => setRows(await fetchStruktur(header.id)),
-    [header.id],
-  );
+  // Setiap penyegaran = data sudah tersinkron dengan database → tandai waktu tersimpan.
+  const refresh = React.useCallback(async () => {
+    const data = await fetchStruktur(header.id);
+    setRows(data);
+    setLastSavedAt(new Date());
+  }, [header.id]);
+
+  // Simpan manual: paksa sinkron dari database & perbarui indikator "tersimpan".
+  async function onSave() {
+    setSaving(true);
+    try {
+      await refresh();
+    } catch (e) {
+      alert("Gagal menyinkronkan: " + (e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   // Realtime: segarkan grid saat struktur usulan ini berubah.
   React.useEffect(() => {
@@ -283,7 +309,11 @@ export function PenganggaranClient({
       parentId: r.parent_id!,
       inheritedSumberDana: akunSumber,
       akunInfo: akun
-        ? { kode: akun.kode, uraian: akun.uraian, sumberDana: akunSumber }
+        ? {
+            kode: akun.kode ?? "",
+            uraian: akun.uraian ?? "",
+            sumberDana: akunSumber,
+          }
         : undefined,
       initial: {
         id: r.id,
@@ -357,7 +387,15 @@ export function PenganggaranClient({
       <Card className="p-4">
         <div className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Tahun Anggaran" value={String(header.tahun_anggaran)} />
-          <Field label="BA" value={`${header.ba}`} />
+          <Field
+            label="Tahap Pagu"
+            value={
+              header.tahap_pagu
+                ? (TAHAP_LABEL[header.tahap_pagu as TahapPagu] ??
+                  header.tahap_pagu)
+                : "—"
+            }
+          />
           <div>
             <div className="text-xs text-muted-foreground">Status</div>
             <div
@@ -369,6 +407,7 @@ export function PenganggaranClient({
               {isFinal ? "Final (Selesai)" : status}
             </div>
           </div>
+          <Field label="BA" value={`${header.ba}`} />
           <Field label="Kementerian" value={header.kementerian} />
           <Field label="Unit Eselon I" value={header.unit} />
           <Field label="Satker" value={header.satker} />
@@ -426,6 +465,39 @@ export function PenganggaranClient({
           Tahap pagu berikutnya kini dapat dibuat dari halaman Penganggaran.
         </p>
       )}
+
+      {/* Bar status simpan: setiap perubahan tersimpan otomatis; tombol Simpan untuk memastikan/sinkron. */}
+      <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          {saving ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" /> Menyimpan…
+            </>
+          ) : lastSavedAt ? (
+            <>
+              <CheckCircle2 className="size-3.5 text-emerald-600" /> Tersimpan
+              otomatis · pukul{" "}
+              {lastSavedAt.toLocaleTimeString("id-ID", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="size-3.5 text-emerald-600" /> Setiap
+              perubahan tersimpan otomatis
+            </>
+          )}
+        </span>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onSave}
+          disabled={saving}
+        >
+          <Save className="size-4" /> Simpan
+        </Button>
+      </div>
 
       <TreeGrid rows={display} selectedId={selectedId} onSelect={select} />
 

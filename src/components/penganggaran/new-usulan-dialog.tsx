@@ -1,87 +1,144 @@
-'use client';
-import * as React from 'react';
-import { useRouter } from 'next/navigation';
-import { Plus, Loader2 } from 'lucide-react';
-import { Modal } from '@/components/ui/modal';
-import { Button, Select, Input } from '@/components/ui';
-import { createClient } from '@/lib/supabase';
-import { createUsulanAction } from '@/app/(dashboard)/penganggaran/actions';
+"use client";
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import { Plus, Loader2, Lock } from "lucide-react";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { Modal } from "@/components/ui/modal";
+import { Button, Select, Input } from "@/components/ui";
+import { createClient } from "@/lib/supabase";
+import { createUsulanAction } from "@/app/(dashboard)/penganggaran/actions";
+import {
+  tahapWorkflowState,
+  TAHAP_LABEL,
+  type TahapPagu,
+} from "@/lib/tahap-pagu";
 
-interface Prog { id: string; kode_program: string; nama_program: string }
-interface Keg { id: string; program_id: string; kode_kegiatan: string; nama_kegiatan: string }
+interface UsulanRow {
+  tahun_anggaran: number;
+  tahap_pagu: string | null;
+  status: string;
+}
+const sb = () => createClient() as unknown as SupabaseClient;
 
 export function NewUsulanButton() {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
-  const [progs, setProgs] = React.useState<Prog[]>([]);
-  const [kegs, setKegs] = React.useState<Keg[]>([]);
-  const [programId, setProgramId] = React.useState('');
-  const [kegiatanId, setKegiatanId] = React.useState('');
   const [tahun, setTahun] = React.useState(new Date().getFullYear() + 1);
+  const [existing, setExisting] = React.useState<UsulanRow[]>([]);
+  const [tahap, setTahap] = React.useState<TahapPagu | "">("");
   const [loading, setLoading] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
+  // Ambil usulan satker (RLS membatasi ke satker sendiri) saat modal dibuka.
   React.useEffect(() => {
     if (!open) return;
-    setErr(null); setProgramId(''); setKegiatanId(''); setLoading(true);
-    const sb = createClient();
-    Promise.all([
-      sb.from('master_program').select('id, kode_program, nama_program').order('kode_program'),
-      sb.from('master_kegiatan').select('id, program_id, kode_kegiatan, nama_kegiatan').order('kode_kegiatan'),
-    ]).then(([p, k]) => {
-      setProgs((p.data ?? []) as Prog[]);
-      setKegs((k.data ?? []) as Keg[]);
-    }).catch((e) => setErr(e.message)).finally(() => setLoading(false));
+    setErr(null);
+    setLoading(true);
+    (async () => {
+      const { data, error } = await sb()
+        .from("usulan_anggaran")
+        .select("tahun_anggaran, tahap_pagu, status");
+      if (error) setErr(error.message);
+      setExisting((data ?? []) as unknown as UsulanRow[]);
+      setLoading(false);
+    })();
   }, [open]);
 
-  const kegOptions = kegs.filter((k) => k.program_id === programId);
+  // Keadaan alur untuk tahun terpilih.
+  const state = React.useMemo(
+    () =>
+      tahapWorkflowState(existing.filter((u) => u.tahun_anggaran === tahun)),
+    [existing, tahun],
+  );
+  // Auto-pilih tahap berikutnya yang sah.
+  React.useEffect(() => {
+    setTahap(state.nextTahap ?? "");
+  }, [state.nextTahap]);
 
   async function submit() {
-    if (!programId) return setErr('Pilih Program dulu.');
-    if (!kegiatanId) return setErr('Pilih Kegiatan dulu.');
-    setBusy(true); setErr(null);
+    if (!state.canCreate || !tahap) return;
+    setBusy(true);
+    setErr(null);
     try {
-      const id = await createUsulanAction({ programId, kegiatanId, tahun });
+      const id = await createUsulanAction({ tahun, tahapPagu: tahap });
       router.push(`/penganggaran/${id}`);
     } catch (e) {
-      setErr((e as Error).message); setBusy(false);
+      setErr((e as Error).message);
+      setBusy(false);
     }
   }
 
+  const reasonMsg =
+    state.reason === "in_progress"
+      ? "Tahap yang sedang dikerjakan belum Final. Finalkan dulu untuk membuka tahap berikutnya."
+      : state.reason === "all_done"
+        ? "Semua tahap pagu untuk tahun ini sudah selesai."
+        : null;
+
   return (
     <>
-      <Button onClick={() => setOpen(true)}><Plus className="size-4" /> Buat Usulan</Button>
+      <Button onClick={() => setOpen(true)}>
+        <Plus className="size-4" /> Buat Usulan
+      </Button>
       <Modal
-        open={open} onClose={() => setOpen(false)} title="Buat Usulan Anggaran"
-        footer={<>
-          <Button variant="outline" onClick={() => setOpen(false)}>Batal</Button>
-          <Button onClick={submit} disabled={busy || loading}>
-            {busy && <Loader2 className="size-4 animate-spin" />} Buat & Buka
-          </Button>
-        </>}
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Buat Usulan Anggaran"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              onClick={submit}
+              disabled={busy || loading || !state.canCreate || !tahap}
+            >
+              {busy && <Loader2 className="size-4 animate-spin" />} Buat & Buka
+            </Button>
+          </>
+        }
       >
         {loading ? (
-          <div className="py-8 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></div>
+          <div className="py-8 text-center text-muted-foreground">
+            <Loader2 className="mx-auto size-5 animate-spin" />
+          </div>
         ) : (
           <div className="space-y-3">
             <Field label="Tahun Anggaran">
-              <Input type="number" value={tahun} onChange={(e) => setTahun(+e.target.value)} className="max-w-[140px]" />
+              <Input
+                type="number"
+                value={tahun}
+                onChange={(e) => setTahun(+e.target.value)}
+                className="max-w-[140px]"
+              />
             </Field>
-            <Field label="Program">
-              <Select value={programId} onChange={(e) => { setProgramId(e.target.value); setKegiatanId(''); }}>
-                <option value="">— pilih Program —</option>
-                {progs.map((p) => <option key={p.id} value={p.id}>{p.kode_program} — {p.nama_program}</option>)}
+            <Field label="Tahap Pagu">
+              <Select
+                value={tahap}
+                onChange={(e) => setTahap(e.target.value as TahapPagu)}
+                disabled={!state.canCreate}
+              >
+                {state.options.map((o) => (
+                  <option key={o.value} value={o.value} disabled={o.disabled}>
+                    {o.label}
+                    {o.disabled ? " (terkunci)" : ""}
+                  </option>
+                ))}
               </Select>
             </Field>
-            <Field label="Kegiatan">
-              <Select value={kegiatanId} onChange={(e) => setKegiatanId(e.target.value)} disabled={!programId}>
-                <option value="">{programId ? '— pilih Kegiatan —' : 'pilih Program dulu'}</option>
-                {kegOptions.map((k) => <option key={k.id} value={k.id}>{k.kode_kegiatan} — {k.nama_kegiatan}</option>)}
-              </Select>
-            </Field>
-            {programId && kegOptions.length === 0 && (
-              <p className="text-xs text-amber-600">Program ini belum punya Kegiatan di referensi. Tambahkan dulu di menu Referensi.</p>
+
+            {reasonMsg && (
+              <p className="flex items-start gap-1.5 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                <Lock className="mt-0.5 size-3.5 shrink-0" /> {reasonMsg}
+              </p>
+            )}
+            {state.canCreate && state.nextTahap && (
+              <p className="text-xs text-muted-foreground">
+                Hanya tahap <strong>{TAHAP_LABEL[state.nextTahap]}</strong> yang
+                dapat dibuat saat ini. Tahap berikutnya terbuka setelah tahap
+                ini difinalkan.
+              </p>
             )}
             {err && <p className="text-sm text-destructive">{err}</p>}
           </div>
@@ -91,10 +148,18 @@ export function NewUsulanButton() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-muted-foreground">{label}</label>
+      <label className="mb-1 block text-xs font-medium text-muted-foreground">
+        {label}
+      </label>
       {children}
     </div>
   );
