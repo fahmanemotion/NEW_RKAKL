@@ -6,9 +6,11 @@ import { fmtRp, STATUS_COLOR, type Status } from '@/lib/constants';
 import { TAHAP_LABEL, type TahapPagu } from '@/lib/tahap-pagu';
 import { ChevronRight } from 'lucide-react';
 import { NewUsulanButton } from '@/components/penganggaran/new-usulan-dialog';
+import { DeleteUsulanButton } from '@/components/penganggaran/delete-usulan-button';
 
 export default async function PenganggaranListPage() {
-  await requireUser();
+  const user = await requireUser();
+  const isAdmin = user.role === 'Administrator';
   const supabase = (await createServerSupabase()) as unknown as { from: (t: string) => any };
   const { data: list } = await supabase
     .from('usulan_anggaran')
@@ -38,23 +40,37 @@ export default async function PenganggaranListPage() {
           <div className="p-8 text-center text-sm text-muted-foreground">
             Belum ada usulan. Klik <span className="font-medium text-primary">Buat Usulan</span> untuk memulai.
           </div>
-        ) : (list ?? []).map((u: any) => (
-          <Link key={u.id} href={`/penganggaran/${u.id}`} className="flex items-center gap-4 p-4 hover:bg-accent">
-            <div className="flex-1">
-              <div className="font-medium">
-                TA {u.tahun_anggaran} — {TAHAP_LABEL[tahapMap[u.id] as TahapPagu] ?? 'Usulan'}
+        ) : (list ?? []).map((u: any) => {
+          const tahapLabel = TAHAP_LABEL[tahapMap[u.id] as TahapPagu] ?? 'Usulan';
+          const canDelete = isAdmin || u.status === 'Draft';
+          return (
+          <div key={u.id} className="flex items-center hover:bg-accent">
+            <Link href={`/penganggaran/${u.id}`} className="flex flex-1 items-center gap-4 p-4">
+              <div className="flex-1">
+                <div className="font-medium">
+                  TA {u.tahun_anggaran} — {tahapLabel}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {u.kegiatan?.nama_kegiatan
+                    ? `${u.kegiatan.kode_kegiatan ?? ''} ${u.kegiatan.nama_kegiatan}`
+                    : (u.program?.nama_program ?? '')}
+                </div>
+                <div className="text-sm text-muted-foreground tabular-nums">{fmtRp(u.total_anggaran)}</div>
               </div>
-              <div className="text-xs text-muted-foreground">
-                {u.kegiatan?.nama_kegiatan
-                  ? `${u.kegiatan.kode_kegiatan ?? ''} ${u.kegiatan.nama_kegiatan}`
-                  : (u.program?.nama_program ?? '')}
-              </div>
-              <div className="text-sm text-muted-foreground tabular-nums">{fmtRp(u.total_anggaran)}</div>
+              <Badge className={STATUS_COLOR[u.status as Status]}>{u.status}</Badge>
+              <ChevronRight className="size-4 text-muted-foreground" />
+            </Link>
+            <div className="px-3">
+              <DeleteUsulanButton
+                id={u.id}
+                title={`TA ${u.tahun_anggaran} — ${tahapLabel}`}
+                disabled={!canDelete}
+                disabledReason="Hanya usulan Draft yang dapat dihapus"
+              />
             </div>
-            <Badge className={STATUS_COLOR[u.status as Status]}>{u.status}</Badge>
-            <ChevronRight className="size-4 text-muted-foreground" />
-          </Link>
-        ))}
+          </div>
+          );
+        })}
       </Card>
     </div>
   );

@@ -39,7 +39,7 @@ export default async function Page({
       <div className="space-y-4">
         <Link
           href="/penganggaran"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:border-primary/50 hover:bg-primary/20"
         >
           <ArrowLeft className="size-4" /> Kembali ke daftar usulan
         </Link>
@@ -102,7 +102,7 @@ export default async function Page({
     <div className="space-y-4">
       <Link
         href="/penganggaran"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:border-primary/50 hover:bg-primary/20"
       >
         <ArrowLeft className="size-4" /> Kembali ke daftar usulan
       </Link>
