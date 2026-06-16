@@ -1,86 +1,119 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase-server";
-import { requireUser } from "@/lib/auth";
-import { Card, Badge } from "@/components/ui";
-import { fmtRp, STATUS_COLOR, type Status } from "@/lib/constants";
-import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
-import { ChevronRight } from "lucide-react";
-import { NewUsulanButton } from "@/components/penganggaran/new-usulan-dialog";
+import { fetchStrukturServer } from "./data";
+import {
+  PenganggaranClient,
+  type UsulanHeader,
+} from "@/components/grid/penganggaran-client";
 
-export default async function PenganggaranListPage() {
-  await requireUser();
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ usulanId: string }>;
+}) {
+  const { usulanId } = await params;
   const supabase = (await createServerSupabase()) as unknown as {
     from: (t: string) => any;
   };
-  const { data: list } = await supabase
+
+  const { data: u, error: uErr } = await supabase
     .from("usulan_anggaran")
     .select(
-      `id, tahun_anggaran, status, total_anggaran,
-      program:master_program!program_id(kode_program, nama_program),
-      kegiatan:master_kegiatan!kegiatan_id(kode_kegiatan, nama_kegiatan)`,
+      `
+      id, tahun_anggaran, status, kegiatan_id,
+      satker:master_satker!satker_id ( kode_satker, nama_satker, kppn, lokus,
+        unit:master_unit_eselon1!unit_id ( nama,
+          kem:master_kementerian!kementerian_id ( nama,
+            ba:master_ba!ba_id ( kode_ba, nama_ba ) ) ) ),
+      program:master_program!program_id ( kode_program, nama_program ),
+      kegiatan:master_kegiatan!kegiatan_id ( id, kode_kegiatan, nama_kegiatan )
+    `,
     )
-    .order("created_at", { ascending: false });
+    .eq("id", usulanId)
+    .single();
 
-  const tahapMap: Record<string, string> = {};
-  try {
-    const { data: t } = await supabase
-      .from("usulan_anggaran")
-      .select("id, tahap_pagu");
-    (t ?? []).forEach((r: any) => {
-      tahapMap[r.id] = r.tahap_pagu;
-    });
-  } catch {
-    /* kolom belum ada */
-  }
-
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">Penganggaran</h1>
-          <p className="text-sm text-muted-foreground">
-            Daftar usulan anggaran satker Anda.
+  if (uErr) {
+    return (
+      <div className="space-y-4">
+        <Link
+          href="/penganggaran"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" /> Kembali ke daftar usulan
+        </Link>
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+          <p className="font-semibold">Gagal memuat usulan.</p>
+          <p className="mt-1">{uErr.message ?? String(uErr)}</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Jika pesan menyebut kolom <code>tahap_pagu</code> tidak ditemukan,
+            jalankan migrasi di Supabase SQL Editor.
           </p>
         </div>
-        <NewUsulanButton />
       </div>
+    );
+  }
 
-      <Card className="divide-y divide-border">
-        {(list ?? []).length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">
-            Belum ada usulan. Klik{" "}
-            <span className="font-medium text-primary">Buat Usulan</span> untuk
-            memulai.
-          </div>
-        ) : (
-          (list ?? []).map((u: any) => (
-            <Link
-              key={u.id}
-              href={`/penganggaran/${u.id}`}
-              className="flex items-center gap-4 p-4 hover:bg-accent"
-            >
-              <div className="flex-1">
-                <div className="font-medium">
-                  TA {u.tahun_anggaran} —{" "}
-                  {TAHAP_LABEL[tahapMap[u.id] as TahapPagu] ?? "Usulan"}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {u.kegiatan?.nama_kegiatan
-                    ? `${u.kegiatan.kode_kegiatan ?? ""} ${u.kegiatan.nama_kegiatan}`
-                    : (u.program?.nama_program ?? "")}
-                </div>
-                <div className="text-sm text-muted-foreground tabular-nums">
-                  {fmtRp(u.total_anggaran)}
-                </div>
-              </div>
-              <Badge className={STATUS_COLOR[u.status as Status]}>
-                {u.status}
-              </Badge>
-              <ChevronRight className="size-4 text-muted-foreground" />
-            </Link>
-          ))
-        )}
-      </Card>
+  if (!u) notFound();
+
+  let tahapPagu: string | undefined;
+  {
+    const { data: t } = await supabase
+      .from("usulan_anggaran")
+      .select("tahap_pagu")
+      .eq("id", usulanId)
+      .single();
+    tahapPagu = (t as any)?.tahap_pagu ?? undefined;
+  }
+
+  const one = <T,>(v: T | T[] | null): T | null =>
+    Array.isArray(v) ? (v[0] ?? null) : (v ?? null);
+  const satker: any = one((u as any).satker);
+  const unit: any = one(satker?.unit);
+  const kem: any = one(unit?.kem);
+  const ba: any = one(kem?.ba);
+  const program: any = one((u as any).program);
+  const kegiatan: any = one((u as any).kegiatan);
+
+  const header: UsulanHeader = {
+    id: u.id as string,
+    tahun_anggaran: u.tahun_anggaran as number,
+    status: u.status as string,
+    tahap_pagu: tahapPagu,
+    ba: ba ? `${ba.kode_ba} — ${ba.nama_ba}` : "022",
+    kementerian: kem?.nama ?? "—",
+    unit: unit?.nama ?? "—",
+    satker: satker ? `${satker.kode_satker} — ${satker.nama_satker}` : "—",
+    program_kode: program
+      ? `${ba?.kode_ba ?? "022"}.${program.kode_program}`
+      : "",
+    program_nama: program?.nama_program ?? "",
+    kegiatan_id: (u.kegiatan_id as string) ?? kegiatan?.id ?? null,
+    kegiatan_kode: kegiatan?.kode_kegiatan ?? "",
+    kegiatan_nama: kegiatan?.nama_kegiatan ?? "",
+    kppn: satker?.kppn ? `${satker.kppn}-Makassar I` : "054-Makassar I",
+    lokus: satker?.lokus ?? "19.51-KOTA MAKASSAR",
+  };
+
+  const rows = await fetchStrukturServer(usulanId);
+
+  return (
+    <div className="space-y-4">
+      <Link
+        href="/penganggaran"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" /> Kembali ke daftar usulan
+      </Link>
+      <div>
+        <h1 className="text-xl font-bold">Penganggaran — RUH Belanja</h1>
+        <p className="text-sm text-muted-foreground">
+          Penyusunan usulan hierarkis ala SAKTI. TA {header.tahun_anggaran} ·{" "}
+          {header.satker}
+        </p>
+      </div>
+      <PenganggaranClient header={header} initialRows={rows} />
     </div>
   );
 }
