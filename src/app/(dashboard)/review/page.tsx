@@ -1,17 +1,39 @@
-import { requireUser } from '@/lib/auth';
-import { Card } from '@/components/ui';
+import { requireUser } from "@/lib/auth";
+import { createServerSupabase } from "@/lib/supabase-server";
+import {
+  ReviewClient,
+  type ReviewUsulan,
+} from "@/components/review/review-client";
 
 export default async function ReviewPage() {
   await requireUser();
-  return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold">Review Usulan</h1>
-        <p className="text-sm text-muted-foreground">Tinjau dan setujui usulan anggaran satker.</p>
-      </div>
-      <Card className="p-10 text-center">
-        <p className="text-sm text-muted-foreground">Modul Review sedang disiapkan. Segera hadir.</p>
-      </Card>
-    </div>
+  const sb = (await createServerSupabase()) as unknown as {
+    from: (t: string) => any;
+  };
+
+  const { data } = await sb
+    .from("usulan_anggaran")
+    .select(
+      "id, tahun_anggaran, tahap_pagu, status, satker:master_satker!satker_id(nama_satker, kode_satker)",
+    )
+    .order("tahun_anggaran", { ascending: false });
+
+  const usulanList: ReviewUsulan[] = (data ?? []).map(
+    (u: {
+      id: string;
+      tahun_anggaran: number;
+      tahap_pagu: string | null;
+      status: string;
+      satker: { nama_satker?: string; kode_satker?: string } | null;
+    }) => ({
+      id: u.id,
+      tahun: u.tahun_anggaran,
+      tahap: u.tahap_pagu ?? "KEBUTUHAN",
+      status: u.status,
+      satkerNama: u.satker?.nama_satker ?? "Satker",
+      satkerKode: u.satker?.kode_satker ?? "",
+    }),
   );
+
+  return <ReviewClient usulanList={usulanList} />;
 }
