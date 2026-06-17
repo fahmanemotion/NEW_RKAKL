@@ -2,6 +2,7 @@
 import { createClient } from "@/lib/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Level, UsulanStruktur } from "@/types/database";
+import { LEVEL_LABEL } from "@/lib/constants";
 import { refQueryFor, type RefQuery } from "@/lib/ref-query";
 
 export { refQueryFor };
@@ -17,6 +18,68 @@ export interface PathCtx {
   parent_id: string | null;
 }
 
+// Level yang tidak boleh diisi dobel pada induk yang sama dalam satu usulan.
+// (AKUN & DETAIL sengaja dikecualikan — satu akun boleh memuat banyak detail,
+// dan akun yang sama bisa relevan di tempat berbeda.)
+const DUP_GUARD_LEVELS: Level[] = [
+  "PROGRAM",
+  "KEGIATAN",
+  "KRO",
+  "RO",
+  "KOMPONEN",
+  "SUB_KOMPONEN",
+];
+
+const normKode = (k: string | null | undefined) =>
+  (k ?? "").trim().toUpperCase();
+
+/**
+ * Pastikan node belum ada pada induk yang sama (anti-duplikat).
+ * Identitas duplikat: referensi_id yang sama ATAU kode yang sama (di antara
+ * sesama level & induk yang sama dalam satu usulan).
+ */
+async function assertNotDuplicate(input: {
+  usulan_id: string;
+  parent_id: string | null;
+  level: Level;
+  referensi_id?: string | null;
+  kode: string;
+  uraian: string;
+}): Promise<void> {
+  let q = sb()
+    .from("usulan_struktur")
+    .select("id, kode, referensi_id")
+    .eq("usulan_id", input.usulan_id)
+    .eq("level", input.level);
+  q = input.parent_id
+    ? q.eq("parent_id", input.parent_id)
+    : q.is("parent_id", null);
+  const { data, error } = await q;
+  if (error) throw error;
+
+  const siblings = (data ?? []) as {
+    kode: string | null;
+    referensi_id: string | null;
+  }[];
+
+  const sameRef = input.referensi_id
+    ? siblings.some(
+        (s) => s.referensi_id && s.referensi_id === input.referensi_id,
+      )
+    : false;
+  const sameKode = normKode(input.kode)
+    ? siblings.some((s) => normKode(s.kode) === normKode(input.kode))
+    : false;
+
+  if (sameRef || sameKode) {
+    const label = LEVEL_LABEL[input.level] ?? input.level;
+    throw new Error(
+      `${label} "${input.kode}${input.uraian ? " — " + input.uraian : ""}" ` +
+        "sudah ada pada usulan ini. Tidak boleh ditambahkan dua kali.",
+    );
+  }
+}
+
 /** Tambah node struktur (KRO/RO/KOMPONEN/SUB_KOMPONEN/AKUN). */
 export async function addNode(input: {
   usulan_id: string;
@@ -28,6 +91,9 @@ export async function addNode(input: {
   satuan?: string | null;
   sumber_dana?: string | null;
 }): Promise<UsulanStruktur> {
+  if (DUP_GUARD_LEVELS.includes(input.level)) {
+    await assertNotDuplicate(input);
+  }
   const urutan = await nextUrutan(input.usulan_id, input.parent_id);
   const { data, error } = await sb()
     .from("usulan_struktur")

@@ -1,23 +1,38 @@
-'use client';
-import * as React from 'react';
-import { useRouter } from 'next/navigation';
-import { Pencil, Plus, Trash2, CheckCircle2, Lock, Save, Loader2, RotateCcw } from 'lucide-react';
-import { createClient } from '@/lib/supabase';
-import { Button, Card } from '@/components/ui';
-import { flattenForGrid, type GridRow } from '@/lib/tree';
-import { toolbarActions, type ToolbarAction } from '@/lib/toolbar';
-import { fmtN, type Level } from '@/lib/constants';
-import { TAHAP_LABEL, type TahapPagu } from '@/lib/tahap-pagu';
-import { usePenganggaran } from '@/store/penganggaran';
+"use client";
+import * as React from "react";
 import {
-  addNode, upsertDetail, deleteNode, fetchStruktur, refQueryFor, getAkunMeta, setUsulanStatus, deleteUsulan,
-} from '@/lib/penganggaran-api';
-import type { UsulanStruktur } from '@/types/database';
-import { TreeGrid } from './tree-grid';
-import { ReferencePicker } from './reference-picker';
-import { SubKomponenForm } from './subkomponen-form';
-import { DetailForm, type DetailValues } from './detail-form';
-import type { RefRow, RefQuery } from '@/lib/penganggaran-api';
+  Pencil,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  Lock,
+  Unlock,
+  Save,
+  Loader2,
+} from "lucide-react";
+import { createClient } from "@/lib/supabase";
+import { Button, Card } from "@/components/ui";
+import { flattenForGrid, type GridRow } from "@/lib/tree";
+import { toolbarActions, type ToolbarAction } from "@/lib/toolbar";
+import { fmtN, type Level } from "@/lib/constants";
+import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
+import { usePenganggaran } from "@/store/penganggaran";
+import {
+  addNode,
+  upsertDetail,
+  deleteNode,
+  fetchStruktur,
+  refQueryFor,
+  getAkunMeta,
+  setUsulanStatus,
+} from "@/lib/penganggaran-api";
+import type { UsulanStruktur } from "@/types/database";
+import { reopenUsulanAction } from "@/app/(dashboard)/penganggaran/actions";
+import { TreeGrid } from "./tree-grid";
+import { ReferencePicker } from "./reference-picker";
+import { SubKomponenForm } from "./subkomponen-form";
+import { DetailForm, type DetailValues } from "./detail-form";
+import type { RefRow, RefQuery } from "@/lib/penganggaran-api";
 
 export interface UsulanHeader {
   id: string;
@@ -37,25 +52,44 @@ export interface UsulanHeader {
   lokus: string;
 }
 
-type PickerState = { level: Level; query: RefQuery; parentStrukturId: string | null; parentKode: string; okGreen?: boolean; extraHead?: string } | null;
+type PickerState = {
+  level: Level;
+  query: RefQuery;
+  parentStrukturId: string | null;
+  parentKode: string;
+  okGreen?: boolean;
+  extraHead?: string;
+} | null;
 type DetailState = {
   parentId: string;
   inheritedSumberDana: string;
-  akunInfo?: { kode: string; uraian: string; sumberDana: string; kategori?: string };
+  akunInfo?: {
+    kode: string;
+    uraian: string;
+    sumberDana: string;
+    kategori?: string;
+  };
   initial?: Partial<DetailValues>;
 } | null;
 
-export function PenganggaranClient({ header, initialRows }: { header: UsulanHeader; initialRows: UsulanStruktur[] }) {
-  const router = useRouter();
+export function PenganggaranClient({
+  header,
+  initialRows,
+}: {
+  header: UsulanHeader;
+  initialRows: UsulanStruktur[];
+}) {
   const [rows, setRows] = React.useState<UsulanStruktur[]>(initialRows);
   const [status, setStatus] = React.useState<string>(header.status);
   const [finalizing, setFinalizing] = React.useState(false);
-  const [usulanBusy, setUsulanBusy] = React.useState(false);
+  const [reopening, setReopening] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [lastSavedAt, setLastSavedAt] = React.useState<Date | null>(null);
   const { selectedId, selectedRow, select } = usePenganggaran();
   const [picker, setPicker] = React.useState<PickerState>(null);
-  const [subkompParent, setSubkompParent] = React.useState<{ id: string } | null>(null);
+  const [subkompParent, setSubkompParent] = React.useState<{
+    id: string;
+  } | null>(null);
   const [detail, setDetail] = React.useState<DetailState>(null);
 
   // Setiap penyegaran = data sudah tersinkron dengan database → tandai waktu tersimpan.
@@ -71,7 +105,7 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
     try {
       await refresh();
     } catch (e) {
-      alert('Gagal menyinkronkan: ' + (e as Error).message);
+      alert("Gagal menyinkronkan: " + (e as Error).message);
     } finally {
       setSaving(false);
     }
@@ -80,10 +114,21 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
   // Realtime: segarkan grid saat struktur usulan ini berubah.
   React.useEffect(() => {
     const ch = createClient()
-      .channel('struktur:' + header.id)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'usulan_struktur', filter: `usulan_id=eq.${header.id}` }, refresh)
+      .channel("struktur:" + header.id)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "usulan_struktur",
+          filter: `usulan_id=eq.${header.id}`,
+        },
+        refresh,
+      )
       .subscribe();
-    return () => { createClient().removeChannel(ch); };
+    return () => {
+      createClient().removeChannel(ch);
+    };
   }, [header.id, refresh]);
 
   const { gridRows, total } = React.useMemo(
@@ -93,13 +138,29 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
 
   // Program & Kegiatan kini node nyata di pohon. Untuk usulan LAMA (belum punya
   // node PROGRAM), tampilkan baris Program/Kegiatan dari header sebagai fallback.
-  const hasProgramNode = gridRows.some((r) => r.type === 'PROGRAM');
+  const hasProgramNode = gridRows.some((r) => r.type === "PROGRAM");
   const display: GridRow[] = React.useMemo(() => {
     if (hasProgramNode) return gridRows;
     if (!header.program_kode) return gridRows;
     return [
-      { id: 'prog', type: 'PROGRAM', depth: 0, kode: header.program_kode, uraian: header.program_nama, jumlah: total, selectable: false },
-      { id: 'keg', type: 'KEGIATAN', depth: 1, kode: header.kegiatan_kode, uraian: header.kegiatan_nama, jumlah: total, selectable: false },
+      {
+        id: "prog",
+        type: "PROGRAM",
+        depth: 0,
+        kode: header.program_kode,
+        uraian: header.program_nama,
+        jumlah: total,
+        selectable: false,
+      },
+      {
+        id: "keg",
+        type: "KEGIATAN",
+        depth: 1,
+        kode: header.kegiatan_kode,
+        uraian: header.kegiatan_nama,
+        jumlah: total,
+        selectable: false,
+      },
       ...gridRows,
     ];
   }, [gridRows, header, total, hasProgramNode]);
@@ -108,24 +169,34 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
   const actions = toolbarActions(selType);
 
   function handleAction(a: ToolbarAction) {
-    if (a.kind === 'delete') return onDelete();
-    if (a.kind === 'edit') return onEditDetail();
-    if (a.kind !== 'add' || !a.addLevel) return;
+    if (a.kind === "delete") return onDelete();
+    if (a.kind === "edit") return onEditDetail();
+    if (a.kind !== "add" || !a.addLevel) return;
     openAdd(a.addLevel);
   }
 
   // Peta level anak → tipe parent yang harus dipilih + judul modal.
-  const PARENT_OF: Record<string, GridRow['type']> = {
-    KEGIATAN: 'PROGRAM', KRO: 'KEGIATAN', RO: 'KRO',
-    KOMPONEN: 'RO', SUB_KOMPONEN: 'KOMPONEN', AKUN: 'SUB_KOMPONEN', DETAIL: 'AKUN',
+  const PARENT_OF: Record<string, GridRow["type"]> = {
+    KEGIATAN: "PROGRAM",
+    KRO: "KEGIATAN",
+    RO: "KRO",
+    KOMPONEN: "RO",
+    SUB_KOMPONEN: "KOMPONEN",
+    AKUN: "SUB_KOMPONEN",
+    DETAIL: "AKUN",
   };
 
   async function openAdd(level: Level) {
     // PROGRAM = akar (tanpa induk).
-    if (level === 'PROGRAM') {
-      const q = refQueryFor('PROGRAM', null);
+    if (level === "PROGRAM") {
+      const q = refQueryFor("PROGRAM", null);
       if (!q) return;
-      return setPicker({ level, query: q, parentStrukturId: null, parentKode: '022' });
+      return setPicker({
+        level,
+        query: q,
+        parentStrukturId: null,
+        parentKode: "022",
+      });
     }
     // Level lain butuh baris induk terpilih.
     const needType = PARENT_OF[level];
@@ -136,10 +207,10 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
     const parentRef = selectedRow.ref.referensi_id ?? null;
     const parentKode = selectedRow.kode;
 
-    if (level === 'SUB_KOMPONEN') return setSubkompParent({ id: parentId });
-    if (level === 'DETAIL') {
+    if (level === "SUB_KOMPONEN") return setSubkompParent({ id: parentId });
+    if (level === "DETAIL") {
       // Sumber dana & kategori detail otomatis ikut akun (parent).
-      const akunSumber = selectedRow.sumber_dana ?? 'RM';
+      const akunSumber = selectedRow.sumber_dana ?? "RM";
       let kategori: string | undefined;
       if (parentRef) {
         const meta = await getAkunMeta(parentRef);
@@ -148,16 +219,29 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
       return setDetail({
         parentId,
         inheritedSumberDana: akunSumber,
-        akunInfo: { kode: selectedRow.kode, uraian: selectedRow.uraian, sumberDana: akunSumber, kategori },
+        akunInfo: {
+          kode: selectedRow.kode,
+          uraian: selectedRow.uraian,
+          sumberDana: akunSumber,
+          kategori,
+        },
       });
     }
 
     const q = refQueryFor(level, parentRef);
     if (!q) return;
     setPicker({
-      level, query: q, parentStrukturId: parentId, parentKode,
-      okGreen: level === 'KRO',
-      extraHead: level === 'KOMPONEN' ? 'Jenis' : level === 'AKUN' ? 'Kategori' : undefined,
+      level,
+      query: q,
+      parentStrukturId: parentId,
+      parentKode,
+      okGreen: level === "KRO",
+      extraHead:
+        level === "KOMPONEN"
+          ? "Jenis"
+          : level === "AKUN"
+            ? "Kategori"
+            : undefined,
     });
   }
 
@@ -165,22 +249,31 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
     if (!picker) return;
     const { level, parentStrukturId, parentKode } = picker;
     let kode = row.kode;
-    if (level === 'PROGRAM') kode = `${parentKode}.${row.kode}`;       // 022.12.DL
-    else if (level === 'KRO' || level === 'RO') kode = `${parentKode}.${row.kode}`; // 3996.SAB / 3996.SAB.005
+    if (level === "PROGRAM")
+      kode = `${parentKode}.${row.kode}`; // 022.12.DL
+    else if (level === "KRO" || level === "RO")
+      kode = `${parentKode}.${row.kode}`; // 3996.SAB / 3996.SAB.005
     let sumber_dana: string | null = null;
-    if (level === 'AKUN') {
+    if (level === "AKUN") {
       const meta = await getAkunMeta(row.id);
-      sumber_dana = meta?.sumber_dana ?? (row.kode.startsWith('525') ? 'BLU' : 'RM');
+      sumber_dana =
+        meta?.sumber_dana ?? (row.kode.startsWith("525") ? "BLU" : "RM");
     }
-    await addNode({
-      usulan_id: header.id,
-      parent_id: parentStrukturId,
-      level,
-      referensi_id: row.id,
-      kode,
-      uraian: row.nama,
-      sumber_dana,
-    });
+    try {
+      await addNode({
+        usulan_id: header.id,
+        parent_id: parentStrukturId,
+        level,
+        referensi_id: row.id,
+        kode,
+        uraian: row.nama,
+        sumber_dana,
+      });
+    } catch (e) {
+      // Mis. duplikat — beri tahu & biarkan picker tetap terbuka.
+      alert((e as Error).message);
+      return;
+    }
     setPicker(null);
     await refresh();
   }
@@ -190,8 +283,8 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
     await addNode({
       usulan_id: header.id,
       parent_id: subkompParent.id,
-      level: 'SUB_KOMPONEN',
-      kode: v.kode === '-' ? '-' : v.kode,
+      level: "SUB_KOMPONEN",
+      kode: v.kode === "-" ? "-" : v.kode,
       uraian: v.uraian,
     });
     setSubkompParent(null);
@@ -208,7 +301,7 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
       volume: v.volume,
       satuan: v.satuan,
       harga: v.harga,
-      sumber_dana: detail.inheritedSumberDana,  // ikut akun
+      sumber_dana: detail.inheritedSumberDana, // ikut akun
       jenis_belanja: v.jenis_belanja,
     });
     setDetail(null);
@@ -216,18 +309,29 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
   }
 
   function onEditDetail() {
-    if (selectedRow?.type !== 'DETAIL' || !selectedRow.ref) return;
+    if (selectedRow?.type !== "DETAIL" || !selectedRow.ref) return;
     const r = selectedRow.ref;
     // Cari node AKUN induk untuk mewarisi sumber dana & info.
     const akun = rows.find((x) => x.id === r.parent_id);
-    const akunSumber = akun?.sumber_dana ?? r.sumber_dana ?? 'RM';
+    const akunSumber = akun?.sumber_dana ?? r.sumber_dana ?? "RM";
     setDetail({
       parentId: r.parent_id!,
       inheritedSumberDana: akunSumber,
-      akunInfo: akun ? { kode: akun.kode ?? '', uraian: akun.uraian ?? '', sumberDana: akunSumber } : undefined,
+      akunInfo: akun
+        ? {
+            kode: akun.kode ?? "",
+            uraian: akun.uraian ?? "",
+            sumberDana: akunSumber,
+          }
+        : undefined,
       initial: {
-        id: r.id, uraian: r.uraian ?? '', volume: r.volume ?? 0, satuan: r.satuan ?? '',
-        harga: r.harga ?? 0, jenis_belanja: (r.jenis_belanja as DetailValues['jenis_belanja']) ?? 'OPS',
+        id: r.id,
+        uraian: r.uraian ?? "",
+        volume: r.volume ?? 0,
+        satuan: r.satuan ?? "",
+        harga: r.harga ?? 0,
+        jenis_belanja:
+          (r.jenis_belanja as DetailValues["jenis_belanja"]) ?? "OPS",
       },
     });
   }
@@ -235,7 +339,7 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
   async function onDelete() {
     if (!selectedRow?.ref) return;
     const t = selectedRow.type;
-    const hasChildren = t !== 'DETAIL';
+    const hasChildren = t !== "DETAIL";
     const msg = hasChildren
       ? `Hapus ${t} "${selectedRow.uraian}" beserta SELURUH turunannya (sampai detail)?`
       : `Hapus detail "${selectedRow.uraian}"?`;
@@ -245,68 +349,68 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
       select(null);
       await refresh();
     } catch (e) {
-      alert('Gagal menghapus: ' + (e as Error).message);
+      alert("Gagal menghapus: " + (e as Error).message);
     }
   }
 
-  const isFinal = status === 'Final';
+  const isFinal = status === "Final";
 
   async function onFinalize() {
     if (isFinal) return;
     if (total <= 0) {
-      alert('Tidak bisa difinalkan: pagu masih 0. Lengkapi rincian terlebih dahulu.');
+      alert(
+        "Tidak bisa difinalkan: pagu masih 0. Lengkapi rincian terlebih dahulu.",
+      );
       return;
     }
-    if (!confirm(
-      'Finalkan tahap ini?\n\nSetelah Final, tahap dianggap SELESAI dan tahap pagu berikutnya bisa dibuat. ' +
-      'Pastikan seluruh rincian sudah benar.',
-    )) return;
+    if (
+      !confirm(
+        "Finalkan tahap ini?\n\nSetelah Final, tahap dianggap SELESAI dan tahap pagu berikutnya bisa dibuat. " +
+          "Pastikan seluruh rincian sudah benar.",
+      )
+    )
+      return;
     setFinalizing(true);
     try {
-      await setUsulanStatus(header.id, 'Final');
-      setStatus('Final');
+      await setUsulanStatus(header.id, "Final");
+      setStatus("Final");
     } catch (e) {
-      alert('Gagal memfinalkan: ' + (e as Error).message);
+      alert("Gagal memfinalkan: " + (e as Error).message);
     } finally {
       setFinalizing(false);
     }
   }
 
-  // Buka kembali usulan yang sudah Final untuk diperiksa/diubah → kembalikan ke Draft.
+  // Buka kembali finalisasi: Final → Draft agar rincian bisa diubah lagi.
   async function onReopen() {
-    if (!confirm(
-      'Buka kembali usulan Final ini?\n\nStatus akan menjadi Draft sehingga bisa diubah lagi. ' +
-      'Bila tahap berikutnya sudah dibuat, perubahan di tahap ini bisa membuat data tidak konsisten — lakukan dengan hati-hati.',
-    )) return;
-    setUsulanBusy(true);
+    if (!isFinal) return;
+    if (
+      !confirm(
+        "Buka kembali finalisasi tahap ini?\n\n" +
+          "Status akan kembali menjadi Draft sehingga seluruh rincian dapat diubah lagi. " +
+          "Lakukan ini hanya bila memang ada perubahan yang diperlukan.",
+      )
+    )
+      return;
+    setReopening(true);
     try {
-      await setUsulanStatus(header.id, 'Draft');
-      setStatus('Draft');
+      await reopenUsulanAction(header.id);
+      setStatus("Draft");
     } catch (e) {
-      alert('Gagal membuka kembali: ' + (e as Error).message);
+      alert("Gagal membuka finalisasi: " + (e as Error).message);
     } finally {
-      setUsulanBusy(false);
+      setReopening(false);
     }
   }
 
-  // Hapus seluruh usulan (hanya saat belum Final) lalu kembali ke daftar.
-  async function onDeleteUsulan() {
-    if (isFinal) return;
-    if (!confirm(
-      'Hapus usulan ini beserta SELURUH rinciannya?\n\nTindakan ini permanen dan tidak bisa dibatalkan.',
-    )) return;
-    setUsulanBusy(true);
-    try {
-      await deleteUsulan(header.id);
-      router.push('/penganggaran');
-      router.refresh();
-    } catch (e) {
-      alert('Gagal menghapus usulan: ' + (e as Error).message);
-      setUsulanBusy(false);
-    }
-  }
-
-  const iconFor = (a: ToolbarAction) => a.kind === 'edit' ? <Pencil className="size-4" /> : a.kind === 'delete' ? <Trash2 className="size-4" /> : <Plus className="size-4" />;
+  const iconFor = (a: ToolbarAction) =>
+    a.kind === "edit" ? (
+      <Pencil className="size-4" />
+    ) : a.kind === "delete" ? (
+      <Trash2 className="size-4" />
+    ) : (
+      <Plus className="size-4" />
+    );
 
   return (
     <div className="space-y-4">
@@ -314,11 +418,24 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
       <Card className="p-4">
         <div className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Tahun Anggaran" value={String(header.tahun_anggaran)} />
-          <Field label="Tahap Pagu" value={header.tahap_pagu ? (TAHAP_LABEL[header.tahap_pagu as TahapPagu] ?? header.tahap_pagu) : '—'} />
+          <Field
+            label="Tahap Pagu"
+            value={
+              header.tahap_pagu
+                ? (TAHAP_LABEL[header.tahap_pagu as TahapPagu] ??
+                  header.tahap_pagu)
+                : "—"
+            }
+          />
           <div>
             <div className="text-xs text-muted-foreground">Status</div>
-            <div className={'font-medium ' + (isFinal ? 'text-emerald-600 dark:text-emerald-400' : '')}>
-              {isFinal ? 'Final (Selesai)' : status}
+            <div
+              className={
+                "font-medium " +
+                (isFinal ? "text-emerald-600 dark:text-emerald-400" : "")
+              }
+            >
+              {isFinal ? "Final (Selesai)" : status}
             </div>
           </div>
           <Field label="BA" value={`${header.ba}`} />
@@ -334,12 +451,19 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
           {actions.map((a, i) => (
             <Button
               key={a.key}
-              variant={a.kind === 'delete' ? 'destructive' : a.kind === 'edit' ? 'secondary' : 'default'}
+              variant={
+                a.kind === "delete"
+                  ? "destructive"
+                  : a.kind === "edit"
+                    ? "secondary"
+                    : "default"
+              }
               size="sm"
               disabled={isFinal}
               onClick={() => handleAction(a)}
             >
-              {iconFor(a)} {a.kind === 'add' ? `${i + 1}. ` : ''}{a.label}
+              {iconFor(a)} {a.kind === "add" ? `${i + 1}. ` : ""}
+              {a.label}
             </Button>
           ))}
         </div>
@@ -348,36 +472,42 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
             Pagu : {fmtN(total)}
           </div>
           {isFinal ? (
-            <>
+            <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2.5 py-1 text-sm font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                 <Lock className="size-4" /> Tahap Final
               </span>
-              <Button variant="secondary" size="sm" disabled={usulanBusy} onClick={onReopen}>
-                <RotateCcw className="size-4" /> {usulanBusy ? 'Memproses…' : 'Buka Kembali'}
-              </Button>
-            </>
-          ) : (
-            <>
               <Button
-                variant="default"
+                variant="outline"
                 size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700"
-                disabled={finalizing}
-                onClick={onFinalize}
+                disabled={reopening}
+                onClick={onReopen}
+                title="Kembalikan ke Draft agar rincian dapat diubah lagi"
               >
-                <CheckCircle2 className="size-4" /> {finalizing ? 'Memproses…' : 'Finalkan Tahap'}
+                <Unlock className="size-4" />{" "}
+                {reopening ? "Memproses…" : "Buka Finalisasi"}
               </Button>
-              <Button variant="destructive" size="sm" disabled={usulanBusy} onClick={onDeleteUsulan}>
-                <Trash2 className="size-4" /> Hapus Usulan
-              </Button>
-            </>
+            </div>
+          ) : (
+            <Button
+              variant="default"
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700"
+              disabled={finalizing}
+              onClick={onFinalize}
+            >
+              <CheckCircle2 className="size-4" />{" "}
+              {finalizing ? "Memproses…" : "Finalkan Tahap"}
+            </Button>
           )}
         </div>
       </div>
 
       {isFinal && (
         <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
-          Tahap ini sudah <strong>Final</strong> dan terkunci dari perubahan. Tahap pagu berikutnya kini dapat dibuat dari halaman Penganggaran.
+          Tahap ini sudah <strong>Final</strong> dan terkunci dari perubahan.
+          Tahap pagu berikutnya kini dapat dibuat dari halaman Penganggaran. Bila
+          masih perlu mengubah rincian, gunakan tombol{" "}
+          <strong>Buka Finalisasi</strong> di atas.
         </p>
       )}
 
@@ -385,14 +515,31 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
       <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
         <span className="flex items-center gap-1.5 text-muted-foreground">
           {saving ? (
-            <><Loader2 className="size-3.5 animate-spin" /> Menyimpan…</>
+            <>
+              <Loader2 className="size-3.5 animate-spin" /> Menyimpan…
+            </>
           ) : lastSavedAt ? (
-            <><CheckCircle2 className="size-3.5 text-emerald-600" /> Tersimpan otomatis · pukul {lastSavedAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</>
+            <>
+              <CheckCircle2 className="size-3.5 text-emerald-600" /> Tersimpan
+              otomatis · pukul{" "}
+              {lastSavedAt.toLocaleTimeString("id-ID", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </>
           ) : (
-            <><CheckCircle2 className="size-3.5 text-emerald-600" /> Setiap perubahan tersimpan otomatis</>
+            <>
+              <CheckCircle2 className="size-3.5 text-emerald-600" /> Setiap
+              perubahan tersimpan otomatis
+            </>
           )}
         </span>
-        <Button variant="secondary" size="sm" onClick={onSave} disabled={saving}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onSave}
+          disabled={saving}
+        >
           <Save className="size-4" /> Simpan
         </Button>
       </div>
@@ -400,8 +547,9 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
       <TreeGrid rows={display} selectedId={selectedId} onSelect={select} />
 
       <p className="text-xs text-muted-foreground">
-        Klik baris untuk memilih — tombol menyesuaikan level (Program → Kegiatan → KRO → RO → Komponen → Sub Komponen → Akun → Detail).
-        Jumlah & pagu dihitung otomatis oleh database.
+        Klik baris untuk memilih — tombol menyesuaikan level (Program → Kegiatan
+        → KRO → RO → Komponen → Sub Komponen → Akun → Detail). Jumlah & pagu
+        dihitung otomatis oleh database.
       </p>
 
       {/* Modals */}
@@ -409,12 +557,17 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
         <ReferencePicker
           open
           title={
-            picker.level === 'PROGRAM' ? 'Pilih Program'
-              : picker.level === 'KEGIATAN' ? 'Pilih Kegiatan'
-              : picker.level === 'KRO' ? 'Pilih KRO'
-              : picker.level === 'RO' ? 'Pilih RO'
-              : picker.level === 'KOMPONEN' ? 'Form Pencarian Komponen'
-              : 'Form Pencarian Akun'
+            picker.level === "PROGRAM"
+              ? "Pilih Program"
+              : picker.level === "KEGIATAN"
+                ? "Pilih Kegiatan"
+                : picker.level === "KRO"
+                  ? "Pilih KRO"
+                  : picker.level === "RO"
+                    ? "Pilih RO"
+                    : picker.level === "KOMPONEN"
+                      ? "Form Pencarian Komponen"
+                      : "Form Pencarian Akun"
           }
           query={picker.query}
           extraHead={picker.extraHead}
@@ -423,8 +576,18 @@ export function PenganggaranClient({ header, initialRows }: { header: UsulanHead
           onClose={() => setPicker(null)}
         />
       )}
-      <SubKomponenForm open={!!subkompParent} onSubmit={onSubmitSubkomp} onClose={() => setSubkompParent(null)} />
-      <DetailForm open={!!detail} initial={detail?.initial} akunInfo={detail?.akunInfo} onSubmit={onSubmitDetail} onClose={() => setDetail(null)} />
+      <SubKomponenForm
+        open={!!subkompParent}
+        onSubmit={onSubmitSubkomp}
+        onClose={() => setSubkompParent(null)}
+      />
+      <DetailForm
+        open={!!detail}
+        initial={detail?.initial}
+        akunInfo={detail?.akunInfo}
+        onSubmit={onSubmitDetail}
+        onClose={() => setDetail(null)}
+      />
     </div>
   );
 }
