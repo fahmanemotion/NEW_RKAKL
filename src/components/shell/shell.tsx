@@ -71,7 +71,7 @@ export function Shell({ user, children }: { user: CurrentUser; children: React.R
         <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-card/80 px-4 backdrop-blur">
           <button className="lg:hidden" onClick={() => setOpen(true)}><Menu className="size-5" /></button>
           <div className="hidden text-sm text-muted-foreground sm:block">
-            {user.satker_nama ?? 'Satker'} · TA berjalan
+            {user.satker_nama ?? 'Satker'}
           </div>
           <div className="ml-auto flex items-center gap-3">
             <ThemeToggle />
