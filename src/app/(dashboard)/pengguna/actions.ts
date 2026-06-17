@@ -10,6 +10,21 @@ import {
   type UserRow,
 } from "@/lib/pengguna-utils";
 
+// Hasil terstruktur agar pesan error nyata tetap terbaca di production build
+// (server action yang "throw" hanya menampilkan pesan generik + digest).
+export type ActionResult = { ok: true } | { ok: false; error: string };
+export type ListResult =
+  | { ok: true; users: UserRow[] }
+  | { ok: false; error: string };
+
+function isRedirectError(e: unknown): boolean {
+  const d = (e as { digest?: unknown })?.digest;
+  return typeof d === "string" && d.startsWith("NEXT_REDIRECT");
+}
+function msg(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
 /** Pastikan pemanggil adalah Administrator. Mengembalikan user saat ini. */
 async function requireAdmin() {
   const user = await requireUser();
@@ -20,36 +35,44 @@ async function requireAdmin() {
 }
 
 /** Daftar semua pengguna (gabungan auth + profil + peran + satker). */
-export async function listUsersAction(): Promise<UserRow[]> {
-  await requireAdmin();
-  const admin = createAdminClient();
+export async function listUsersAction(): Promise<ListResult> {
+  try {
+    await requireAdmin();
+    const admin = createAdminClient();
 
-  const { data: list, error } = await admin.auth.admin.listUsers({
-    page: 1,
-    perPage: 1000,
-  });
-  if (error) throw new Error(error.message);
+    const { data: list, error } = await admin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
+    if (error) throw new Error("Auth admin: " + error.message);
 
-  const [{ data: profiles }, { data: roles }, { data: satkers }] =
-    await Promise.all([
+    const [pr, rr, sr] = await Promise.all([
       admin
         .from("user_profiles")
         .select("id, nama, nip, jabatan, satker_id, role_id"),
       admin.from("roles").select("id, nama"),
       admin.from("master_satker").select("id, nama_satker, kode_satker"),
     ]);
+    if (pr.error) throw new Error("user_profiles: " + pr.error.message);
+    if (rr.error) throw new Error("roles: " + rr.error.message);
+    if (sr.error) throw new Error("master_satker: " + sr.error.message);
 
-  return mergeUsers(
-    (list?.users ?? []).map((u) => ({
-      id: u.id,
-      email: u.email ?? null,
-      created_at: u.created_at ?? "",
-      last_sign_in_at: u.last_sign_in_at ?? null,
-    })),
-    (profiles ?? []) as never[],
-    (roles ?? []) as never[],
-    (satkers ?? []) as never[],
-  );
+    const users = mergeUsers(
+      (list?.users ?? []).map((u) => ({
+        id: u.id,
+        email: u.email ?? null,
+        created_at: u.created_at ?? "",
+        last_sign_in_at: u.last_sign_in_at ?? null,
+      })),
+      (pr.data ?? []) as never[],
+      (rr.data ?? []) as never[],
+      (sr.data ?? []) as never[],
+    );
+    return { ok: true, users };
+  } catch (e) {
+    if (isRedirectError(e)) throw e;
+    return { ok: false, error: msg(e) };
+  }
 }
 
 export interface CreateUserInput {
@@ -63,48 +86,53 @@ export interface CreateUserInput {
 }
 
 /** Buat akun baru + lengkapi profil (peran & satker). */
-export async function createUserAction(input: CreateUserInput): Promise<void> {
-  await requireAdmin();
-  const err = validateNewUser({
-    email: input.email,
-    password: input.password,
-    nama: input.nama,
-    roleId: input.roleId,
-    satkerId: input.satkerId,
-  });
-  if (err) throw new Error(err);
+export async function createUserAction(
+  input: CreateUserInput,
+): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const err = validateNewUser({
+      email: input.email,
+      password: input.password,
+      nama: input.nama,
+      roleId: input.roleId,
+      satkerId: input.satkerId,
+    });
+    if (err) throw new Error(err);
 
-  const admin = createAdminClient();
-  const { data: created, error } = await admin.auth.admin.createUser({
-    email: input.email.trim(),
-    password: input.password,
-    email_confirm: true,
-    user_metadata: { nama: input.nama.trim() },
-  });
-  if (error) throw new Error(error.message);
-  const id = created.user?.id;
-  if (!id) throw new Error("Gagal membuat akun.");
+    const admin = createAdminClient();
+    const { data: created, error } = await admin.auth.admin.createUser({
+      email: input.email.trim(),
+      password: input.password,
+      email_confirm: true,
+      user_metadata: { nama: input.nama.trim() },
+    });
+    if (error) throw new Error(error.message);
+    const id = created.user?.id;
+    if (!id) throw new Error("Gagal membuat akun.");
 
-  // Trigger DB membuat baris profil; pakai upsert agar peran/satker pasti
-  // tersimpan walau ada selisih waktu dengan trigger.
-  const { error: upErr } = await admin.from("user_profiles").upsert(
-    {
-      id,
-      nama: input.nama.trim(),
-      nip: input.nip?.trim() || null,
-      jabatan: input.jabatan?.trim() || null,
-      role_id: input.roleId,
-      satker_id: input.satkerId || null,
-    },
-    { onConflict: "id" },
-  );
-  if (upErr) {
-    // Rollback akun bila pelengkapan profil gagal, agar tak ada akun setengah jadi.
-    await admin.auth.admin.deleteUser(id);
-    throw new Error("Gagal menyimpan profil: " + upErr.message);
+    const { error: upErr } = await admin.from("user_profiles").upsert(
+      {
+        id,
+        nama: input.nama.trim(),
+        nip: input.nip?.trim() || null,
+        jabatan: input.jabatan?.trim() || null,
+        role_id: input.roleId,
+        satker_id: input.satkerId || null,
+      },
+      { onConflict: "id" },
+    );
+    if (upErr) {
+      await admin.auth.admin.deleteUser(id);
+      throw new Error("Gagal menyimpan profil: " + upErr.message);
+    }
+
+    revalidatePath("/pengguna");
+    return { ok: true };
+  } catch (e) {
+    if (isRedirectError(e)) throw e;
+    return { ok: false, error: msg(e) };
   }
-
-  revalidatePath("/pengguna");
 }
 
 export interface UpdateUserInput {
@@ -117,65 +145,84 @@ export interface UpdateUserInput {
 }
 
 /** Ubah profil & peran pengguna. */
-export async function updateUserAction(input: UpdateUserInput): Promise<void> {
-  const me = await requireAdmin();
-  const err = validateEditUser({ nama: input.nama, roleId: input.roleId });
-  if (err) throw new Error(err);
+export async function updateUserAction(
+  input: UpdateUserInput,
+): Promise<ActionResult> {
+  try {
+    const me = await requireAdmin();
+    const err = validateEditUser({ nama: input.nama, roleId: input.roleId });
+    if (err) throw new Error(err);
 
-  const admin = createAdminClient();
+    const admin = createAdminClient();
 
-  // Pengaman: admin tidak boleh menurunkan/mengubah perannya sendiri.
-  if (input.id === me.id) {
-    const { data: cur } = await admin
-      .from("user_profiles")
-      .select("role_id")
-      .eq("id", me.id)
-      .single();
-    if (cur && (cur as { role_id: string | null }).role_id !== input.roleId) {
-      throw new Error(
-        "Anda tidak dapat mengubah peran akun Anda sendiri (mencegah kehilangan akses).",
-      );
+    if (input.id === me.id) {
+      const { data: cur } = await admin
+        .from("user_profiles")
+        .select("role_id")
+        .eq("id", me.id)
+        .single();
+      if (cur && (cur as { role_id: string | null }).role_id !== input.roleId) {
+        throw new Error(
+          "Anda tidak dapat mengubah peran akun Anda sendiri (mencegah kehilangan akses).",
+        );
+      }
     }
+
+    const { error } = await admin
+      .from("user_profiles")
+      .update({
+        nama: input.nama.trim(),
+        nip: input.nip?.trim() || null,
+        jabatan: input.jabatan?.trim() || null,
+        role_id: input.roleId,
+        satker_id: input.satkerId || null,
+      })
+      .eq("id", input.id);
+    if (error) throw new Error(error.message);
+
+    revalidatePath("/pengguna");
+    return { ok: true };
+  } catch (e) {
+    if (isRedirectError(e)) throw e;
+    return { ok: false, error: msg(e) };
   }
-
-  const { error } = await admin
-    .from("user_profiles")
-    .update({
-      nama: input.nama.trim(),
-      nip: input.nip?.trim() || null,
-      jabatan: input.jabatan?.trim() || null,
-      role_id: input.roleId,
-      satker_id: input.satkerId || null,
-    })
-    .eq("id", input.id);
-  if (error) throw new Error(error.message);
-
-  revalidatePath("/pengguna");
 }
 
 /** Setel ulang password seorang pengguna. */
 export async function resetPasswordAction(
   id: string,
   password: string,
-): Promise<void> {
-  await requireAdmin();
-  const err = validatePassword(password);
-  if (err) throw new Error(err);
+): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const err = validatePassword(password);
+    if (err) throw new Error(err);
 
-  const admin = createAdminClient();
-  const { error } = await admin.auth.admin.updateUserById(id, { password });
-  if (error) throw new Error(error.message);
+    const admin = createAdminClient();
+    const { error } = await admin.auth.admin.updateUserById(id, { password });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  } catch (e) {
+    if (isRedirectError(e)) throw e;
+    return { ok: false, error: msg(e) };
+  }
 }
 
 /** Hapus akun pengguna (profil ikut terhapus via cascade). */
-export async function deleteUserAction(id: string): Promise<void> {
-  const me = await requireAdmin();
-  if (id === me.id) {
-    throw new Error("Anda tidak dapat menghapus akun Anda sendiri.");
-  }
-  const admin = createAdminClient();
-  const { error } = await admin.auth.admin.deleteUser(id);
-  if (error) throw new Error(error.message);
+export async function deleteUserAction(id: string): Promise<ActionResult> {
+  try {
+    const me = await requireAdmin();
+    if (id === me.id) {
+      throw new Error("Anda tidak dapat menghapus akun Anda sendiri.");
+    }
+    const admin = createAdminClient();
+    const { error } = await admin.auth.admin.deleteUser(id);
+    if (error) throw new Error(error.message);
 
-  revalidatePath("/pengguna");
+    revalidatePath("/pengguna");
+    return { ok: true };
+  } catch (e) {
+    if (isRedirectError(e)) throw e;
+    return { ok: false, error: msg(e) };
+  }
 }

@@ -78,7 +78,9 @@ export function PenggunaClient({
     setRefreshing(true);
     setLoadError(null);
     try {
-      setUsers(await listUsersAction());
+      const res = await listUsersAction();
+      if (res.ok) setUsers(res.users);
+      else setLoadError(res.error);
     } catch (e) {
       setLoadError((e as Error).message);
     } finally {
@@ -310,7 +312,11 @@ export function PenggunaClient({
                                 )
                                   return;
                                 try {
-                                  await deleteUserAction(u.id);
+                                  const res = await deleteUserAction(u.id);
+                                  if (!res.ok) {
+                                    alert(res.error);
+                                    return;
+                                  }
                                   await refresh();
                                 } catch (e) {
                                   alert((e as Error).message);
@@ -507,8 +513,9 @@ function UserFormDialog({
     setBusy(true);
     setErr(null);
     try {
+      let res;
       if (mode === "add") {
-        await createUserAction({
+        res = await createUserAction({
           email,
           password,
           nama,
@@ -518,7 +525,7 @@ function UserFormDialog({
           satkerId: satkerId || undefined,
         });
       } else if (initial) {
-        await updateUserAction({
+        res = await updateUserAction({
           id: initial.id,
           nama,
           nip,
@@ -526,6 +533,10 @@ function UserFormDialog({
           roleId,
           satkerId: satkerId || undefined,
         });
+      }
+      if (res && !res.ok) {
+        setErr(res.error);
+        return;
       }
       onDone();
     } catch (e) {
@@ -661,7 +672,11 @@ function ResetPasswordDialog({
     setBusy(true);
     setErr(null);
     try {
-      await resetPasswordAction(user.id, pw);
+      const res = await resetPasswordAction(user.id, pw);
+      if (!res.ok) {
+        setErr(res.error);
+        return;
+      }
       setDone(true);
     } catch (e) {
       setErr((e as Error).message);
