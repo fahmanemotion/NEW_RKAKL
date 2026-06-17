@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import * as XLSX from "xlsx";
+import XLSX from "xlsx-js-style";
 import { Loader2, Inbox, Download } from "lucide-react";
 import { Card, Select, Button, Badge } from "@/components/ui";
 import { createClient } from "@/lib/supabase";
@@ -332,23 +332,26 @@ function emptyRow(): (string | number | null)[] {
   return new Array(33).fill(null);
 }
 
-function bucketsToRow(
-  row: (string | number | null)[],
-  b: KKBuckets,
-  jumlah: number,
-) {
-  row[C.JUMLAH] = jumlah;
-  row[C.PEG_RM] = b.pegRM || null;
-  row[C.BAR_OPS_RM] = b.barOpsRM || null;
-  row[C.BAR_OPS_BLU] = b.barOpsBLU || null;
-  row[C.BAR_NON_RM] = b.barNonRM || null;
-  row[C.BAR_NON_BLU] = b.barNonBLU || null;
-  row[C.MODAL] = b.modal || null;
-  row[C.SUM_RM] = b.rm || null;
-  row[C.SUM_BLU] = b.blu || null;
-  row[C.SUM_SBSN] = b.sbsn || null;
-  row[C.JUMLAH_RAYA] = jumlah;
-}
+// Warna latar per level hierarki (RGB hex, tanpa alfa).
+const LEVEL_FILL: Record<string, string> = {
+  UNIT: "1F3864", // biru tua
+  PROGRAM: "2E75B6", // biru
+  KEGIATAN: "9DC3E6", // biru muda
+  KRO: "70AD47", // hijau
+  RO: "C6E0B4", // hijau muda
+  KOMPONEN: "FFD966", // kuning
+  SUB_KOMPONEN: "F4B183", // oranye muda
+  AKUN: "D9D9D9", // abu
+  DETAIL: "FFFFFF", // putih
+};
+const LEVEL_WHITE_FONT: Record<string, boolean> = {
+  UNIT: true,
+  PROGRAM: true,
+  KRO: true,
+};
+
+const THIN = { style: "thin", color: { rgb: "9CA3AF" } };
+const ALL_BORDERS = { top: THIN, bottom: THIN, left: THIN, right: THIN };
 
 function buildWorkbook(
   kkRows: KKRow[],
@@ -373,7 +376,7 @@ function buildWorkbook(
   r = emptyRow();
   r[C.KODE] = `T.A ${header.tahun}`;
   aoa.push(r);
-  aoa.push(emptyRow()); // baris kosong
+  aoa.push(emptyRow());
 
   // Header tabel (baris 5–8)
   r = emptyRow();
@@ -399,63 +402,36 @@ function buildWorkbook(
   aoa.push(r);
 
   r = emptyRow();
-  r[C.E] = 1;
-  r[C.F] = "sat";
-  r[C.G] = "x";
-  r[C.H] = 2;
-  r[C.I] = "sat";
-  r[C.J] = "x";
-  r[C.K] = 3;
-  r[C.L] = "sat";
-  r[C.M] = "x";
-  r[C.N] = 4;
-  r[C.O] = "sat";
-  r[C.P] = "x";
-  r[C.Q] = 5;
-  r[C.R] = "sat";
-  r[C.PEG_RM] = "RM";
-  r[C.BAR_OPS_RM] = "RM";
-  r[C.BAR_OPS_BLU] = "BLU";
-  r[C.BAR_NON_RM] = "RM";
-  r[C.BAR_NON_BLU] = "BLU";
-  r[C.MODAL] = "SBSN";
-  r[C.SUM_RM] = "RM";
-  r[C.SUM_BLU] = "BLU";
-  r[C.SUM_SBSN] = "SBSN";
+  r[C.E] = 1; r[C.F] = "sat"; r[C.G] = "x";
+  r[C.H] = 2; r[C.I] = "sat"; r[C.J] = "x";
+  r[C.K] = 3; r[C.L] = "sat"; r[C.M] = "x";
+  r[C.N] = 4; r[C.O] = "sat"; r[C.P] = "x";
+  r[C.Q] = 5; r[C.R] = "sat";
+  r[C.PEG_RM] = "RM"; r[C.BAR_OPS_RM] = "RM"; r[C.BAR_OPS_BLU] = "BLU";
+  r[C.BAR_NON_RM] = "RM"; r[C.BAR_NON_BLU] = "BLU"; r[C.MODAL] = "SBSN";
+  r[C.SUM_RM] = "RM"; r[C.SUM_BLU] = "BLU"; r[C.SUM_SBSN] = "SBSN";
   aoa.push(r);
 
   r = emptyRow();
-  r[C.KODE] = "a";
-  r[C.URAIAN] = "b";
-  r[3] = "c";
-  r[C.E] = "e";
-  r[C.H] = "f";
-  r[C.K] = "g";
-  r[C.N] = "h";
-  r[C.Q] = "i";
-  r[C.VOL] = "j";
-  r[C.SATUAN] = "k";
-  r[C.HARGA] = "l";
-  r[C.JUMLAH] = "m";
-  r[C.PEG_RM] = "n";
-  r[C.BAR_OPS_RM] = "o";
-  r[C.BAR_OPS_BLU] = "p";
-  r[C.BAR_NON_RM] = "q";
-  r[C.BAR_NON_BLU] = "r";
-  r[C.SUM_RM] = "s";
-  r[C.SUM_BLU] = "t";
-  r[C.JUMLAH_RAYA] = "u";
-  r[C.SUMBER] = "v";
+  r[C.KODE] = "a"; r[C.URAIAN] = "b"; r[3] = "c"; r[C.E] = "e"; r[C.H] = "f";
+  r[C.K] = "g"; r[C.N] = "h"; r[C.Q] = "i"; r[C.VOL] = "j"; r[C.SATUAN] = "k";
+  r[C.HARGA] = "l"; r[C.JUMLAH] = "m"; r[C.PEG_RM] = "n"; r[C.BAR_OPS_RM] = "o";
+  r[C.BAR_OPS_BLU] = "p"; r[C.BAR_NON_RM] = "q"; r[C.BAR_NON_BLU] = "r";
+  r[C.SUM_RM] = "s"; r[C.SUM_BLU] = "t"; r[C.JUMLAH_RAYA] = "u"; r[C.SUMBER] = "v";
   aoa.push(r);
 
-  // Baris total unit (mis. 022.12)
+  // Baris total unit (mis. 022.12) — excel row 9
   r = emptyRow();
   r[C.KODE] = header.unitKode;
   r[C.URAIAN] = header.satkerNama;
-  bucketsToRow(r, total, totalJumlah);
+  fillNumbers(r, total, totalJumlah);
   aoa.push(r);
 
-  // Baris data
+  // Baris data — mulai excel row 10
+  const DATA_START = 10; // 1-based
+  const idToRow = new Map<string, number>();
+  kkRows.forEach((k, i) => idToRow.set(k.id, DATA_START + i));
+
   for (const k of kkRows) {
     r = emptyRow();
     if (!k.isDetail) r[C.KODE] = k.kode;
@@ -465,7 +441,7 @@ function buildWorkbook(
       r[C.SATUAN] = k.satuan ?? null;
     }
     if (k.harga != null && k.harga > 0) r[C.HARGA] = k.harga;
-    bucketsToRow(r, k.buckets, k.jumlah);
+    fillNumbers(r, k.buckets, k.jumlah);
     if (k.level === "AKUN" && k.sumber && k.sumber !== "-")
       r[C.SUMBER] = k.sumber;
     aoa.push(r);
@@ -473,47 +449,208 @@ function buildWorkbook(
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
 
+  // ── Rumus (live) ──────────────────────────────────────────────────────────
+  const NUM_COLS = [
+    C.JUMLAH, C.PEG_RM, C.BAR_OPS_RM, C.BAR_OPS_BLU, C.BAR_NON_RM,
+    C.BAR_NON_BLU, C.MODAL, C.SUM_RM, C.SUM_BLU, C.SUM_SBSN, C.JUMLAH_RAYA,
+  ];
+  const ref = (row1: number, col0: number) =>
+    XLSX.utils.encode_cell({ r: row1 - 1, c: col0 });
+  const colLetter = (c: number) => XLSX.utils.encode_col(c);
+  const setF = (row1: number, col0: number, f: string, v: number) => {
+    const a = ref(row1, col0);
+    ws[a] = { ...(ws[a] || {}), t: "n", f, v };
+  };
+
+  // bucket key → kolom (untuk detail)
+  const bucketCol: Record<string, number> = {
+    pegRM: C.PEG_RM, barOpsRM: C.BAR_OPS_RM, barOpsBLU: C.BAR_OPS_BLU,
+    barNonRM: C.BAR_NON_RM, barNonBLU: C.BAR_NON_BLU, modal: C.MODAL,
+  };
+  const sumberCol: Record<string, number> = {
+    rm: C.SUM_RM, blu: C.SUM_BLU, sbsn: C.SUM_SBSN,
+  };
+
+  // anak langsung tiap node
+  const childrenRows = new Map<string, number[]>();
+  for (const k of kkRows) {
+    if (k.parentId) {
+      const arr = childrenRows.get(k.parentId) ?? [];
+      arr.push(idToRow.get(k.id)!);
+      childrenRows.set(k.parentId, arr);
+    }
+  }
+  // anak langsung untuk baris unit = semua PROGRAM (top-level)
+  const programRows = kkRows
+    .filter((k) => k.parentId == null || !idToRow.has(k.parentId))
+    .map((k) => idToRow.get(k.id)!);
+
+  for (const k of kkRows) {
+    const row1 = idToRow.get(k.id)!;
+    if (k.isDetail) {
+      const hasCalc =
+        k.vol != null && k.vol > 0 && k.harga != null && k.harga > 0;
+      if (hasCalc) {
+        setF(
+          row1,
+          C.JUMLAH,
+          `${colLetter(C.VOL)}${row1}*${colLetter(C.HARGA)}${row1}`,
+          k.jumlah,
+        );
+      } else {
+        ws[ref(row1, C.JUMLAH)] = { t: "n", v: k.jumlah };
+      }
+      const vRef = `${colLetter(C.JUMLAH)}${row1}`;
+      const bk = (Object.keys(bucketCol) as (keyof KKBuckets)[]).find(
+        (key) => k.buckets[key] > 0,
+      );
+      if (bk) setF(row1, bucketCol[bk], `=${vRef}`, k.buckets[bk]);
+      const sk = (["rm", "blu", "sbsn"] as (keyof KKBuckets)[]).find(
+        (key) => k.buckets[key] > 0,
+      );
+      if (sk) setF(row1, sumberCol[sk], `=${vRef}`, k.buckets[sk]);
+      setF(row1, C.JUMLAH_RAYA, `=${vRef}`, k.jumlah);
+    } else {
+      const kids = childrenRows.get(k.id) ?? [];
+      if (kids.length) {
+        for (const col of NUM_COLS) {
+          const cl = colLetter(col);
+          const f = kids.map((cr) => `${cl}${cr}`).join("+");
+          // nilai cache
+          let v = 0;
+          if (col === C.JUMLAH || col === C.JUMLAH_RAYA) v = k.jumlah;
+          else if (col === C.PEG_RM) v = k.buckets.pegRM;
+          else if (col === C.BAR_OPS_RM) v = k.buckets.barOpsRM;
+          else if (col === C.BAR_OPS_BLU) v = k.buckets.barOpsBLU;
+          else if (col === C.BAR_NON_RM) v = k.buckets.barNonRM;
+          else if (col === C.BAR_NON_BLU) v = k.buckets.barNonBLU;
+          else if (col === C.MODAL) v = k.buckets.modal;
+          else if (col === C.SUM_RM) v = k.buckets.rm;
+          else if (col === C.SUM_BLU) v = k.buckets.blu;
+          else if (col === C.SUM_SBSN) v = k.buckets.sbsn;
+          setF(row1, col, `=${f}`, v);
+        }
+      }
+    }
+  }
+
+  // baris unit (row 9) = jumlah semua program
+  if (programRows.length) {
+    for (const col of NUM_COLS) {
+      const cl = colLetter(col);
+      const f = programRows.map((cr) => `${cl}${cr}`).join("+");
+      let v = 0;
+      if (col === C.JUMLAH || col === C.JUMLAH_RAYA) v = totalJumlah;
+      else if (col === C.PEG_RM) v = total.pegRM;
+      else if (col === C.BAR_OPS_RM) v = total.barOpsRM;
+      else if (col === C.BAR_OPS_BLU) v = total.barOpsBLU;
+      else if (col === C.BAR_NON_RM) v = total.barNonRM;
+      else if (col === C.BAR_NON_BLU) v = total.barNonBLU;
+      else if (col === C.MODAL) v = total.modal;
+      else if (col === C.SUM_RM) v = total.rm;
+      else if (col === C.SUM_BLU) v = total.blu;
+      else if (col === C.SUM_SBSN) v = total.sbsn;
+      setF(9, col, `=${f}`, v);
+    }
+  }
+
+  // ── Gaya (warna per level + border) ──────────────────────────────────────
+  // Judul
+  for (let i = 0; i < 3; i++) {
+    const a = ref(i + 1, C.KODE);
+    ws[a] = ws[a] || { t: "s", v: "" };
+    ws[a].s = { font: { bold: true, sz: i === 0 ? 12 : 10 } };
+  }
+  // Header tabel (baris 5–8)
+  for (let row1 = 5; row1 <= 8; row1++) {
+    for (let c = 1; c <= 32; c++) {
+      const a = ref(row1, c);
+      ws[a] = ws[a] || { t: "s", v: "" };
+      ws[a].s = {
+        font: { bold: true, sz: 9, color: { rgb: "FFFFFF" } },
+        fill: { patternType: "solid", fgColor: { rgb: "44546A" } },
+        alignment: { horizontal: "center", vertical: "center", wrapText: true },
+        border: ALL_BORDERS,
+      };
+    }
+  }
+  // Baris unit (9)
+  styleDataRow(ws, ref, 9, "UNIT");
+  // Baris data
+  kkRows.forEach((k, i) => styleDataRow(ws, ref, DATA_START + i, k.level));
+
+  // Merges + lebar kolom (sama seperti sebelumnya)
   const m = (sr: number, sc: number, er: number, ec: number) => ({
     s: { r: sr, c: sc },
     e: { r: er, c: ec },
   });
   ws["!merges"] = [
-    // judul melebar
-    m(0, 1, 0, 32),
-    m(1, 1, 1, 32),
-    m(2, 1, 2, 32),
-    // header tabel
-    m(4, 1, 6, 1), // KODE
-    m(4, 2, 6, 3), // URAIAN
-    m(4, 4, 5, 17), // Detail
-    m(4, 18, 6, 18), // Vol
-    m(4, 19, 6, 19), // Satuan
-    m(4, 20, 6, 20), // Harga
-    m(4, 21, 6, 21), // Jumlah
-    m(4, 22, 4, 24), // Belanja Operasional
-    m(4, 25, 4, 27), // Belanja Non Operasional
-    m(4, 28, 5, 30), // Sumber Dana
-    m(4, 31, 6, 31), // Jumlah Raya
-    m(4, 32, 6, 32), // Sumber Dana label
-    m(5, 23, 5, 24), // Barang (ops) RM-BLU
-    m(5, 25, 5, 26), // Barang (non) RM-BLU
-    m(6, 4, 6, 6), // E:G
-    m(6, 7, 6, 9), // H:J
-    m(6, 10, 6, 12), // K:M
-    m(6, 13, 6, 15), // N:P
-    m(6, 16, 6, 17), // Q:R
+    m(0, 1, 0, 32), m(1, 1, 1, 32), m(2, 1, 2, 32),
+    m(4, 1, 6, 1), m(4, 2, 6, 3), m(4, 4, 5, 17), m(4, 18, 6, 18),
+    m(4, 19, 6, 19), m(4, 20, 6, 20), m(4, 21, 6, 21), m(4, 22, 4, 24),
+    m(4, 25, 4, 27), m(4, 28, 5, 30), m(4, 31, 6, 31), m(4, 32, 6, 32),
+    m(5, 23, 5, 24), m(5, 25, 5, 26), m(6, 4, 6, 6), m(6, 7, 6, 9),
+    m(6, 10, 6, 12), m(6, 13, 6, 15), m(6, 16, 6, 17),
   ];
-
   const widths: Record<number, number> = {
-    0: 5.2, 1: 12.7, 2: 3.7, 3: 33.7, 4: 4.3, 5: 5.3, 6: 1.8, 7: 4.2,
+    0: 5.2, 1: 13.5, 2: 40, 3: 3.7, 4: 4.3, 5: 5.3, 6: 1.8, 7: 4.2,
     8: 8.5, 9: 1.8, 10: 3.7, 11: 8.7, 12: 1.8, 13: 4.7, 14: 6.7, 15: 1.8,
-    16: 2.7, 17: 8.7, 18: 6.2, 19: 8.7, 20: 14.3, 21: 13, 22: 15.5,
-    23: 12, 24: 13.8, 25: 13.5, 26: 18.2, 27: 12.5, 28: 11.7, 29: 12.5,
-    30: 12.5, 31: 13, 32: 9.5,
+    16: 2.7, 17: 8.7, 18: 6.2, 19: 8.7, 20: 14.3, 21: 14, 22: 14,
+    23: 12, 24: 13, 25: 12, 26: 16, 27: 12, 28: 12, 29: 12,
+    30: 12, 31: 14, 32: 9.5,
   };
   ws["!cols"] = Array.from({ length: 33 }, (_, i) => ({ wch: widths[i] ?? 10 }));
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "DETAIL");
   return wb;
+}
+
+function fillNumbers(
+  row: (string | number | null)[],
+  b: KKBuckets,
+  jumlah: number,
+) {
+  row[C.JUMLAH] = jumlah || null;
+  row[C.PEG_RM] = b.pegRM || null;
+  row[C.BAR_OPS_RM] = b.barOpsRM || null;
+  row[C.BAR_OPS_BLU] = b.barOpsBLU || null;
+  row[C.BAR_NON_RM] = b.barNonRM || null;
+  row[C.BAR_NON_BLU] = b.barNonBLU || null;
+  row[C.MODAL] = b.modal || null;
+  row[C.SUM_RM] = b.rm || null;
+  row[C.SUM_BLU] = b.blu || null;
+  row[C.SUM_SBSN] = b.sbsn || null;
+  row[C.JUMLAH_RAYA] = jumlah || null;
+}
+
+function styleDataRow(
+  ws: Record<string, any>,
+  ref: (row1: number, col0: number) => string,
+  row1: number,
+  level: string,
+) {
+  const fill = LEVEL_FILL[level] ?? "FFFFFF";
+  const white = LEVEL_WHITE_FONT[level] ?? false;
+  const bold =
+    level !== "DETAIL" && level !== "AKUN" ? true : level === "AKUN";
+  for (let c = 1; c <= 32; c++) {
+    const a = ref(row1, c);
+    ws[a] = ws[a] || { t: "s", v: "" };
+    const isNum = c >= 18 && c !== 19; // angka: Vol, Harga, Jumlah, buckets…
+    ws[a].s = {
+      font: {
+        sz: 9,
+        bold,
+        color: { rgb: white ? "FFFFFF" : "000000" },
+      },
+      fill: { patternType: "solid", fgColor: { rgb: fill } },
+      alignment: {
+        horizontal: c === 2 ? "left" : isNum ? "right" : "center",
+        vertical: "center",
+      },
+      border: ALL_BORDERS,
+      numFmt: isNum && c !== 18 ? "#,##0" : undefined,
+    };
+  }
 }

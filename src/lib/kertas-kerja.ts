@@ -42,6 +42,7 @@ export interface KKBuckets {
 
 export interface KKRow {
   id: string;
+  parentId: string | null;
   level: string;
   depth: number;
   kode: string;
@@ -203,6 +204,7 @@ export function buildKertasKerja(rows: UsulanStruktur[]): {
     const isDetail = n.level === "DETAIL";
     out.push({
       id: n.id,
+      parentId: n.parent_id ?? null,
       level: n.level,
       depth: DEPTH[n.level] ?? 0,
       kode: n.kode || "",
