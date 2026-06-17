@@ -9,9 +9,10 @@ import {
   Unlock,
   Save,
   Loader2,
+  Copy,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
-import { Button, Card } from "@/components/ui";
+import { Button, Card, Select } from "@/components/ui";
 import { flattenForGrid, type GridRow } from "@/lib/tree";
 import { toolbarActions, type ToolbarAction } from "@/lib/toolbar";
 import { fmtN, type Level } from "@/lib/constants";
@@ -28,6 +29,11 @@ import {
 } from "@/lib/penganggaran-api";
 import type { UsulanStruktur } from "@/types/database";
 import { reopenUsulanAction } from "@/app/(dashboard)/penganggaran/actions";
+import {
+  listCopySourcesAction,
+  copyAnggaranAction,
+  type CopySource,
+} from "@/app/(dashboard)/penganggaran/actions";
 import { TreeGrid } from "./tree-grid";
 import { ReferencePicker } from "./reference-picker";
 import { SubKomponenForm } from "./subkomponen-form";
@@ -92,6 +98,11 @@ export function PenganggaranClient({
   } | null>(null);
   const [detail, setDetail] = React.useState<DetailState>(null);
 
+  // Salin Anggaran (mulai cepat saat usulan masih Draft & kosong).
+  const [copySources, setCopySources] = React.useState<CopySource[]>([]);
+  const [copySourceId, setCopySourceId] = React.useState<string>("");
+  const [copying, setCopying] = React.useState(false);
+
   // Setiap penyegaran = data sudah tersinkron dengan database → tandai waktu tersimpan.
   const refresh = React.useCallback(async () => {
     const data = await fetchStruktur(header.id);
@@ -135,6 +146,48 @@ export function PenganggaranClient({
     () => flattenForGrid(rows, { kppn: header.kppn, lokus: header.lokus }),
     [rows, header.kppn, header.lokus],
   );
+
+  // Muat kandidat sumber salinan saat usulan masih Draft & belum berisi rincian.
+  const isEmptyDraft = header.status !== "Final" && rows.length === 0;
+  React.useEffect(() => {
+    if (!isEmptyDraft) {
+      setCopySources([]);
+      return;
+    }
+    let alive = true;
+    listCopySourcesAction(header.id).then((res) => {
+      if (!alive) return;
+      if (res.ok) setCopySources(res.sources);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [header.id, isEmptyDraft]);
+
+  async function onCopyAnggaran() {
+    if (!copySourceId) return;
+    const src = copySources.find((s) => s.id === copySourceId);
+    if (
+      !confirm(
+        `Salin seluruh kegiatan & rincian dari ${src ? labelSource(src) : "usulan terpilih"} ` +
+          `ke usulan ini sebagai Draft?\n\nSeluruh struktur dan nilainya akan disalin sehingga Anda tinggal menyesuaikan.`,
+      )
+    )
+      return;
+    setCopying(true);
+    try {
+      const res = await copyAnggaranAction(header.id, copySourceId);
+      if (!res.ok) {
+        alert("Gagal menyalin: " + res.error);
+        return;
+      }
+      await refresh();
+    } catch (e) {
+      alert("Gagal menyalin: " + (e as Error).message);
+    } finally {
+      setCopying(false);
+    }
+  }
 
   // Program & Kegiatan kini node nyata di pohon. Untuk usulan LAMA (belum punya
   // node PROGRAM), tampilkan baris Program/Kegiatan dari header sebagai fallback.
@@ -445,6 +498,60 @@ export function PenganggaranClient({
         </div>
       </Card>
 
+      {/* Mulai cepat: Salin Anggaran dari usulan lain (Draft & kosong) */}
+      {isEmptyDraft && copySources.length > 0 && (
+        <Card className="border-primary/30 bg-primary/5 p-4">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 rounded-md bg-primary/15 p-2 text-primary">
+              <Copy className="size-5" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-sm font-semibold">Mulai cepat — Salin Anggaran</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Usulan ini masih kosong. Salin seluruh kegiatan & rincian dari
+                tahap/tahun sebelumnya agar Anda tinggal menyesuaikan, tanpa
+                input ulang dari nol.
+              </p>
+              <div className="mt-3 flex flex-wrap items-end gap-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                    Sumber salinan
+                  </label>
+                  <Select
+                    value={copySourceId}
+                    onChange={(e) => setCopySourceId(e.target.value)}
+                    disabled={copying}
+                    className="min-w-[280px]"
+                  >
+                    <option value="">— Pilih usulan sumber —</option>
+                    {copySources.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {labelSource(s)}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <Button
+                  onClick={onCopyAnggaran}
+                  disabled={!copySourceId || copying}
+                  size="sm"
+                >
+                  {copying ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" /> Menyalin…
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="size-4" /> Salin ke Draft ini
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Toolbar dinamis + pagu */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
@@ -590,6 +697,11 @@ export function PenganggaranClient({
       />
     </div>
   );
+}
+
+function labelSource(s: CopySource): string {
+  const tahap = TAHAP_LABEL[s.tahap as TahapPagu] ?? s.tahap;
+  return `TA ${s.tahun} · ${tahap} · ${s.status} — Pagu ${fmtN(s.total)}`;
 }
 
 function Field({ label, value }: { label: string; value: string }) {
