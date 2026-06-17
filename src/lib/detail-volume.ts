@@ -38,3 +38,16 @@ export function effectiveVolume(
   if (useRincian) return computeVolume(segments).volume;
   return Number(manualVolume) || 0;
 }
+
+/**
+ * Segmen siap-simpan: hanya yang terisi (qty>0), qty dikonversi ke angka.
+ * Mengembalikan null bila tidak ada segmen valid (berarti volume tunggal/manual).
+ */
+export function normalizeSegments(
+  segments: VolSegment[],
+): { qty: number; sat: string }[] | null {
+  const used = segments
+    .map((s) => ({ qty: Number(s.qty) || 0, sat: (s.sat || "").trim() }))
+    .filter((s) => s.qty > 0);
+  return used.length > 0 ? used : null;
+}

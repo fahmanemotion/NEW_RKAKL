@@ -264,7 +264,20 @@ function KKRowView({ r }: { r: KKRow }) {
         </div>
       </td>
       <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums">
-        {r.vol != null ? `${fmtN(r.vol)} ${r.satuan ?? ""}` : ""}
+        {r.segments && r.segments.length > 1 ? (
+          <div className="flex flex-col items-end">
+            <span className="text-[11px] text-muted-foreground">
+              {r.segments.map((s) => `${fmtN(s.qty)} ${s.sat}`).join(" × ")}
+            </span>
+            <span>
+              {fmtN(r.vol)} {r.satuan ?? ""}
+            </span>
+          </div>
+        ) : r.vol != null ? (
+          `${fmtN(r.vol)} ${r.satuan ?? ""}`
+        ) : (
+          ""
+        )}
       </td>
       <td className="px-3 py-1.5 text-right font-mono tabular-nums">
         {r.harga != null && r.harga > 0 ? fmtN(r.harga) : ""}
@@ -327,6 +340,11 @@ const C = {
   JUMLAH_RAYA: 31, // AF
   SUMBER: 32, // AG
 };
+
+// Kolom qty/satuan/pemisah untuk hingga 5 segmen volume (area "Detail" E–R).
+const QTY_COLS = [C.E, C.H, C.K, C.N, C.Q]; // E,H,K,N,Q
+const SAT_COLS = [C.F, C.I, C.L, C.O, C.R]; // F,I,L,O,R
+const SEP_COLS = [C.G, C.J, C.M, C.P]; // pemisah "x" antar segmen
 
 function emptyRow(): (string | number | null)[] {
   return new Array(33).fill(null);
@@ -441,6 +459,13 @@ function buildWorkbook(
       r[C.SATUAN] = k.satuan ?? null;
     }
     if (k.harga != null && k.harga > 0) r[C.HARGA] = k.harga;
+    // Rincian volume bertingkat → kolom E–R (maks 5 segmen).
+    const segs = (k.segments ?? []).slice(0, 5);
+    segs.forEach((s, i) => {
+      r[QTY_COLS[i]] = s.qty;
+      r[SAT_COLS[i]] = s.sat;
+      if (i < segs.length - 1 && i < SEP_COLS.length) r[SEP_COLS[i]] = "x";
+    });
     fillNumbers(r, k.buckets, k.jumlah);
     if (k.level === "AKUN" && k.sumber && k.sumber !== "-")
       r[C.SUMBER] = k.sumber;
@@ -490,6 +515,14 @@ function buildWorkbook(
     if (k.isDetail) {
       const hasCalc =
         k.vol != null && k.vol > 0 && k.harga != null && k.harga > 0;
+      // Vol (S) = hasil kali segmen bila ada rincian bertingkat (≥2 segmen).
+      const segs = (k.segments ?? []).slice(0, 5);
+      if (segs.length >= 2) {
+        const qtyRefs = segs.map(
+          (_, i) => `${colLetter(QTY_COLS[i])}${row1}`,
+        );
+        setF(row1, C.VOL, `=${qtyRefs.join("*")}`, k.vol ?? 0);
+      }
       if (hasCalc) {
         setF(
           row1,

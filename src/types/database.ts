@@ -9,6 +9,9 @@ export type KategoriBelanja =
 
 export interface MasterRef { id: string; kode: string; nama: string }
 
+/** Segmen volume bertingkat tersimpan (mis. {qty:15, sat:"Org"}). */
+export interface VolRincianSegmen { qty: number; sat: string }
+
 export interface UsulanAnggaran {
   id: string;
   tahun_anggaran: number;
@@ -36,6 +39,7 @@ export interface UsulanStruktur {
   jumlah: number;
   sumber_dana: string | null;
   jenis_belanja: string | null;
+  volume_rincian: VolRincianSegmen[] | null;
   urutan: number;
   created_at: string;
   updated_at: string;

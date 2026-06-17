@@ -115,6 +115,7 @@ export async function upsertDetail(input: {
   harga: number;
   sumber_dana?: string | null; // diwarisi dari akun
   jenis_belanja?: string | null; // 'OPS' | 'NON_OPS'
+  segments?: { qty: number; sat: string }[] | null; // rincian volume bertingkat
 }): Promise<void> {
   const payload = {
     usulan_id: input.usulan_id,
@@ -126,6 +127,8 @@ export async function upsertDetail(input: {
     harga: input.harga,
     sumber_dana: input.sumber_dana ?? null,
     jenis_belanja: input.jenis_belanja ?? null,
+    volume_rincian:
+      input.segments && input.segments.length > 0 ? input.segments : null,
   };
   if (input.id) {
     const { error } = await sb()

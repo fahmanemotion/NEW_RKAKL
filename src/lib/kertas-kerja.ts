@@ -54,6 +54,7 @@ export interface KKRow {
   sumber: string; // label RM/BLU/SBSN (untuk baris AKUN) — selain itu ''
   buckets: KKBuckets;
   isDetail: boolean;
+  segments: { qty: number; sat: string }[] | null; // rincian volume bertingkat (DETAIL)
 }
 
 const DEPTH: Record<string, number> = {
@@ -218,6 +219,10 @@ export function buildKertasKerja(rows: UsulanStruktur[]): {
       sumber: n.level === "AKUN" ? normSumber(n.sumber_dana) : "",
       buckets: n._b ?? zero(),
       isDetail,
+      segments: isDetail
+        ? ((n as { volume_rincian?: { qty: number; sat: string }[] | null })
+            .volume_rincian ?? null)
+        : null,
     });
     if (!isDetail) n.children.forEach(emit);
   };

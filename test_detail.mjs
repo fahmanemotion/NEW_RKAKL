@@ -1,4 +1,4 @@
-import { computeVolume, computeJumlah, effectiveVolume } from './src/lib/detail-volume.ts';
+import { computeVolume, computeJumlah, effectiveVolume, normalizeSegments } from './src/lib/detail-volume.ts';
 import { JENIS_BELANJA } from './src/lib/constants.ts';
 let pass=0, fail=0; const ok=(c,m)=>{c?(pass++,console.log('  \u2713 '+m)):(fail++,console.log('  \u2717 '+m));};
 
@@ -46,5 +46,14 @@ ok(effectiveVolume(false, '', segs)===0,'mode manual kosong → 0');
 ok(effectiveVolume(true, 5, segs)===200,'mode rincian: Volkeg = 100 x 2 = 200 (abaikan manual)');
 ok(effectiveVolume(true, 999, [{qty:'',sat:''},{qty:'',sat:''},{qty:'',sat:''},{qty:'',sat:''}])===0,'mode rincian tanpa segmen → 0');
 ok(computeJumlah(effectiveVolume(false,3,segs),1000)===3000,'jumlah dari Volkeg manual 3 x 1000');
+
+
+// normalizeSegments — siap-simpan (hanya qty>0, qty->angka)
+const norm = normalizeSegments([{qty:'15',sat:'Org'},{qty:1,sat:'Hari'},{qty:'',sat:''},{qty:9,sat:'Keg'}]);
+ok(Array.isArray(norm) && norm.length===3,'normalizeSegments: 3 segmen terisi');
+ok(norm[0].qty===15 && norm[0].sat==='Org','segmen0 = {15, Org} (qty angka)');
+ok(norm[2].qty===9 && norm[2].sat==='Keg','segmen terakhir = {9, Keg}');
+ok(normalizeSegments([{qty:'',sat:'x'},{qty:0,sat:'y'}])===null,'tanpa segmen valid -> null');
+ok(normalizeSegments([{qty:5,sat:'OK'}]).length===1,'satu segmen valid -> array 1');
 
 console.log('\nHasil: '+pass+' lulus, '+fail+' gagal'); process.exit(fail?1:0);
