@@ -634,10 +634,19 @@ function styleDataRow(
   const white = LEVEL_WHITE_FONT[level] ?? false;
   const bold =
     level !== "DETAIL" && level !== "AKUN" ? true : level === "AKUN";
+  // Format yang menyembunyikan nilai 0 (bagian ketiga kosong): sel tetap berisi
+  // ANGKA 0 sehingga rumus penjumlahan tidak menghasilkan #VALUE!, namun tampil
+  // kosong di layar.
+  const moneyFmt = "#,##0;-#,##0;";
+  const volFmt = "#,##0.##;-#,##0.##;";
   for (let c = 1; c <= 32; c++) {
     const a = ref(row1, c);
-    ws[a] = ws[a] || { t: "s", v: "" };
-    const isNum = c >= 18 && c !== 19; // angka: Vol, Harga, Jumlah, buckets…
+    const isNum = c >= 18 && c !== 19; // angka: Vol(18), Harga(20), Jumlah(21), bucket/sumber/AF(22..31)
+    if (!ws[a]) {
+      // Sel kosong di kolom angka → angka 0 (bukan teks ""), agar aman saat
+      // dijumlahkan oleh rumus induk. Kolom non-angka tetap teks kosong.
+      ws[a] = isNum ? { t: "n", v: 0 } : { t: "s", v: "" };
+    }
     ws[a].s = {
       font: {
         sz: 9,
@@ -650,7 +659,7 @@ function styleDataRow(
         vertical: "center",
       },
       border: ALL_BORDERS,
-      numFmt: isNum && c !== 18 ? "#,##0" : undefined,
+      numFmt: c === 18 ? volFmt : isNum ? moneyFmt : undefined,
     };
   }
 }
