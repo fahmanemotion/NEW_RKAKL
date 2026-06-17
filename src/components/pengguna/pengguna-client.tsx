@@ -57,34 +57,40 @@ export function PenggunaClient({
   currentUser,
   roles,
   satkers,
-  initialUsers,
 }: {
   isAdmin: boolean;
   currentUser: CurrentUser;
   roles: Role[];
   satkers: Satker[];
-  initialUsers: UserRow[];
 }) {
-  const [users, setUsers] = React.useState<UserRow[]>(initialUsers);
+  const [users, setUsers] = React.useState<UserRow[]>([]);
   const [q, setQ] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState(ALL_ROLES);
   const [refreshing, setRefreshing] = React.useState(false);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
 
   const filtered = React.useMemo(
     () => filterUsers(users, q, roleFilter),
     [users, q, roleFilter],
   );
 
-  async function refresh() {
+  const refresh = React.useCallback(async () => {
     setRefreshing(true);
+    setLoadError(null);
     try {
       setUsers(await listUsersAction());
     } catch (e) {
-      alert((e as Error).message);
+      setLoadError((e as Error).message);
     } finally {
       setRefreshing(false);
     }
-  }
+  }, []);
+
+  // Muat daftar pengguna di sisi klien (butuh service-role) — bila gagal,
+  // tampilkan pesan, bukan merusak seluruh halaman.
+  React.useEffect(() => {
+    if (isAdmin) void refresh();
+  }, [isAdmin, refresh]);
 
   // Dialog state
   const [addOpen, setAddOpen] = React.useState(false);
@@ -202,7 +208,28 @@ export function PenggunaClient({
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {loadError ? (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-10 text-center">
+                      <p className="mx-auto max-w-md rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                        Gagal memuat daftar pengguna: {loadError}
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="mt-3"
+                        onClick={refresh}
+                      >
+                        Coba lagi
+                      </Button>
+                    </td>
+                  </tr>
+                ) : refreshing && users.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-12 text-center">
+                      <Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" />
+                    </td>
+                  </tr>
+                ) : filtered.length === 0 ? (
                   <tr>
                     <td
                       colSpan={5}
