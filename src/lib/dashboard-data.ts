@@ -27,6 +27,7 @@ export interface DashAkunRow {
   kroKode: string;
   roKode: string;
   pagu: number;
+  jenisBelanja: string; // PEGAWAI / BARANG / MODAL / LAINNYA (dari prefiks kode akun)
   sumberSet: string[]; // mis. ['RM'] atau ['RM','BLU']
   kategoriSet: string[]; // mis. ['OPS'] / ['NON'] / keduanya
   details: DashDetailRow[];
@@ -47,6 +48,18 @@ export function normKategori(j: string | null | undefined): string {
   if (v.startsWith("NON")) return "NON";
   if (v === "OPS" || v.startsWith("OPER")) return "OPS";
   return v ? v : "-";
+}
+
+/**
+ * Jenis belanja dari prefiks kode akun sesuai BAS:
+ *   51x → Belanja Pegawai, 52x → Belanja Barang, 53x → Belanja Modal.
+ */
+export function jenisBelanjaFromKode(kode: string | null | undefined): string {
+  const k = (kode || "").replace(/\D/g, "");
+  if (k.startsWith("51")) return "PEGAWAI";
+  if (k.startsWith("52")) return "BARANG";
+  if (k.startsWith("53")) return "MODAL";
+  return "LAINNYA";
 }
 
 /** Peta label kode→uraian per level (untuk isi dropdown filter). */
@@ -145,6 +158,7 @@ export function buildDashboardRows(rows: UsulanStruktur[]): DashAkunRow[] {
         kroKode,
         roKode,
         pagu,
+        jenisBelanja: jenisBelanjaFromKode(a.kode),
         sumberSet,
         kategoriSet,
         details: detailRows,
@@ -161,6 +175,9 @@ export interface DashSummary {
   non: number;
   rm: number;
   blu: number;
+  pegawai: number;
+  barang: number;
+  modal: number;
   akunCount: number;
 }
 
@@ -172,6 +189,9 @@ export function summarize(rows: DashAkunRow[]): DashSummary {
     non: 0,
     rm: 0,
     blu: 0,
+    pegawai: 0,
+    barang: 0,
+    modal: 0,
     akunCount: rows.length,
   };
   rows.forEach((a) => {
@@ -184,6 +204,11 @@ export function summarize(rows: DashAkunRow[]): DashSummary {
     });
     // Bila akun tak punya detail, hitung pagu akun ke total saja.
     if (a.details.length === 0) s.total += a.pagu;
+
+    // Bucket jenis belanja berdasarkan kode akun (pakai pagu akun).
+    if (a.jenisBelanja === "PEGAWAI") s.pegawai += a.pagu;
+    else if (a.jenisBelanja === "BARANG") s.barang += a.pagu;
+    else if (a.jenisBelanja === "MODAL") s.modal += a.pagu;
   });
   return s;
 }

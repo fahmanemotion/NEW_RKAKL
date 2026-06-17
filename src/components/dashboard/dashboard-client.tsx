@@ -8,6 +8,9 @@ import {
   Wallet,
   Building2,
   Briefcase,
+  Users2,
+  Package,
+  Hammer,
 } from "lucide-react";
 import { Card, Input, Select } from "@/components/ui";
 import { createClient } from "@/lib/supabase";
@@ -270,6 +273,27 @@ export function DashboardClient({
               value={sum.non}
               sub={pctStr(sum.non, sum.total)}
             />
+            <SummaryCard
+              icon={Users2}
+              color="text-cyan-600"
+              label="Belanja Pegawai"
+              value={sum.pegawai}
+              sub={pctStr(sum.pegawai, sum.total)}
+            />
+            <SummaryCard
+              icon={Package}
+              color="text-emerald-600"
+              label="Belanja Barang"
+              value={sum.barang}
+              sub={pctStr(sum.barang, sum.total)}
+            />
+            <SummaryCard
+              icon={Hammer}
+              color="text-amber-600"
+              label="Belanja Modal"
+              value={sum.modal}
+              sub={pctStr(sum.modal, sum.total)}
+            />
           </div>
 
           {/* Daftar Usulan Kegiatan */}
@@ -345,11 +369,11 @@ export function DashboardClient({
                   <tr className="border-b-2 border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
                     <th className="px-3 py-2.5 font-semibold">Kode</th>
                     <th className="px-3 py-2.5 font-semibold">Uraian / Akun</th>
+                    <th className="px-3 py-2.5 font-semibold">Sumber</th>
+                    <th className="px-3 py-2.5 font-semibold">Kategori</th>
                     <th className="px-3 py-2.5 text-right font-semibold">
                       Pagu Usulan
                     </th>
-                    <th className="px-3 py-2.5 font-semibold">Sumber</th>
-                    <th className="px-3 py-2.5 font-semibold">Kategori</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -403,9 +427,6 @@ export function DashboardClient({
                                 </div>
                               )}
                             </td>
-                            <td className="whitespace-nowrap px-3 py-2.5 text-right align-top font-mono text-xs tabular-nums">
-                              {fmtN(r.pagu)}
-                            </td>
                             <td className="px-3 py-2.5 align-top">
                               <div className="flex flex-wrap gap-1">
                                 {r.sumberSet.length ? (
@@ -428,6 +449,9 @@ export function DashboardClient({
                                 )}
                               </div>
                             </td>
+                            <td className="whitespace-nowrap px-3 py-2.5 text-right align-top font-mono text-xs tabular-nums">
+                              {fmtN(r.pagu)}
+                            </td>
                           </tr>
                           {open &&
                             r.details.map((d) => (
@@ -448,9 +472,6 @@ export function DashboardClient({
                                     </span>
                                   )}
                                 </td>
-                                <td className="px-3 py-1.5 text-right font-mono tabular-nums text-muted-foreground">
-                                  {fmtN(d.pagu)}
-                                </td>
                                 <td className="px-3 py-1.5">
                                   {d.sumber !== "-" ? (
                                     <SumberChip s={d.sumber} />
@@ -465,6 +486,9 @@ export function DashboardClient({
                                     "—"
                                   )}
                                 </td>
+                                <td className="px-3 py-1.5 text-right font-mono tabular-nums text-muted-foreground">
+                                  {fmtN(d.pagu)}
+                                </td>
                               </tr>
                             ))}
                         </React.Fragment>
@@ -475,14 +499,13 @@ export function DashboardClient({
                 {filtered.length > 0 && (
                   <tfoot>
                     <tr className="border-t-2 border-border bg-muted/40 font-semibold">
-                      <td className="px-3 py-2.5" colSpan={2}>
+                      <td className="px-3 py-2.5" colSpan={4}>
                         Total ({filtered.length} akun) · RM {fmtN(sum.rm)} · BLU{" "}
                         {fmtN(sum.blu)}
                       </td>
                       <td className="px-3 py-2.5 text-right font-mono tabular-nums">
                         {fmtN(sum.total)}
                       </td>
-                      <td className="px-3 py-2.5" colSpan={2}></td>
                     </tr>
                   </tfoot>
                 )}
