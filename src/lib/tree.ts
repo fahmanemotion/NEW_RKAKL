@@ -37,6 +37,28 @@ interface Node extends UsulanStruktur {
   agg: number;
 }
 
+/**
+ * Kumpulkan id sebuah node beserta SELURUH turunannya (anak, cucu, … detail).
+ * Dipakai saat menghapus: hapus Program → semua child sampai detail ikut.
+ * Hasil terurut "anak terdalam dulu" agar aman dihapus berurutan.
+ */
+export function subtreeIds(rows: UsulanStruktur[], rootId: string): string[] {
+  const childrenOf = new Map<string, string[]>();
+  for (const r of rows) {
+    if (!r.parent_id) continue;
+    const arr = childrenOf.get(r.parent_id) ?? [];
+    arr.push(r.id);
+    childrenOf.set(r.parent_id, arr);
+  }
+  const out: string[] = [];
+  const visit = (id: string) => {
+    for (const c of childrenOf.get(id) ?? []) visit(c);
+    out.push(id); // anak lebih dulu, induk belakangan
+  };
+  visit(rootId);
+  return out;
+}
+
 /** Bangun pohon dari daftar datar + hitung agregasi jumlah tiap node. */
 export function buildTree(rows: UsulanStruktur[]): { roots: Node[] } {
   const map = new Map<string, Node>();

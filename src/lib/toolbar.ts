@@ -21,22 +21,24 @@ const ADD: Partial<Record<Level, { key: string; label: string; addLevel: Level }
 };
 
 const DEL: ToolbarAction = { key: 'delete', label: 'Hapus', kind: 'delete' };
+const EDIT: ToolbarAction = { key: 'edit', label: 'Edit', kind: 'edit' };
 
 /**
  * Hierarki penuh ala SAKTI. Tiap level (Program…Akun) menampilkan tombol
  * "Tambah <anak>" + "Hapus" (menghapus node beserta seluruh turunannya).
- * Detail menampilkan Edit + Hapus. Tanpa pilihan → Tambah Program.
+ * Sub Komponen & Akun juga bisa di-Edit. Detail menampilkan Edit + Hapus.
+ * Tanpa pilihan → Tambah Program.
  */
 export function toolbarActions(sel: SelType): ToolbarAction[] {
   if (sel === 'DETAIL') {
-    return [
-      { key: 'edit', label: 'Edit', kind: 'edit' },
-      DEL,
-    ];
+    return [EDIT, DEL];
   }
   if (sel && sel !== 'INFO' && ADD[sel as Level]) {
     const a = ADD[sel as Level]!;
-    return [{ key: a.key, label: a.label, kind: 'add', addLevel: a.addLevel }, DEL];
+    const add: ToolbarAction = { key: a.key, label: a.label, kind: 'add', addLevel: a.addLevel };
+    // Sub Komponen & Akun dapat diubah (Edit) selain ditambah anak & dihapus.
+    if (sel === 'SUB_KOMPONEN' || sel === 'AKUN') return [add, EDIT, DEL];
+    return [add, DEL];
   }
   // null / INFO / lainnya
   return [{ key: 'add-program', label: 'Tambah Program', kind: 'add', addLevel: 'PROGRAM' }];

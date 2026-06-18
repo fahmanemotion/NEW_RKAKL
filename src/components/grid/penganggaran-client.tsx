@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { Button, Card, Select } from "@/components/ui";
-import { flattenForGrid, type GridRow } from "@/lib/tree";
+import { flattenForGrid, subtreeIds, type GridRow } from "@/lib/tree";
 import { toolbarActions, type ToolbarAction } from "@/lib/toolbar";
 import { fmtN, type Level } from "@/lib/constants";
 import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
@@ -21,7 +21,9 @@ import { usePenganggaran } from "@/store/penganggaran";
 import {
   addNode,
   upsertDetail,
-  deleteNode,
+  deleteNodes,
+  editNode,
+  setChildrenSumber,
   fetchStruktur,
   refQueryFor,
   getAkunMeta,
@@ -65,6 +67,7 @@ type PickerState = {
   parentKode: string;
   okGreen?: boolean;
   extraHead?: string;
+  editId?: string; // bila mengganti referensi node yang sudah ada (mis. ganti Akun)
 } | null;
 type DetailState = {
   parentId: string;
@@ -94,7 +97,9 @@ export function PenganggaranClient({
   const { selectedId, selectedRow, select } = usePenganggaran();
   const [picker, setPicker] = React.useState<PickerState>(null);
   const [subkompParent, setSubkompParent] = React.useState<{
-    id: string;
+    parentId?: string;
+    editId?: string;
+    initial?: { kode: string; uraian: string };
   } | null>(null);
   const [detail, setDetail] = React.useState<DetailState>(null);
 
@@ -223,7 +228,12 @@ export function PenganggaranClient({
 
   function handleAction(a: ToolbarAction) {
     if (a.kind === "delete") return onDelete();
-    if (a.kind === "edit") return onEditDetail();
+    if (a.kind === "edit") {
+      if (selType === "DETAIL") return onEditDetail();
+      if (selType === "SUB_KOMPONEN") return onEditSubkomp();
+      if (selType === "AKUN") return onEditAkun();
+      return;
+    }
     if (a.kind !== "add" || !a.addLevel) return;
     openAdd(a.addLevel);
   }
@@ -260,7 +270,7 @@ export function PenganggaranClient({
     const parentRef = selectedRow.ref.referensi_id ?? null;
     const parentKode = selectedRow.kode;
 
-    if (level === "SUB_KOMPONEN") return setSubkompParent({ id: parentId });
+    if (level === "SUB_KOMPONEN") return setSubkompParent({ parentId });
     if (level === "DETAIL") {
       // Sumber dana & kategori detail otomatis ikut akun (parent).
       const akunSumber = selectedRow.sumber_dana ?? "RM";
@@ -312,6 +322,27 @@ export function PenganggaranClient({
       sumber_dana =
         meta?.sumber_dana ?? (row.kode.startsWith("525") ? "BLU" : "RM");
     }
+
+    // Mode GANTI (mis. ganti Akun): ubah node yang ada, jangan tambah baru.
+    if (picker.editId) {
+      try {
+        await editNode(picker.editId, {
+          referensi_id: row.id,
+          kode,
+          uraian: row.nama,
+          sumber_dana,
+        });
+        // Sumber dana detail anak ikut akun yang baru.
+        if (level === "AKUN") await setChildrenSumber(picker.editId, sumber_dana);
+      } catch (e) {
+        alert((e as Error).message);
+        return;
+      }
+      setPicker(null);
+      await refresh();
+      return;
+    }
+
     try {
       await addNode({
         usulan_id: header.id,
@@ -333,15 +364,47 @@ export function PenganggaranClient({
 
   async function onSubmitSubkomp(v: { kode: string; uraian: string }) {
     if (!subkompParent) return;
-    await addNode({
-      usulan_id: header.id,
-      parent_id: subkompParent.id,
-      level: "SUB_KOMPONEN",
-      kode: v.kode === "-" ? "-" : v.kode,
-      uraian: v.uraian,
-    });
+    if (subkompParent.editId) {
+      await editNode(subkompParent.editId, {
+        kode: v.kode === "-" ? "-" : v.kode,
+        uraian: v.uraian,
+      });
+    } else if (subkompParent.parentId) {
+      await addNode({
+        usulan_id: header.id,
+        parent_id: subkompParent.parentId,
+        level: "SUB_KOMPONEN",
+        kode: v.kode === "-" ? "-" : v.kode,
+        uraian: v.uraian,
+      });
+    }
     setSubkompParent(null);
     await refresh();
+  }
+
+  function onEditSubkomp() {
+    if (selectedRow?.type !== "SUB_KOMPONEN" || !selectedRow.ref) return;
+    const r = selectedRow.ref;
+    setSubkompParent({
+      editId: r.id,
+      initial: { kode: r.kode ?? "", uraian: r.uraian ?? "" },
+    });
+  }
+
+  async function onEditAkun() {
+    if (selectedRow?.type !== "AKUN" || !selectedRow.ref) return;
+    const r = selectedRow.ref;
+    const parent = rows.find((x) => x.id === r.parent_id);
+    const q = refQueryFor("AKUN", parent?.referensi_id ?? null);
+    if (!q) return;
+    setPicker({
+      level: "AKUN",
+      query: q,
+      parentStrukturId: r.parent_id,
+      parentKode: parent?.kode ?? "",
+      extraHead: "Kategori",
+      editId: r.id,
+    });
   }
 
   async function onSubmitDetail(v: DetailValues) {
@@ -356,6 +419,7 @@ export function PenganggaranClient({
       harga: v.harga,
       sumber_dana: detail.inheritedSumberDana, // ikut akun
       jenis_belanja: v.jenis_belanja,
+      segments: v.segments,
     });
     setDetail(null);
     await refresh();
@@ -385,6 +449,9 @@ export function PenganggaranClient({
         harga: r.harga ?? 0,
         jenis_belanja:
           (r.jenis_belanja as DetailValues["jenis_belanja"]) ?? "OPS",
+        segments:
+          (r as { volume_rincian?: { qty: number; sat: string }[] | null })
+            .volume_rincian ?? null,
       },
     });
   }
@@ -398,7 +465,9 @@ export function PenganggaranClient({
       : `Hapus detail "${selectedRow.uraian}"?`;
     if (!confirm(msg)) return;
     try {
-      await deleteNode(selectedRow.ref.id);
+      // Hapus node ini beserta seluruh turunannya (anak terdalam dulu).
+      const ids = subtreeIds(rows, selectedRow.ref.id);
+      await deleteNodes(ids.length ? ids : [selectedRow.ref.id]);
       select(null);
       await refresh();
     } catch (e) {
@@ -674,7 +743,9 @@ export function PenganggaranClient({
                     ? "Pilih RO"
                     : picker.level === "KOMPONEN"
                       ? "Form Pencarian Komponen"
-                      : "Form Pencarian Akun"
+                      : picker.editId
+                        ? "Ganti Akun"
+                        : "Form Pencarian Akun"
           }
           query={picker.query}
           extraHead={picker.extraHead}
@@ -685,6 +756,7 @@ export function PenganggaranClient({
       )}
       <SubKomponenForm
         open={!!subkompParent}
+        initial={subkompParent?.initial}
         onSubmit={onSubmitSubkomp}
         onClose={() => setSubkompParent(null)}
       />

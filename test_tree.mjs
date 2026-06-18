@@ -1,5 +1,5 @@
 // Uji util tree-grid SIPPT (node --experimental-strip-types).
-import { buildTree, flattenForGrid } from './src/lib/tree.ts';
+import { buildTree, flattenForGrid, subtreeIds } from './src/lib/tree.ts';
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log('  \u2713 ' + m); } else { fail++; console.log('  \u2717 ' + m); } };
@@ -85,6 +85,24 @@ const ids = gm.map(r=>r.id);
 ok(new Set(ids).size === ids.length, 'semua id baris unik ('+ids.length+' baris, '+new Set(ids).size+' unik)');
 const jkuCount = gm.filter(r=>/Jumlah Komponen Utama/.test(r.uraian)).length;
 ok(jkuCount === 2, 'dua baris "Jumlah Komponen Utama" untuk dua RO, id tetap unik');
+
+
+// subtreeIds — node + seluruh turunan (anak terdalam dulu)
+{
+  const rs = [
+    { id:'p', parent_id:null, level:'PROGRAM', kode:'X', uraian:'', jumlah:0, urutan:0 },
+    { id:'k', parent_id:'p', level:'KEGIATAN', kode:'', uraian:'', jumlah:0, urutan:0 },
+    { id:'ak', parent_id:'k', level:'AKUN', kode:'', uraian:'', jumlah:0, urutan:0 },
+    { id:'d1', parent_id:'ak', level:'DETAIL', kode:'', uraian:'', jumlah:0, urutan:0 },
+    { id:'d2', parent_id:'ak', level:'DETAIL', kode:'', uraian:'', jumlah:0, urutan:1 },
+    { id:'other', parent_id:null, level:'PROGRAM', kode:'Y', uraian:'', jumlah:0, urutan:1 },
+  ];
+  const ids = subtreeIds(rs, 'p');
+  ok(ids.length===5 && ids.includes('p') && ids.includes('d1') && ids.includes('d2') && ids.includes('ak') && ids.includes('k'), 'subtreeIds: program + semua turunan (5) tanpa node lain');
+  ok(ids[ids.length-1]==='p', 'subtreeIds: induk dihapus paling akhir');
+  ok(!ids.includes('other'), 'subtreeIds: node lain tidak ikut');
+  ok(subtreeIds(rs,'d1').length===1, 'subtreeIds daun = 1 (dirinya saja)');
+}
 
 console.log('\nHasil: ' + pass + ' lulus, ' + fail + ' gagal');
 process.exit(fail ? 1 : 0);

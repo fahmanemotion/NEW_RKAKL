@@ -4,18 +4,26 @@ import { Modal } from '@/components/ui/modal';
 import { Button, Input } from '@/components/ui';
 
 export function SubKomponenForm({
-  open, onSubmit, onClose,
+  open, onSubmit, onClose, initial,
 }: {
   open: boolean;
   onSubmit: (v: { kode: string; uraian: string }) => Promise<void> | void;
   onClose: () => void;
+  initial?: { kode: string; uraian: string };
 }) {
   const [kode, setKode] = React.useState('');
   const [uraian, setUraian] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
+  const editing = !!initial;
 
-  React.useEffect(() => { if (open) { setKode(''); setUraian(''); setErr(null); } }, [open]);
+  React.useEffect(() => {
+    if (open) {
+      setKode(initial?.kode ?? '');
+      setUraian(initial?.uraian ?? '');
+      setErr(null);
+    }
+  }, [open, initial]);
 
   async function submit() {
     if (!kode.trim()) return setErr('Isi kode, atau klik "Tanpa Sub Komponen".');
@@ -26,7 +34,8 @@ export function SubKomponenForm({
 
   return (
     <Modal
-      open={open} onClose={onClose} title="Form Rekam Sub Komponen"
+      open={open} onClose={onClose}
+      title={editing ? 'Ubah Sub Komponen' : 'Form Rekam Sub Komponen'}
       footer={<>
         <Button variant="outline" onClick={onClose}>Batal</Button>
         <Button onClick={submit} disabled={busy}>{busy ? 'Menyimpan…' : 'Ok'}</Button>

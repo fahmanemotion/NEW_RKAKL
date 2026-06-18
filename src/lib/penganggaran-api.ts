@@ -168,6 +168,39 @@ export async function deleteNode(id: string): Promise<void> {
   if (error) throw error;
 }
 
+/** Hapus beberapa node sekaligus (mis. sebuah node beserta seluruh turunannya). */
+export async function deleteNodes(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await sb().from("usulan_struktur").delete().in("id", ids);
+  if (error) throw error;
+}
+
+/** Ubah field sebuah node (mis. kode/uraian Sub Komponen, atau ganti referensi Akun). */
+export async function editNode(
+  id: string,
+  patch: {
+    kode?: string | null;
+    uraian?: string | null;
+    referensi_id?: string | null;
+    sumber_dana?: string | null;
+  },
+): Promise<void> {
+  const { error } = await sb().from("usulan_struktur").update(patch).eq("id", id);
+  if (error) throw error;
+}
+
+/** Setel sumber dana seluruh anak langsung sebuah node (mis. saat akun diganti). */
+export async function setChildrenSumber(
+  parentId: string,
+  sumber: string | null,
+): Promise<void> {
+  const { error } = await sb()
+    .from("usulan_struktur")
+    .update({ sumber_dana: sumber })
+    .eq("parent_id", parentId);
+  if (error) throw error;
+}
+
 /** Ubah status usulan (mis. menandai tahap SELESAI dengan 'Final'). RLS menegakkan izin. */
 export async function setUsulanStatus(
   usulanId: string,
