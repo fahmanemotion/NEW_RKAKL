@@ -63,7 +63,10 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
   const [sel, setSel] = React.useState(0);
   React.useEffect(() => setSel(0), [units]);
 
-  const [signers, setSigners] = React.useState<Signers>(DEFAULT_SIGNERS);
+  const [signerSets, setSignerSets] = React.useState<{ SUB: Signers; KOMPONEN: Signers }>({
+    SUB: DEFAULT_SIGNERS,
+    KOMPONEN: DEFAULT_SIGNERS,
+  });
   React.useEffect(() => {
     let alive = true;
     (async () => {
@@ -71,16 +74,23 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
         const sb = createClient();
         const { data } = await sb
           .from("master_penandatangan")
-          .select("posisi, nama, jabatan, pangkat_golongan, nip");
+          .select("posisi, jenis, nama, jabatan, pangkat_golongan, nip");
         if (!alive || !data || data.length === 0) return;
-        const next: Signers = {
-          kiri: { ...DEFAULT_SIGNERS.kiri },
-          kanan: { ...DEFAULT_SIGNERS.kanan },
-          kota: DEFAULT_SIGNERS.kota,
+        const next = {
+          SUB: {
+            kiri: { ...DEFAULT_SIGNERS.kiri },
+            kanan: { ...DEFAULT_SIGNERS.kanan },
+            kota: DEFAULT_SIGNERS.kota,
+          },
+          KOMPONEN: {
+            kiri: { ...DEFAULT_SIGNERS.kiri },
+            kanan: { ...DEFAULT_SIGNERS.kanan },
+            kota: DEFAULT_SIGNERS.kota,
+          },
         };
         for (const r of data as {
-          posisi: string; nama: string; jabatan: string | null;
-          pangkat_golongan: string | null; nip: string | null;
+          posisi: string; jenis: string | null; nama: string;
+          jabatan: string | null; pangkat_golongan: string | null; nip: string | null;
         }[]) {
           const s: Signer = {
             nama: r.nama ?? "",
@@ -88,10 +98,11 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
             pangkat: r.pangkat_golongan ?? "",
             nip: r.nip ?? "",
           };
-          if ((r.posisi ?? "").toUpperCase() === "KIRI") next.kiri = s;
-          else if ((r.posisi ?? "").toUpperCase() === "KANAN") next.kanan = s;
+          const grp = (r.jenis ?? "SUB_KOMPONEN").toUpperCase() === "KOMPONEN" ? next.KOMPONEN : next.SUB;
+          if ((r.posisi ?? "").toUpperCase() === "KIRI") grp.kiri = s;
+          else if ((r.posisi ?? "").toUpperCase() === "KANAN") grp.kanan = s;
         }
-        setSigners(next);
+        setSignerSets(next);
       } catch {
         /* pakai default */
       }
@@ -103,6 +114,7 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
 
   if (units.length === 0) return null;
   const unit = units[Math.min(sel, units.length - 1)];
+  const signers = mode === "SUB" ? signerSets.SUB : signerSets.KOMPONEN;
 
   return (
     <Card className="overflow-hidden">

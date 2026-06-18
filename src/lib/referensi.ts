@@ -67,11 +67,15 @@ export const MASTERS: Record<string, MasterDef> = {
   penandatangan: {
     table: 'master_penandatangan', label: 'Penandatangan', kodeCol: 'posisi', namaCol: 'nama',
     extraFields: [
+      { key: 'jenis', label: 'Jenis TTD', type: 'select', required: true, options: [
+        { value: 'SUB_KOMPONEN', label: 'TTD Sub Komponen' },
+        { value: 'KOMPONEN', label: 'TTD Komponen' },
+      ] },
       { key: 'jabatan', label: 'Jabatan' },
       { key: 'pangkat_golongan', label: 'Pangkat/Golongan' },
       { key: 'nip', label: 'NIP' },
     ],
-    importCols: ['posisi', 'nama', 'jabatan', 'pangkat_golongan', 'nip'],
+    importCols: ['jenis', 'posisi', 'nama', 'jabatan', 'pangkat_golongan', 'nip'],
   },
 };
 
