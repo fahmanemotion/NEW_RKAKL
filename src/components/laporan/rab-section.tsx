@@ -205,6 +205,7 @@ function LineRow({ line }: { line: RabLine }) {
 const THIN = { style: "thin", color: { rgb: "9CA3AF" } };
 const BORDER = { top: THIN, bottom: THIN, left: THIN, right: THIN };
 const MONEY = "#,##0;-#,##0;";
+const RP = '"Rp"#,##0;"Rp"-#,##0';
 
 function indentFor(level: string): number {
   return (
@@ -224,6 +225,7 @@ function buildRabSheet(rab: RabKomponen, ctx: Ctx): XLSX.WorkSheet {
   let r = er(); r[A] = "RINCIAN ANGGARAN BELANJA"; aoa.push(r);
   r = er(); r[A] = `KELUARAN (OUTPUT) KEGIATAN T.A. ${ctx.tahun}`; aoa.push(r);
   aoa.push(er());
+  const hdrFirst = aoa.length + 1; // baris pertama kop (Kementerian)
   const hdr = (label: string, val: string | number) => {
     const x = er(); x[A] = label; x[C] = ":"; x[D] = val; aoa.push(x);
   };
@@ -234,6 +236,7 @@ function buildRabSheet(rab: RabKomponen, ctx: Ctx): XLSX.WorkSheet {
   hdr("Volume", rab.roVolume ?? "");
   hdr("Satuan Ukur", rab.roSatuan ?? "");
   hdr("Alokasi Anggaran", rab.total);
+  const alokasiRow = aoa.length; // baris Alokasi (1-based)
   aoa.push(er());
 
   // Header tabel (excel row = aoa.length+1)
@@ -281,21 +284,23 @@ function buildRabSheet(rab: RabKomponen, ctx: Ctx): XLSX.WorkSheet {
 
   // JUMLAH / TOTAL / Dibulatkan / Terbilang
   const jumlahRow = aoa.length + 1;
-  r = er(); r[A] = "JUMLAH BIAYA"; r[C] = ":"; r[G] = rab.total; aoa.push(r);
-  r = er(); r[A] = "TOTAL BIAYA"; r[C] = ":"; r[G] = rab.total; aoa.push(r);
-  r = er(); r[A] = "Dibulatkan"; r[C] = ":"; r[G] = rab.total; aoa.push(r);
-  r = er(); r[A] = "Terbilang"; r[C] = ":"; r[D] = titleCase(terbilang(rab.total)); aoa.push(r);
+  r = er(); r[A] = "JUMLAH BIAYA"; r[G] = rab.total; aoa.push(r);
+  r = er(); r[A] = "TOTAL BIAYA"; r[G] = rab.total; aoa.push(r);
+  r = er(); r[A] = "Dibulatkan"; r[G] = rab.total; aoa.push(r);
+  const terbilangRow = aoa.length + 1;
+  r = er(); r[A] = "Terbilang :"; r[B] = titleCase(terbilang(rab.total)); aoa.push(r);
+  aoa.push(er());
   aoa.push(er());
 
-  // Tanda tangan
+  // Tanda tangan (kiri di kolom A:C, kanan di kolom E:G — keduanya center)
   const sig = aoa.length;
-  r = er(); r[B] = "Mengetahui"; r[F] = tgl; aoa.push(r);
-  r = er(); r[B] = TTD.kiriJabatan1; r[F] = TTD.kananJabatan1; aoa.push(r);
-  r = er(); r[B] = TTD.kiriJabatan2; r[F] = TTD.kananJabatan2; aoa.push(r);
+  r = er(); r[A] = "Mengetahui"; r[E] = tgl; aoa.push(r);
+  r = er(); r[A] = TTD.kiriJabatan1; r[E] = TTD.kananJabatan1; aoa.push(r);
+  r = er(); r[A] = TTD.kiriJabatan2; r[E] = TTD.kananJabatan2; aoa.push(r);
   aoa.push(er()); aoa.push(er()); aoa.push(er());
-  r = er(); r[B] = TTD.kiriNama; r[F] = TTD.kananNama; aoa.push(r);
-  r = er(); r[B] = TTD.kiriGol; r[F] = TTD.kananGol; aoa.push(r);
-  r = er(); r[B] = TTD.kiriNip; r[F] = TTD.kananNip; aoa.push(r);
+  r = er(); r[A] = TTD.kiriNama; r[E] = TTD.kananNama; aoa.push(r);
+  r = er(); r[A] = TTD.kiriGol; r[E] = TTD.kananGol; aoa.push(r);
+  r = er(); r[A] = TTD.kiriNip; r[E] = TTD.kananNip; aoa.push(r);
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   const enc = (row1: number, col0: number) =>
@@ -338,8 +343,26 @@ function buildRabSheet(rab: RabKomponen, ctx: Ctx): XLSX.WorkSheet {
     (ws[ref] as { s?: unknown }).s = s;
   };
   // Judul
-  setStyle(enc(1, A), { font: { bold: true, sz: 12 } });
-  setStyle(enc(2, A), { font: { bold: true, sz: 10 } });
+  setStyle(enc(1, A), { font: { bold: true, sz: 12 }, alignment: { horizontal: "center" } });
+  setStyle(enc(2, A), { font: { bold: true, sz: 10 }, alignment: { horizontal: "center" } });
+  // Kop (Kementerian … Alokasi Anggaran)
+  for (let i = 0; i < 7; i++) {
+    const rr = hdrFirst + i;
+    const isAlok = rr === alokasiRow;
+    setStyle(enc(rr, A), {
+      font: { sz: 9 },
+      alignment: { horizontal: "left", vertical: "center" },
+    });
+    setStyle(enc(rr, C), {
+      font: { sz: 9 },
+      alignment: { horizontal: "center", vertical: "center" },
+    });
+    setStyle(enc(rr, D), {
+      font: { sz: 9, bold: isAlok },
+      alignment: { horizontal: "left", vertical: "center", wrapText: true },
+      numFmt: isAlok ? RP : undefined,
+    });
+  }
   // Header tabel
   for (let c = 0; c <= G; c++) {
     setStyle(enc(headRow + 1, c), {
@@ -373,26 +396,68 @@ function buildRabSheet(rab: RabKomponen, ctx: Ctx): XLSX.WorkSheet {
       });
     }
   });
-  // JUMLAH/TOTAL rows G styling
+  // JUMLAH BIAYA / TOTAL BIAYA / Dibulatkan — label kanan, nilai Rp + border
   for (let i = 0; i < 3; i++) {
-    setStyle(enc(jumlahRow + i, A), { font: { bold: true, sz: 9 } });
-    setStyle(enc(jumlahRow + i, G), {
-      font: { bold: true, sz: 9 }, numFmt: MONEY,
-      alignment: { horizontal: "right" }, border: BORDER,
+    const rr = jumlahRow + i;
+    setStyle(enc(rr, A), {
+      font: { bold: true, sz: 10 },
+      alignment: { horizontal: "right", vertical: "center" },
+    });
+    setStyle(enc(rr, G), {
+      font: { bold: true, sz: 10 },
+      numFmt: RP,
+      alignment: { horizontal: "right", vertical: "center" },
+      border: BORDER,
     });
   }
-  // Tanda tangan tebal nama
-  setStyle(enc(sig + 7, B), { font: { bold: true, sz: 9 } });
-  setStyle(enc(sig + 7, F), { font: { bold: true, sz: 9 } });
+  // Terbilang
+  setStyle(enc(terbilangRow, A), {
+    font: { bold: true, sz: 9 },
+    alignment: { horizontal: "left", vertical: "top" },
+  });
+  setStyle(enc(terbilangRow, B), {
+    font: { italic: true, sz: 9 },
+    alignment: { horizontal: "left", vertical: "top", wrapText: true },
+  });
 
-  // Merge judul + kolom uraian header
-  ws["!merges"] = [
-    { s: { r: 0, c: A }, e: { r: 0, c: G } },
-    { s: { r: 1, c: A }, e: { r: 1, c: G } },
-  ];
+  // Tanda tangan — center, font seragam (nama tebal + garis bawah)
+  const sigTextRows = [sig + 1, sig + 2, sig + 3, sig + 7, sig + 8, sig + 9];
+  for (const rr of sigTextRows) {
+    const isName = rr === sig + 7;
+    const st = {
+      font: { sz: 9, bold: isName, underline: isName },
+      alignment: { horizontal: "center" as const, vertical: "center" as const },
+    };
+    setStyle(enc(rr, A), st);
+    setStyle(enc(rr, E), { ...st, font: { ...st.font } });
+  }
+
+  // Merges
+  const M = (r1: number, c1: number, r2: number, c2: number) => ({
+    s: { r: r1 - 1, c: c1 },
+    e: { r: r2 - 1, c: c2 },
+  });
+  const merges = [M(1, A, 1, G), M(2, A, 2, G)];
+  for (let i = 0; i < 7; i++) {
+    const rr = hdrFirst + i;
+    merges.push(M(rr, A, rr, B)); // label
+    merges.push(M(rr, D, rr, G)); // nilai
+  }
+  for (let i = 0; i < 3; i++) merges.push(M(jumlahRow + i, A, jumlahRow + i, F));
+  merges.push(M(terbilangRow, B, terbilangRow, G));
+  for (const rr of sigTextRows) {
+    merges.push(M(rr, A, rr, C)); // kiri
+    merges.push(M(rr, E, rr, G)); // kanan
+  }
+  ws["!merges"] = merges;
+
+  // Tinggi baris terbilang agar teks panjang muat
+  ws["!rows"] = [];
+  ws["!rows"][terbilangRow - 1] = { hpt: 26 };
+
   ws["!cols"] = [
-    { wch: 14 }, { wch: 46 }, { wch: 18 }, { wch: 9 },
-    { wch: 8 }, { wch: 16 }, { wch: 18 },
+    { wch: 16 }, { wch: 44 }, { wch: 14 }, { wch: 12 },
+    { wch: 10 }, { wch: 16 }, { wch: 18 },
   ];
   return ws;
 }
