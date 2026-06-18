@@ -1,31 +1,46 @@
 "use client";
 import * as React from "react";
 import XLSX from "xlsx-js-style";
-import { FileSpreadsheet, Printer, Download, Layers } from "lucide-react";
+import { Printer, Download, Layers } from "lucide-react";
 import { Card, Select, Button } from "@/components/ui";
+import { createClient } from "@/lib/supabase";
 import { fmtN } from "@/lib/constants";
 import {
   buildRabPerKomponen,
+  buildRabPerSubKomponen,
   rincianText,
   terbilang,
   titleCase,
-  type RabKomponen,
+  type RabUnit,
   type RabLine,
 } from "@/lib/rab-data";
 import type { KKRow } from "@/lib/kertas-kerja";
 
-/* Penandatangan (mengikuti template; dapat disesuaikan bila perlu). */
-const TTD = {
-  kiriJabatan1: "KEPALA PUSAT",
-  kiriJabatan2: "PENGEMBANGAN SDM PERHUBUNGAN LAUT",
-  kiriNama: "BUDI RAHARDJO, S.Sos., M.Si.",
-  kiriGol: "Pembina Utama Muda (IV/c)",
-  kiriNip: "NIP. 19701106 199703 1 001",
-  kananJabatan1: "KUASA PENGGUNA ANGGARAN",
-  kananJabatan2: "POLITEKNIK ILMU PELAYARAN MAKASSAR",
-  kananNama: "Capt. RUDY SUSANTO, M.Pd.",
-  kananGol: "Pembina (IV/a)",
-  kananNip: "NIP. 19731210 200502 1 001",
+interface Signer {
+  nama: string;
+  jabatan: string;
+  pangkat: string;
+  nip: string;
+}
+interface Signers {
+  kiri: Signer;
+  kanan: Signer;
+  kota: string;
+}
+const DEFAULT_SIGNERS: Signers = {
+  kiri: {
+    nama: "BUDI RAHARDJO, S.Sos., M.Si.",
+    jabatan: "KEPALA PUSAT PENGEMBANGAN SDM PERHUBUNGAN LAUT",
+    pangkat: "Pembina Utama Muda (IV/c)",
+    nip: "19701106 199703 1 001",
+  },
+  kanan: {
+    nama: "Capt. RUDY SUSANTO, M.Pd.",
+    jabatan: "KUASA PENGGUNA ANGGARAN POLITEKNIK ILMU PELAYARAN MAKASSAR",
+    pangkat: "Pembina (IV/a)",
+    nip: "19731210 200502 1 001",
+  },
+  kota: "Makassar",
 };
 const BULAN = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -37,65 +52,119 @@ interface Ctx {
   satkerKode: string;
   tahun: number;
 }
+type Mode = "SUB" | "KOMPONEN";
 
-export function RabSection({
-  rows,
-  ctx,
-}: {
-  rows: KKRow[];
-  ctx: Ctx;
-}) {
-  const rabs = React.useMemo(() => buildRabPerKomponen(rows), [rows]);
+export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
+  const [mode, setMode] = React.useState<Mode>("SUB");
+  const units = React.useMemo(
+    () => (mode === "SUB" ? buildRabPerSubKomponen(rows) : buildRabPerKomponen(rows)),
+    [rows, mode],
+  );
   const [sel, setSel] = React.useState(0);
-  React.useEffect(() => {
-    setSel(0);
-  }, [rabs]);
+  React.useEffect(() => setSel(0), [units]);
 
-  if (rabs.length === 0) return null;
-  const rab = rabs[Math.min(sel, rabs.length - 1)];
+  const [signers, setSigners] = React.useState<Signers>(DEFAULT_SIGNERS);
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const sb = createClient();
+        const { data } = await sb
+          .from("master_penandatangan")
+          .select("posisi, nama, jabatan, pangkat_golongan, nip");
+        if (!alive || !data || data.length === 0) return;
+        const next: Signers = {
+          kiri: { ...DEFAULT_SIGNERS.kiri },
+          kanan: { ...DEFAULT_SIGNERS.kanan },
+          kota: DEFAULT_SIGNERS.kota,
+        };
+        for (const r of data as {
+          posisi: string; nama: string; jabatan: string | null;
+          pangkat_golongan: string | null; nip: string | null;
+        }[]) {
+          const s: Signer = {
+            nama: r.nama ?? "",
+            jabatan: r.jabatan ?? "",
+            pangkat: r.pangkat_golongan ?? "",
+            nip: r.nip ?? "",
+          };
+          if ((r.posisi ?? "").toUpperCase() === "KIRI") next.kiri = s;
+          else if ((r.posisi ?? "").toUpperCase() === "KANAN") next.kanan = s;
+        }
+        setSigners(next);
+      } catch {
+        /* pakai default */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (units.length === 0) return null;
+  const unit = units[Math.min(sel, units.length - 1)];
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex flex-col gap-2 border-b border-border px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-sm font-semibold">
-          RAB per Komponen{" "}
-          <span className="font-normal text-muted-foreground">
-            ({rabs.length} komponen)
-          </span>
+      <div className="flex flex-col gap-2 border-b border-border px-4 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-sm font-semibold">RAB</div>
+          <div className="inline-flex overflow-hidden rounded-md border border-border text-xs">
+            <button
+              onClick={() => setMode("SUB")}
+              className={`px-3 py-1.5 ${mode === "SUB" ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
+            >
+              Per Sub Komponen
+            </button>
+            <button
+              onClick={() => setMode("KOMPONEN")}
+              className={`px-3 py-1.5 ${mode === "KOMPONEN" ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
+            >
+              Per Komponen
+            </button>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select
             value={sel}
             onChange={(e) => setSel(Number(e.target.value))}
-            className="min-w-[260px]"
+            className="min-w-[280px]"
           >
-            {rabs.map((r, i) => (
-              <option key={r.komponenId} value={i}>
-                {r.komponenKode} — {r.komponenUraian} ({fmtN(r.total)})
+            {units.map((u, i) => (
+              <option key={u.id} value={i}>
+                {u.sheetName} — {labelOf(u)} ({fmtN(u.total)})
               </option>
             ))}
           </Select>
-          <Button size="sm" variant="outline" onClick={() => printRab(rab, ctx)}>
+          <Button size="sm" variant="outline" onClick={() => printRab(unit, ctx, signers)}>
             <Printer className="size-4" /> Cetak
           </Button>
-          <Button size="sm" variant="outline" onClick={() => downloadOne(rab, ctx)}>
-            <Download className="size-4" /> Unduh RAB ini
+          <Button size="sm" variant="outline" onClick={() => downloadOne(unit, ctx, signers)}>
+            <Download className="size-4" /> Unduh ini
           </Button>
-          <Button size="sm" onClick={() => downloadAll(rabs, ctx)}>
+          <Button size="sm" onClick={() => downloadAll(units, ctx, signers, mode)}>
             <Layers className="size-4" /> Unduh Semua
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground">
+          {mode === "SUB"
+            ? "Rincian penuh (akun → detail) untuk tiap sub komponen."
+            : "Rekap: tiap komponen menampilkan sub komponen sebagai baris ringkasan."}
+        </p>
       </div>
 
-      {/* Review on-screen */}
+      {/* Review */}
       <div className="space-y-3 p-4">
         <div className="rounded-md border border-border bg-muted/20 p-3 text-xs">
           <HeaderLine label="Kementerian Negara/Lembaga" value="Kementerian Perhubungan" />
           <HeaderLine label="Unit Eselon II/Satker" value={ctx.satker} />
-          <HeaderLine label="Program" value={rab.programUraian} />
-          <HeaderLine label="Keluaran (Output)" value={`${rab.roKode} ${rab.roUraian}`} />
-          <HeaderLine label="Komponen" value={`${rab.komponenKode} ${rab.komponenUraian}`} />
-          <HeaderLine label="Alokasi Anggaran" value={fmtN(rab.total)} />
+          <HeaderLine label="Program" value={unit.programUraian} />
+          <HeaderLine label="Keluaran (Output)" value={`${unit.roKode} ${unit.roUraian}`} />
+          <HeaderLine label="Komponen" value={`${unit.komponenKode} ${unit.komponenUraian}`} />
+          {unit.level === "SUB_KOMPONEN" && (
+            <HeaderLine label="Sub Komponen" value={`${unit.subKode} ${unit.subUraian}`} />
+          )}
+          <HeaderLine label="Alokasi Anggaran" value={`Rp ${fmtN(unit.total)}`} />
         </div>
 
         <div className="overflow-x-auto">
@@ -112,29 +181,32 @@ export function RabSection({
               </tr>
             </thead>
             <tbody>
-              <ContextRow kode={rab.kroKode} uraian={rab.kroUraian} indent={0} jumlah={rab.total} />
-              <ContextRow kode={rab.roKode} uraian={rab.roUraian} indent={1} jumlah={rab.total} />
-              <ContextRow kode={rab.komponenKode} uraian={rab.komponenUraian} indent={2} jumlah={rab.total} bold />
-              {rab.lines.map((l) => (
+              <ContextRow kode={unit.kroKode} uraian={unit.kroUraian} indent={0} jumlah={unit.total} />
+              <ContextRow kode={unit.roKode} uraian={unit.roUraian} indent={1} jumlah={unit.total} />
+              <ContextRow kode={unit.komponenKode} uraian={unit.komponenUraian} indent={2} jumlah={unit.total} bold />
+              {unit.level === "SUB_KOMPONEN" && (
+                <ContextRow kode={unit.subKode ?? ""} uraian={unit.subUraian ?? ""} indent={3} jumlah={unit.total} bold />
+              )}
+              {unit.lines.map((l) => (
                 <LineRow key={l.id} line={l} />
               ))}
               <tr className="border-t-2 border-border bg-muted/40 font-bold">
-                <td className="px-2 py-1.5" colSpan={6}>
-                  JUMLAH BIAYA
-                </td>
-                <td className="px-2 py-1.5 text-right font-mono tabular-nums">
-                  {fmtN(rab.total)}
-                </td>
+                <td className="px-2 py-1.5" colSpan={6}>JUMLAH BIAYA</td>
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums">{fmtN(unit.total)}</td>
               </tr>
             </tbody>
           </table>
         </div>
         <p className="text-xs text-muted-foreground">
-          Terbilang: <em>{titleCase(terbilang(rab.total))}</em>
+          Terbilang: <em>{titleCase(terbilang(unit.total))}</em>
         </p>
       </div>
     </Card>
   );
+}
+
+function labelOf(u: RabUnit): string {
+  return u.level === "SUB_KOMPONEN" ? (u.subUraian ?? "") : u.komponenUraian;
 }
 
 function HeaderLine({ label, value }: { label: string; value: string }) {
@@ -147,24 +219,12 @@ function HeaderLine({ label, value }: { label: string; value: string }) {
 }
 
 function ContextRow({
-  kode,
-  uraian,
-  indent,
-  jumlah,
-  bold,
-}: {
-  kode: string;
-  uraian: string;
-  indent: number;
-  jumlah: number;
-  bold?: boolean;
-}) {
+  kode, uraian, indent, jumlah, bold,
+}: { kode: string; uraian: string; indent: number; jumlah: number; bold?: boolean }) {
   return (
     <tr className={`border-b border-border ${bold ? "font-semibold" : ""}`}>
       <td className="px-2 py-1 font-mono">{kode}</td>
-      <td className="px-2 py-1">
-        <span style={{ paddingLeft: indent * 10 }}>{uraian}</span>
-      </td>
+      <td className="px-2 py-1"><span style={{ paddingLeft: indent * 10 }}>{uraian}</span></td>
       <td colSpan={4}></td>
       <td className="px-2 py-1 text-right font-mono tabular-nums">{fmtN(jumlah)}</td>
     </tr>
@@ -178,24 +238,13 @@ function LineRow({ line }: { line: RabLine }) {
     <tr className={`border-b border-border ${bold ? "font-semibold" : ""}`}>
       <td className="px-2 py-1 font-mono">{line.kode}</td>
       <td className="px-2 py-1">
-        <span style={{ paddingLeft: indent * 10 }}>
-          {line.isDetail ? "- " : ""}
-          {line.uraian}
-        </span>
+        <span style={{ paddingLeft: indent * 10 }}>{line.isDetail ? "- " : ""}{line.uraian}</span>
       </td>
-      <td className="px-2 py-1 text-muted-foreground">
-        {line.isDetail ? rincianText(line) : ""}
-      </td>
-      <td className="px-2 py-1 text-right tabular-nums">
-        {line.isDetail && line.vol != null ? fmtN(line.vol) : ""}
-      </td>
+      <td className="px-2 py-1 text-muted-foreground">{line.isDetail ? rincianText(line) : ""}</td>
+      <td className="px-2 py-1 text-right tabular-nums">{line.isDetail && line.vol != null ? fmtN(line.vol) : ""}</td>
       <td className="px-2 py-1">{line.isDetail ? (line.satuan ?? "") : ""}</td>
-      <td className="px-2 py-1 text-right tabular-nums">
-        {line.isDetail && line.harga != null ? fmtN(line.harga) : ""}
-      </td>
-      <td className="px-2 py-1 text-right font-mono tabular-nums">
-        {fmtN(line.jumlah)}
-      </td>
+      <td className="px-2 py-1 text-right tabular-nums">{line.isDetail && line.harga != null ? fmtN(line.harga) : ""}</td>
+      <td className="px-2 py-1 text-right font-mono tabular-nums">{fmtN(line.jumlah)}</td>
     </tr>
   );
 }
@@ -208,55 +257,60 @@ const MONEY = "#,##0;-#,##0;";
 const RP = '"Rp"#,##0;"Rp"-#,##0';
 
 function indentFor(level: string): number {
-  return (
-    { KRO: 0, RO: 1, KOMPONEN: 2, SUB_KOMPONEN: 3, AKUN: 4, DETAIL: 5 }[level] ??
-    0
-  );
+  return { KRO: 0, RO: 1, KOMPONEN: 2, SUB_KOMPONEN: 3, AKUN: 4, DETAIL: 5 }[level] ?? 0;
 }
 
-/** Bangun satu worksheet RAB untuk sebuah komponen. */
-function buildRabSheet(rab: RabKomponen, ctx: Ctx): XLSX.WorkSheet {
+type Emit = {
+  id: string; pid: string | null; kode: string; uraian: string;
+  level: string; isDetail: boolean; rincian: string;
+  vol: number | null; satuan: string | null; harga: number | null; jumlah: number;
+};
+
+function buildRabSheet(unit: RabUnit, ctx: Ctx, signers: Signers): XLSX.WorkSheet {
   const A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6;
   const aoa: (string | number | null)[][] = [];
   const er = () => new Array(7).fill(null);
   const now = new Date();
-  const tgl = `Makassar, ${now.getDate()} ${BULAN[now.getMonth()]} ${now.getFullYear()}`;
+  const tgl = `${signers.kota}, ${now.getDate()} ${BULAN[now.getMonth()]} ${now.getFullYear()}`;
 
   let r = er(); r[A] = "RINCIAN ANGGARAN BELANJA"; aoa.push(r);
   r = er(); r[A] = `KELUARAN (OUTPUT) KEGIATAN T.A. ${ctx.tahun}`; aoa.push(r);
   aoa.push(er());
-  const hdrFirst = aoa.length + 1; // baris pertama kop (Kementerian)
+
+  const hdrFirst = aoa.length + 1;
   const hdr = (label: string, val: string | number) => {
     const x = er(); x[A] = label; x[C] = ":"; x[D] = val; aoa.push(x);
   };
   hdr("Kementerian Negara/Lembaga", "Kementerian Perhubungan");
   hdr("Unit Eselon II/Satker", ctx.satker);
-  hdr("Program", rab.programUraian);
-  hdr("Keluaran (Output)", `${rab.roKode}  ${rab.roUraian}`.trim());
-  hdr("Volume", rab.roVolume ?? "");
-  hdr("Satuan Ukur", rab.roSatuan ?? "");
-  hdr("Alokasi Anggaran", rab.total);
+  hdr("Program", unit.programUraian);
+  hdr("Keluaran (Output)", `${unit.roKode}  ${unit.roUraian}`.trim());
+  hdr("Komponen", `${unit.komponenKode}  ${unit.komponenUraian}`.trim());
+  if (unit.level === "SUB_KOMPONEN")
+    hdr("Sub Komponen", `${unit.subKode ?? ""}  ${unit.subUraian ?? ""}`.trim());
+  hdr("Volume", unit.roVolume ?? "");
+  hdr("Satuan Ukur", unit.roSatuan ?? "");
+  hdr("Alokasi Anggaran", unit.total);
+  const hdrCount = aoa.length + 1 - hdrFirst;
   const alokasiRow = aoa.length; // baris Alokasi (1-based)
   aoa.push(er());
 
-  // Header tabel (excel row = aoa.length+1)
-  const headRow = aoa.length; // 0-based index of header row
+  const headRow = aoa.length; // 0-based index baris header tabel
   r = er();
   r[A] = "Kode"; r[B] = "Uraian"; r[C] = "Rincian Perhitungan";
   r[D] = "Volume"; r[E] = "Satuan"; r[F] = "Harga Satuan"; r[G] = "Jumlah";
   aoa.push(r);
 
-  // Susun daftar baris (konteks + lines)
-  type Emit = {
-    id: string; pid: string | null; kode: string; uraian: string;
-    level: string; isDetail: boolean; rincian: string;
-    vol: number | null; satuan: string | null; harga: number | null; jumlah: number;
-  };
+  // Susun emit (konteks + lines)
   const emit: Emit[] = [];
-  emit.push({ id: "__kro", pid: null, kode: rab.kroKode, uraian: rab.kroUraian, level: "KRO", isDetail: false, rincian: "", vol: null, satuan: null, harga: null, jumlah: rab.total });
-  emit.push({ id: "__ro", pid: "__kro", kode: rab.roKode, uraian: rab.roUraian, level: "RO", isDetail: false, rincian: "", vol: null, satuan: null, harga: null, jumlah: rab.total });
-  emit.push({ id: rab.komponenId, pid: "__ro", kode: rab.komponenKode, uraian: rab.komponenUraian, level: "KOMPONEN", isDetail: false, rincian: "", vol: null, satuan: null, harga: null, jumlah: rab.total });
-  for (const l of rab.lines) {
+  const ctxRow = (id: string, pid: string | null, kode: string, uraian: string, level: string) =>
+    emit.push({ id, pid, kode, uraian, level, isDetail: false, rincian: "", vol: null, satuan: null, harga: null, jumlah: unit.total });
+  ctxRow("__kro", null, unit.kroKode, unit.kroUraian, "KRO");
+  ctxRow("__ro", "__kro", unit.roKode, unit.roUraian, "RO");
+  ctxRow(unit.komponenId, "__ro", unit.komponenKode, unit.komponenUraian, "KOMPONEN");
+  if (unit.level === "SUB_KOMPONEN")
+    ctxRow(unit.id, unit.komponenId, unit.subKode ?? "", unit.subUraian ?? "", "SUB_KOMPONEN");
+  for (const l of unit.lines) {
     emit.push({
       id: l.id, pid: l.parentId, kode: l.kode, uraian: l.uraian, level: l.level,
       isDetail: l.isDetail, rincian: l.isDetail ? rincianText(l) : "",
@@ -264,7 +318,7 @@ function buildRabSheet(rab: RabKomponen, ctx: Ctx): XLSX.WorkSheet {
     });
   }
 
-  const rowOf = new Map<string, number>(); // id → excel row (1-based)
+  const rowOf = new Map<string, number>();
   const dataStart = aoa.length + 1;
   emit.forEach((e, i) => rowOf.set(e.id, dataStart + i));
 
@@ -282,29 +336,26 @@ function buildRabSheet(rab: RabKomponen, ctx: Ctx): XLSX.WorkSheet {
     aoa.push(r);
   }
 
-  // JUMLAH / TOTAL / Dibulatkan / Terbilang
   const jumlahRow = aoa.length + 1;
-  r = er(); r[A] = "JUMLAH BIAYA"; r[G] = rab.total; aoa.push(r);
-  r = er(); r[A] = "TOTAL BIAYA"; r[G] = rab.total; aoa.push(r);
-  r = er(); r[A] = "Dibulatkan"; r[G] = rab.total; aoa.push(r);
+  r = er(); r[A] = "JUMLAH BIAYA"; r[G] = unit.total; aoa.push(r);
+  r = er(); r[A] = "TOTAL BIAYA"; r[G] = unit.total; aoa.push(r);
+  r = er(); r[A] = "Dibulatkan"; r[G] = unit.total; aoa.push(r);
   const terbilangRow = aoa.length + 1;
-  r = er(); r[A] = "Terbilang :"; r[B] = titleCase(terbilang(rab.total)); aoa.push(r);
-  aoa.push(er());
-  aoa.push(er());
+  r = er(); r[A] = "Terbilang :"; r[B] = titleCase(terbilang(unit.total)); aoa.push(r);
+  aoa.push(er()); aoa.push(er());
 
-  // Tanda tangan (kiri di kolom A:C, kanan di kolom E:G — keduanya center)
+  // Tanda tangan
   const sig = aoa.length;
+  const k = signers.kiri, n = signers.kanan;
   r = er(); r[A] = "Mengetahui"; r[E] = tgl; aoa.push(r);
-  r = er(); r[A] = TTD.kiriJabatan1; r[E] = TTD.kananJabatan1; aoa.push(r);
-  r = er(); r[A] = TTD.kiriJabatan2; r[E] = TTD.kananJabatan2; aoa.push(r);
+  r = er(); r[A] = k.jabatan; r[E] = n.jabatan; aoa.push(r);
   aoa.push(er()); aoa.push(er()); aoa.push(er());
-  r = er(); r[A] = TTD.kiriNama; r[E] = TTD.kananNama; aoa.push(r);
-  r = er(); r[A] = TTD.kiriGol; r[E] = TTD.kananGol; aoa.push(r);
-  r = er(); r[A] = TTD.kiriNip; r[E] = TTD.kananNip; aoa.push(r);
+  r = er(); r[A] = k.nama; r[E] = n.nama; aoa.push(r);
+  r = er(); r[A] = k.pangkat; r[E] = n.pangkat; aoa.push(r);
+  r = er(); r[A] = "NIP. " + k.nip; r[E] = "NIP. " + n.nip; aoa.push(r);
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  const enc = (row1: number, col0: number) =>
-    XLSX.utils.encode_cell({ r: row1 - 1, c: col0 });
+  const enc = (row1: number, col0: number) => XLSX.utils.encode_cell({ r: row1 - 1, c: col0 });
   const cl = (c: number) => XLSX.utils.encode_col(c);
 
   // Rumus: detail = ROUNDDOWN(D*F,-3); induk = SUM anak.
@@ -319,51 +370,37 @@ function buildRabSheet(rab: RabKomponen, ctx: Ctx): XLSX.WorkSheet {
     const row1 = rowOf.get(e.id)!;
     const a = enc(row1, G);
     if (e.isDetail) {
-      if (e.vol != null && e.harga != null && e.vol > 0 && e.harga > 0) {
+      if (e.vol != null && e.harga != null && e.vol > 0 && e.harga > 0)
         ws[a] = { t: "n", f: `ROUNDDOWN(${cl(D)}${row1}*${cl(F)}${row1},-3)`, v: e.jumlah };
-      } else {
-        ws[a] = { t: "n", v: e.jumlah };
-      }
+      else ws[a] = { t: "n", v: e.jumlah };
     } else {
       const kids = childrenRows.get(e.id) ?? [];
-      if (kids.length) {
+      if (kids.length)
         ws[a] = { t: "n", f: kids.map((cr) => `${cl(G)}${cr}`).join("+"), v: e.jumlah };
-      }
     }
   }
-  // JUMLAH/TOTAL/Dibulatkan = G komponen
-  const kompRow = rowOf.get(rab.komponenId)!;
-  for (let i = 0; i < 3; i++) {
-    ws[enc(jumlahRow + i, G)] = { t: "n", f: `${cl(G)}${kompRow}`, v: rab.total };
-  }
+  const kompRow = rowOf.get(unit.komponenId)!;
+  for (let i = 0; i < 3; i++)
+    ws[enc(jumlahRow + i, G)] = { t: "n", f: `${cl(G)}${kompRow}`, v: unit.total };
 
   // Styling
   const setStyle = (ref: string, s: Record<string, unknown>) => {
     ws[ref] = ws[ref] || { t: "s", v: "" };
     (ws[ref] as { s?: unknown }).s = s;
   };
-  // Judul
   setStyle(enc(1, A), { font: { bold: true, sz: 12 }, alignment: { horizontal: "center" } });
   setStyle(enc(2, A), { font: { bold: true, sz: 10 }, alignment: { horizontal: "center" } });
-  // Kop (Kementerian … Alokasi Anggaran)
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < hdrCount; i++) {
     const rr = hdrFirst + i;
     const isAlok = rr === alokasiRow;
-    setStyle(enc(rr, A), {
-      font: { sz: 9 },
-      alignment: { horizontal: "left", vertical: "center" },
-    });
-    setStyle(enc(rr, C), {
-      font: { sz: 9 },
-      alignment: { horizontal: "center", vertical: "center" },
-    });
+    setStyle(enc(rr, A), { font: { sz: 9 }, alignment: { horizontal: "left", vertical: "center" } });
+    setStyle(enc(rr, C), { font: { sz: 9 }, alignment: { horizontal: "center", vertical: "center" } });
     setStyle(enc(rr, D), {
       font: { sz: 9, bold: isAlok },
       alignment: { horizontal: "left", vertical: "center", wrapText: true },
       numFmt: isAlok ? RP : undefined,
     });
   }
-  // Header tabel
   for (let c = 0; c <= G; c++) {
     setStyle(enc(headRow + 1, c), {
       font: { bold: true, sz: 9, color: { rgb: "FFFFFF" } },
@@ -372,7 +409,6 @@ function buildRabSheet(rab: RabKomponen, ctx: Ctx): XLSX.WorkSheet {
       border: BORDER,
     });
   }
-  // Baris data
   emit.forEach((e) => {
     const row1 = rowOf.get(e.id)!;
     const fill =
@@ -396,64 +432,48 @@ function buildRabSheet(rab: RabKomponen, ctx: Ctx): XLSX.WorkSheet {
       });
     }
   });
-  // JUMLAH BIAYA / TOTAL BIAYA / Dibulatkan — label kanan, nilai Rp + border
   for (let i = 0; i < 3; i++) {
     const rr = jumlahRow + i;
-    setStyle(enc(rr, A), {
-      font: { bold: true, sz: 10 },
-      alignment: { horizontal: "right", vertical: "center" },
-    });
+    setStyle(enc(rr, A), { font: { bold: true, sz: 10 }, alignment: { horizontal: "right", vertical: "center" } });
     setStyle(enc(rr, G), {
-      font: { bold: true, sz: 10 },
-      numFmt: RP,
-      alignment: { horizontal: "right", vertical: "center" },
-      border: BORDER,
+      font: { bold: true, sz: 10 }, numFmt: RP,
+      alignment: { horizontal: "right", vertical: "center" }, border: BORDER,
     });
   }
-  // Terbilang
-  setStyle(enc(terbilangRow, A), {
-    font: { bold: true, sz: 9 },
-    alignment: { horizontal: "left", vertical: "top" },
-  });
-  setStyle(enc(terbilangRow, B), {
-    font: { italic: true, sz: 9 },
-    alignment: { horizontal: "left", vertical: "top", wrapText: true },
-  });
+  setStyle(enc(terbilangRow, A), { font: { bold: true, sz: 9 }, alignment: { horizontal: "left", vertical: "top" } });
+  setStyle(enc(terbilangRow, B), { font: { italic: true, sz: 9 }, alignment: { horizontal: "left", vertical: "top", wrapText: true } });
 
-  // Tanda tangan — center, font seragam (nama tebal + garis bawah)
-  const sigTextRows = [sig + 1, sig + 2, sig + 3, sig + 7, sig + 8, sig + 9];
-  for (const rr of sigTextRows) {
-    const isName = rr === sig + 7;
+  const sigText = [sig + 1, sig + 2, sig + 6, sig + 7, sig + 8];
+  for (const rr of sigText) {
+    const isName = rr === sig + 6;
+    const isJab = rr === sig + 2;
     const st = {
       font: { sz: 9, bold: isName, underline: isName },
-      alignment: { horizontal: "center" as const, vertical: "center" as const },
+      alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: isJab },
     };
     setStyle(enc(rr, A), st);
     setStyle(enc(rr, E), { ...st, font: { ...st.font } });
   }
 
   // Merges
-  const M = (r1: number, c1: number, r2: number, c2: number) => ({
-    s: { r: r1 - 1, c: c1 },
-    e: { r: r2 - 1, c: c2 },
-  });
+  const M = (r1: number, c1: number, r2: number, c2: number) => ({ s: { r: r1 - 1, c: c1 }, e: { r: r2 - 1, c: c2 } });
   const merges = [M(1, A, 1, G), M(2, A, 2, G)];
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < hdrCount; i++) {
     const rr = hdrFirst + i;
-    merges.push(M(rr, A, rr, B)); // label
-    merges.push(M(rr, D, rr, G)); // nilai
+    merges.push(M(rr, A, rr, B));
+    merges.push(M(rr, D, rr, G));
   }
   for (let i = 0; i < 3; i++) merges.push(M(jumlahRow + i, A, jumlahRow + i, F));
   merges.push(M(terbilangRow, B, terbilangRow, G));
-  for (const rr of sigTextRows) {
-    merges.push(M(rr, A, rr, C)); // kiri
-    merges.push(M(rr, E, rr, G)); // kanan
+  for (const rr of sigText) {
+    merges.push(M(rr, A, rr, C));
+    merges.push(M(rr, E, rr, G));
   }
   ws["!merges"] = merges;
 
-  // Tinggi baris terbilang agar teks panjang muat
   ws["!rows"] = [];
   ws["!rows"][terbilangRow - 1] = { hpt: 26 };
+  ws["!rows"][sig + 1] = { hpt: 28 }; // jabatan (0-based index = excel row sig+2)
 
   ws["!cols"] = [
     { wch: 16 }, { wch: 44 }, { wch: 14 }, { wch: 12 },
@@ -473,32 +493,28 @@ function downloadWorkbook(wb: XLSX.WorkBook, filename: string) {
   });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
+  a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
 
-function downloadOne(rab: RabKomponen, ctx: Ctx) {
+function downloadOne(unit: RabUnit, ctx: Ctx, signers: Signers) {
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, buildRabSheet(rab, ctx), safeSheetName(rab.komponenKode));
-  downloadWorkbook(
-    wb,
-    `RAB_${ctx.satkerKode || "Satker"}_Komp${rab.komponenKode}_TA${ctx.tahun}.xlsx`,
-  );
+  XLSX.utils.book_append_sheet(wb, buildRabSheet(unit, ctx, signers), safeSheetName(unit.sheetName));
+  downloadWorkbook(wb, `RAB_${ctx.satkerKode || "Satker"}_${safeSheetName(unit.sheetName)}_TA${ctx.tahun}.xlsx`);
 }
 
-function downloadAll(rabs: RabKomponen[], ctx: Ctx) {
+function downloadAll(units: RabUnit[], ctx: Ctx, signers: Signers, mode: Mode) {
   const wb = XLSX.utils.book_new();
   const used = new Set<string>();
-  for (const rab of rabs) {
-    let name = safeSheetName(rab.komponenKode);
+  for (const u of units) {
+    let name = safeSheetName(u.sheetName);
     let i = 2;
-    while (used.has(name)) name = safeSheetName(rab.komponenKode + "_" + i++);
+    while (used.has(name)) name = safeSheetName(u.sheetName + "_" + i++);
     used.add(name);
-    XLSX.utils.book_append_sheet(wb, buildRabSheet(rab, ctx), name);
+    XLSX.utils.book_append_sheet(wb, buildRabSheet(u, ctx, signers), name);
   }
-  downloadWorkbook(wb, `RAB_${ctx.satkerKode || "Satker"}_SemuaKomponen_TA${ctx.tahun}.xlsx`);
+  const tag = mode === "SUB" ? "SubKomponen" : "Komponen";
+  downloadWorkbook(wb, `RAB_${ctx.satkerKode || "Satker"}_Semua_${tag}_TA${ctx.tahun}.xlsx`);
 }
 
 /* ───────────────────────── Cetak (HTML) ───────────────────────── */
@@ -507,27 +523,29 @@ function esc(s: unknown): string {
   return String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!);
 }
 
-function printRab(rab: RabKomponen, ctx: Ctx) {
+function printRab(unit: RabUnit, ctx: Ctx, signers: Signers) {
   const now = new Date();
-  const tgl = `Makassar, ${now.getDate()} ${BULAN[now.getMonth()]} ${now.getFullYear()}`;
-  const lineRows = rab.lines
-    .map((l) => {
-      const ind = ({ SUB_KOMPONEN: 3, AKUN: 4, DETAIL: 5 }[l.level] ?? 3) * 14;
-      const bold = l.level === "SUB_KOMPONEN" || l.level === "AKUN" ? "font-weight:bold" : "";
-      return `<tr style="${bold}">
-        <td class="mono">${esc(l.kode)}</td>
-        <td style="padding-left:${ind}px">${l.isDetail ? "- " : ""}${esc(l.uraian)}</td>
-        <td>${l.isDetail ? esc(rincianText(l)) : ""}</td>
-        <td class="r">${l.isDetail && l.vol != null ? fmtN(l.vol) : ""}</td>
-        <td>${l.isDetail ? esc(l.satuan ?? "") : ""}</td>
-        <td class="r">${l.isDetail && l.harga != null ? fmtN(l.harga) : ""}</td>
-        <td class="r">${fmtN(l.jumlah)}</td></tr>`;
-    })
-    .join("");
+  const tgl = `${signers.kota}, ${now.getDate()} ${BULAN[now.getMonth()]} ${now.getFullYear()}`;
   const ctxRow = (kode: string, ur: string, ind: number, b: boolean) =>
-    `<tr style="${b ? "font-weight:bold" : ""}"><td class="mono">${esc(kode)}</td><td style="padding-left:${ind * 14}px">${esc(ur)}</td><td colspan="4"></td><td class="r">${fmtN(rab.total)}</td></tr>`;
+    `<tr style="${b ? "font-weight:bold" : ""}"><td class="mono">${esc(kode)}</td><td style="padding-left:${ind * 14}px">${esc(ur)}</td><td colspan="4"></td><td class="r">${fmtN(unit.total)}</td></tr>`;
+  const lineRows = unit.lines.map((l) => {
+    const ind = ({ SUB_KOMPONEN: 3, AKUN: 4, DETAIL: 5 }[l.level] ?? 3) * 14;
+    const bold = l.level === "SUB_KOMPONEN" || l.level === "AKUN" ? "font-weight:bold" : "";
+    return `<tr style="${bold}">
+      <td class="mono">${esc(l.kode)}</td>
+      <td style="padding-left:${ind}px">${l.isDetail ? "- " : ""}${esc(l.uraian)}</td>
+      <td>${l.isDetail ? esc(rincianText(l)) : ""}</td>
+      <td class="r">${l.isDetail && l.vol != null ? fmtN(l.vol) : ""}</td>
+      <td>${l.isDetail ? esc(l.satuan ?? "") : ""}</td>
+      <td class="r">${l.isDetail && l.harga != null ? fmtN(l.harga) : ""}</td>
+      <td class="r">${fmtN(l.jumlah)}</td></tr>`;
+  }).join("");
+  const subHdr = unit.level === "SUB_KOMPONEN"
+    ? `<tr><td>Sub Komponen</td><td>:</td><td>${esc(unit.subKode)} ${esc(unit.subUraian)}</td></tr>` : "";
+  const subCtx = unit.level === "SUB_KOMPONEN" ? ctxRow(unit.subKode ?? "", unit.subUraian ?? "", 3, true) : "";
+  const k = signers.kiri, n = signers.kanan;
 
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>RAB ${esc(rab.komponenKode)}</title>
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>RAB ${esc(unit.sheetName)}</title>
 <style>
   *{font-family:Arial,sans-serif;font-size:11px}
   h1{font-size:13px;text-align:center;margin:0}
@@ -548,33 +566,31 @@ function printRab(rab: RabKomponen, ctx: Ctx) {
 <table class="hdr">
   <tr><td style="width:200px">Kementerian Negara/Lembaga</td><td style="width:10px">:</td><td>Kementerian Perhubungan</td></tr>
   <tr><td>Unit Eselon II/Satker</td><td>:</td><td>${esc(ctx.satker)}</td></tr>
-  <tr><td>Program</td><td>:</td><td>${esc(rab.programUraian)}</td></tr>
-  <tr><td>Keluaran (Output)</td><td>:</td><td>${esc(rab.roKode)} ${esc(rab.roUraian)}</td></tr>
-  <tr><td>Komponen</td><td>:</td><td>${esc(rab.komponenKode)} ${esc(rab.komponenUraian)}</td></tr>
-  <tr><td>Alokasi Anggaran</td><td>:</td><td>${fmtN(rab.total)}</td></tr>
+  <tr><td>Program</td><td>:</td><td>${esc(unit.programUraian)}</td></tr>
+  <tr><td>Keluaran (Output)</td><td>:</td><td>${esc(unit.roKode)} ${esc(unit.roUraian)}</td></tr>
+  <tr><td>Komponen</td><td>:</td><td>${esc(unit.komponenKode)} ${esc(unit.komponenUraian)}</td></tr>
+  ${subHdr}
+  <tr><td>Alokasi Anggaran</td><td>:</td><td>Rp ${fmtN(unit.total)}</td></tr>
 </table>
 <table>
   <tr><th>Kode</th><th>Uraian</th><th>Rincian Perhitungan</th><th>Volume</th><th>Satuan</th><th>Harga Satuan</th><th>Jumlah</th></tr>
-  ${ctxRow(rab.kroKode, rab.kroUraian, 0, false)}
-  ${ctxRow(rab.roKode, rab.roUraian, 1, false)}
-  ${ctxRow(rab.komponenKode, rab.komponenUraian, 2, true)}
+  ${ctxRow(unit.kroKode, unit.kroUraian, 0, false)}
+  ${ctxRow(unit.roKode, unit.roUraian, 1, false)}
+  ${ctxRow(unit.komponenKode, unit.komponenUraian, 2, true)}
+  ${subCtx}
   ${lineRows}
-  <tr style="font-weight:bold;background:#eee"><td colspan="6">JUMLAH BIAYA</td><td class="r">${fmtN(rab.total)}</td></tr>
+  <tr style="font-weight:bold;background:#eee"><td colspan="6">JUMLAH BIAYA</td><td class="r">${fmtN(unit.total)}</td></tr>
 </table>
-<p><strong>Terbilang:</strong> <em>${esc(titleCase(terbilang(rab.total)))}</em></p>
+<p><strong>Terbilang:</strong> <em>${esc(titleCase(terbilang(unit.total)))}</em></p>
 <table class="sig">
   <tr><td>Mengetahui</td><td></td><td>${esc(tgl)}</td></tr>
-  <tr><td>${esc(TTD.kiriJabatan1)}</td><td></td><td>${esc(TTD.kananJabatan1)}</td></tr>
-  <tr><td>${esc(TTD.kiriJabatan2)}</td><td></td><td>${esc(TTD.kananJabatan2)}</td></tr>
+  <tr><td>${esc(k.jabatan)}</td><td></td><td>${esc(n.jabatan)}</td></tr>
   <tr><td style="height:60px"></td><td></td><td></td></tr>
-  <tr><td style="font-weight:bold;text-decoration:underline">${esc(TTD.kiriNama)}</td><td></td><td style="font-weight:bold;text-decoration:underline">${esc(TTD.kananNama)}</td></tr>
-  <tr><td>${esc(TTD.kiriGol)}</td><td></td><td>${esc(TTD.kananGol)}</td></tr>
-  <tr><td>${esc(TTD.kiriNip)}</td><td></td><td>${esc(TTD.kananNip)}</td></tr>
+  <tr><td style="font-weight:bold;text-decoration:underline">${esc(k.nama)}</td><td></td><td style="font-weight:bold;text-decoration:underline">${esc(n.nama)}</td></tr>
+  <tr><td>${esc(k.pangkat)}</td><td></td><td>${esc(n.pangkat)}</td></tr>
+  <tr><td>NIP. ${esc(k.nip)}</td><td></td><td>NIP. ${esc(n.nip)}</td></tr>
 </table>
 </body></html>`;
   const w = window.open("", "_blank");
-  if (w) {
-    w.document.write(html);
-    w.document.close();
-  }
+  if (w) { w.document.write(html); w.document.close(); }
 }

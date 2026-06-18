@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { MASTERS, type MasterKey } from '@/lib/referensi';
 
-const ORDER: MasterKey[] = ['program', 'kegiatan', 'kro', 'ro', 'komponen', 'sub_komponen', 'akun'];
+const ORDER: MasterKey[] = ['program', 'kegiatan', 'kro', 'ro', 'komponen', 'sub_komponen', 'akun', 'penandatangan'];
 
 export function ReferensiTabs() {
   const pathname = usePathname();
