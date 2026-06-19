@@ -35,6 +35,7 @@ ok(k.lines.every((l) => l.level === "SUB_KOMPONEN" && !l.isDetail), "semua baris
 ok(k.lines[0].jumlah === 4810000 && k.lines[1].jumlah === 1200000, "jumlah tiap sub komponen benar");
 ok(k.total === 6010000, "total komponen = 6.010.000");
 ok(k.subKode === null, "mode komponen: subKode null");
+ok(k.programKode === "022.12.DL" && k.programUraian === "Program Dukungan", "program kode & uraian terisi (untuk filter dropdown)");
 
 console.log("buildRabPerSubKomponen (rincian):");
 const perS = buildRabPerSubKomponen(kk.rows);

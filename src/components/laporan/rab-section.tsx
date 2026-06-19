@@ -60,8 +60,22 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
     () => (mode === "SUB" ? buildRabPerSubKomponen(rows) : buildRabPerKomponen(rows)),
     [rows, mode],
   );
+  // Daftar program (untuk memfilter dropdown komponen).
+  const programs = React.useMemo(() => {
+    const m = new Map<string, string>();
+    for (const u of units) m.set(u.programKode || u.programUraian, u.programUraian);
+    return [...m.entries()].map(([kode, nama]) => ({ kode, nama }));
+  }, [units]);
+  const [programFilter, setProgramFilter] = React.useState("ALL");
+  const filteredUnits = React.useMemo(
+    () =>
+      programFilter === "ALL"
+        ? units
+        : units.filter((u) => (u.programKode || u.programUraian) === programFilter),
+    [units, programFilter],
+  );
   const [sel, setSel] = React.useState(0);
-  React.useEffect(() => setSel(0), [units]);
+  React.useEffect(() => setSel(0), [filteredUnits]);
 
   interface PersonRow { id: string; nama: string; jabatan: string; pangkat: string; nip: string }
   const [people, setPeople] = React.useState<PersonRow[]>([]);
@@ -97,7 +111,7 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
   }, []);
 
   if (units.length === 0) return null;
-  const unit = units[Math.min(sel, units.length - 1)];
+  const unit = filteredUnits[Math.min(sel, filteredUnits.length - 1)] ?? filteredUnits[0] ?? units[0];
   const toSigner = (p: PersonRow): Signer => ({ nama: p.nama, jabatan: p.jabatan, pangkat: p.pangkat, nip: p.nip });
   const kiriP = people.find((p) => p.id === kiriId);
   const kananP = people.find((p) => p.id === kananId);
@@ -154,24 +168,44 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Select
-            value={sel}
-            onChange={(e) => setSel(Number(e.target.value))}
-            className="min-w-[280px]"
-          >
-            {units.map((u, i) => (
-              <option key={u.id} value={i}>
-                {u.sheetName} — {labelOf(u)} ({fmtN(u.total)})
-              </option>
-            ))}
-          </Select>
+          {programs.length > 1 && (
+            <label className="flex items-center gap-1.5 text-xs">
+              <span className="text-muted-foreground">Program</span>
+              <Select
+                value={programFilter}
+                onChange={(e) => setProgramFilter(e.target.value)}
+                className="min-w-[220px]"
+              >
+                <option value="ALL">Semua Program</option>
+                {programs.map((p) => (
+                  <option key={p.kode} value={p.kode}>
+                    {p.kode ? `${p.kode} — ` : ""}{p.nama}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          )}
+          <label className="flex items-center gap-1.5 text-xs">
+            <span className="text-muted-foreground">{mode === "SUB" ? "Sub Komponen" : "Komponen"}</span>
+            <Select
+              value={sel}
+              onChange={(e) => setSel(Number(e.target.value))}
+              className="min-w-[340px]"
+            >
+              {filteredUnits.map((u, i) => (
+                <option key={u.id} value={i}>
+                  {u.roKode} · {u.sheetName} — {labelOf(u)} ({fmtN(u.total)})
+                </option>
+              ))}
+            </Select>
+          </label>
           <Button size="sm" variant="outline" onClick={() => printRab(unit, ctx, signers)}>
             <Printer className="size-4" /> Cetak
           </Button>
           <Button size="sm" variant="outline" onClick={() => downloadOne(unit, ctx, signers)}>
             <Download className="size-4" /> Unduh ini
           </Button>
-          <Button size="sm" onClick={() => downloadAll(units, ctx, signers, mode)}>
+          <Button size="sm" onClick={() => downloadAll(filteredUnits, ctx, signers, mode)}>
             <Layers className="size-4" /> Unduh Semua
           </Button>
         </div>

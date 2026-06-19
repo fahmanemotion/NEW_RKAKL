@@ -36,6 +36,7 @@ export interface RabUnit {
   roUraian: string;
   roVolume: number | null;
   roSatuan: string | null;
+  programKode: string;
   programUraian: string;
   total: number;
   lines: RabLine[];
@@ -73,6 +74,7 @@ function ancestorOf(ctx: Ctx, r: KKRow, level: string): KKRow | null {
 function headerOf(ctx: Ctx, komponen: KKRow) {
   const ro = ancestorOf(ctx, komponen, "RO");
   const kro = ancestorOf(ctx, komponen, "KRO");
+  const program = ancestorOf(ctx, komponen, "PROGRAM");
   return {
     kroKode: kro?.kode ?? "",
     kroUraian: kro?.uraian ?? "",
@@ -80,7 +82,8 @@ function headerOf(ctx: Ctx, komponen: KKRow) {
     roUraian: ro?.uraian ?? "",
     roVolume: ro?.vol ?? null,
     roSatuan: ro?.satuan ?? null,
-    programUraian: ctx.programUraian,
+    programKode: program?.kode ?? "",
+    programUraian: program?.uraian ?? ctx.programUraian,
   };
 }
 
