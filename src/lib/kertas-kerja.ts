@@ -149,7 +149,10 @@ export function buildKertasKerja(rows: UsulanStruktur[]): {
     else roots.push(n);
   });
   const byUrut = (a: Node, b: Node) =>
-    a.urutan - b.urutan || (a.kode || "").localeCompare(b.kode || "");
+    a.level === "AKUN" && b.level === "AKUN"
+      ? (a.kode || "").localeCompare(b.kode || "", undefined, { numeric: true }) ||
+        a.urutan - b.urutan
+      : a.urutan - b.urutan || (a.kode || "").localeCompare(b.kode || "");
   const sortRec = (n: Node) => {
     n.children.sort(byUrut);
     n.children.forEach(sortRec);

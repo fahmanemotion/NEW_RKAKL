@@ -54,5 +54,31 @@ ok(kk.find((r) => r.level === "DETAIL").depth === 7, "depth DETAIL = 7");
 console.log("unitKodeFromRows:");
 ok(unitKodeFromRows(kk) === "022.12", "kode unit dari program → 022.12");
 
+// ── Urutan AKUN by kode (bukan urutan input) ────────────────────────────────
+console.log("Urutan AKUN hirarkis by kode:");
+{
+  const rows = [
+    { id: "p", parent_id: null, level: "PROGRAM", kode: "022.12", uraian: "P", jumlah: 0, urutan: 0 },
+    { id: "kg", parent_id: "p", level: "KEGIATAN", kode: "1975", uraian: "K", jumlah: 0, urutan: 0 },
+    { id: "kr", parent_id: "kg", level: "KRO", kode: "1975.DAB", uraian: "KR", jumlah: 0, urutan: 0 },
+    { id: "ro", parent_id: "kr", level: "RO", kode: "1975.DAB.002", uraian: "RO", jumlah: 0, urutan: 0 },
+    { id: "km", parent_id: "ro", level: "KOMPONEN", kode: "051", uraian: "KM", jumlah: 0, urutan: 0 },
+    { id: "sk", parent_id: "km", level: "SUB_KOMPONEN", kode: "A", uraian: "SK", jumlah: 0, urutan: 0 },
+    // diinput: 521811 dulu (urutan 0), lalu 521211 (urutan 1)
+    { id: "ak1", parent_id: "sk", level: "AKUN", kode: "521811", uraian: "Konsumsi", jumlah: 0, urutan: 0, sumber_dana: "RM" },
+    { id: "d1", parent_id: "ak1", level: "DETAIL", kode: null, uraian: "x", jumlah: 100, urutan: 0, volume: 1, satuan: "x", harga: 100 },
+    { id: "ak2", parent_id: "sk", level: "AKUN", kode: "521211", uraian: "ATK", jumlah: 0, urutan: 1, sumber_dana: "RM" },
+    { id: "d2", parent_id: "ak2", level: "DETAIL", kode: null, uraian: "y", jumlah: 200, urutan: 0, volume: 1, satuan: "y", harga: 200 },
+  ];
+  const out = buildKertasKerja(rows).rows;
+  const akunOrder = out.filter((r) => r.level === "AKUN").map((r) => r.kode);
+  ok(akunOrder[0] === "521211" && akunOrder[1] === "521811", "521211 di atas 521811 walau diinput belakangan");
+  // detail tetap mengikuti akun induknya
+  const idxAk211 = out.findIndex((r) => r.kode === "521211");
+  const idxAk811 = out.findIndex((r) => r.kode === "521811");
+  const idxD2 = out.findIndex((r) => r.id === "d2");
+  ok(idxAk211 < idxD2 && idxD2 < idxAk811, "detail 521211 tetap menempel di bawah akunnya, sebelum 521811");
+}
+
 console.log("\nHasil: " + pass + " lulus, " + fail + " gagal");
 if (fail > 0) process.exit(1);
