@@ -14,9 +14,10 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { Button, Card, Select } from "@/components/ui";
-import { flattenForGrid, subtreeIds, type GridRow } from "@/lib/tree";
+import { flattenForGrid, subtreeIds, filterStruktur, programAncestorId, type GridRow } from "@/lib/tree";
 import { toolbarActions, type ToolbarAction } from "@/lib/toolbar";
 import { fmtN, type Level } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
 import { usePenganggaran } from "@/store/penganggaran";
 import {
@@ -24,6 +25,8 @@ import {
   upsertDetail,
   deleteNodes,
   pasteNode,
+  claimKro,
+  releaseKro,
   editNode,
   setChildrenSumber,
   fetchStruktur,
@@ -86,9 +89,11 @@ type DetailState = {
 export function PenganggaranClient({
   header,
   initialRows,
+  me,
 }: {
   header: UsulanHeader;
   initialRows: UsulanStruktur[];
+  me: { id: string; nama: string | null };
 }) {
   const [rows, setRows] = React.useState<UsulanStruktur[]>(initialRows);
   const [status, setStatus] = React.useState<string>(header.status);
@@ -149,10 +154,38 @@ export function PenganggaranClient({
     };
   }, [header.id, refresh]);
 
-  const { gridRows, total } = React.useMemo(
+  const { gridRows: allGridRows, total } = React.useMemo(
     () => flattenForGrid(rows, { kppn: header.kppn, lokus: header.lokus }),
     [rows, header.kppn, header.lokus],
   );
+
+  // ── Filter tampilan: Program → KRO (agar tidak semua usulan tampil) ─────────
+  const programs = React.useMemo(
+    () =>
+      rows
+        .filter((r) => r.level === "PROGRAM")
+        .map((r) => ({ id: r.id, kode: r.kode ?? "", uraian: r.uraian ?? "" })),
+    [rows],
+  );
+  const [filterProgram, setFilterProgram] = React.useState("ALL");
+  const [filterKro, setFilterKro] = React.useState("ALL");
+  React.useEffect(() => setFilterKro("ALL"), [filterProgram]);
+  const kros = React.useMemo(() => {
+    if (filterProgram === "ALL") return [];
+    return rows
+      .filter((r) => r.level === "KRO" && programAncestorId(rows, r.id) === filterProgram)
+      .map((r) => ({ id: r.id, kode: r.kode ?? "", uraian: r.uraian ?? "" }));
+  }, [rows, filterProgram]);
+
+  const gridRows = React.useMemo(() => {
+    if (filterProgram === "ALL") return allGridRows;
+    const sub = filterStruktur(
+      rows,
+      filterProgram,
+      filterKro === "ALL" ? null : filterKro,
+    );
+    return flattenForGrid(sub, { kppn: header.kppn, lokus: header.lokus }).gridRows;
+  }, [filterProgram, filterKro, rows, allGridRows, header.kppn, header.lokus]);
 
   // Muat kandidat sumber salinan saat usulan masih Draft & belum berisi rincian.
   const isEmptyDraft = header.status !== "Final" && rows.length === 0;
@@ -230,6 +263,55 @@ export function PenganggaranClient({
   const [pasting, setPasting] = React.useState(false);
   const actions = toolbarActions(selType, clip?.level ?? null);
 
+  // ── Kunci KRO (input paralel) ──────────────────────────────────────────────
+  const byId = React.useMemo(
+    () => new Map(rows.map((r) => [r.id, r])),
+    [rows],
+  );
+  function kroAncestor(id: string | null | undefined): UsulanStruktur | null {
+    let cur = id ? byId.get(id) ?? null : null;
+    while (cur) {
+      if (cur.level === "KRO") return cur;
+      cur = cur.parent_id ? byId.get(cur.parent_id) ?? null : null;
+    }
+    return null;
+  }
+  const selKro = kroAncestor(selectedRow?.ref?.id ?? null);
+  const kroOwnerId = selKro?.dikerjakan_oleh ?? null;
+  const kroOwnerNama = selKro?.dikerjakan_oleh_nama ?? null;
+  const lockedByOther = !!kroOwnerId && kroOwnerId !== me.id;
+  const ownedByMe = !!kroOwnerId && kroOwnerId === me.id;
+  const [claimBusy, setClaimBusy] = React.useState(false);
+
+  async function onClaim() {
+    if (!selKro) return;
+    setClaimBusy(true);
+    try {
+      await claimKro(selKro.id, me);
+      await refresh();
+    } catch (e) {
+      alert(
+        (e as Error).message?.includes("TERKUNCI")
+          ? "KRO ini sedang dikerjakan pengguna lain."
+          : (e as Error).message,
+      );
+    } finally {
+      setClaimBusy(false);
+    }
+  }
+  async function onRelease() {
+    if (!selKro) return;
+    setClaimBusy(true);
+    try {
+      await releaseKro(selKro.id, me);
+      await refresh();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setClaimBusy(false);
+    }
+  }
+
   async function onPaste() {
     if (!clip || !selectedRow?.ref) return;
     setPasting(true);
@@ -240,7 +322,9 @@ export function PenganggaranClient({
       alert(
         (e as Error).message?.includes("DUPLIKAT")
           ? "Tidak bisa menempel: sudah ada item dengan kode yang sama pada induk tujuan."
-          : `Gagal menempel: ${(e as Error).message}`,
+          : (e as Error).message?.includes("TERKUNCI")
+            ? "KRO tujuan sedang dikerjakan pengguna lain."
+            : `Gagal menempel: ${(e as Error).message}`,
       );
     } finally {
       setPasting(false);
@@ -248,6 +332,11 @@ export function PenganggaranClient({
   }
 
   function handleAction(a: ToolbarAction) {
+    // Blokir input bila KRO induk dikerjakan pengguna lain.
+    if (lockedByOther && (a.kind === "add" || a.kind === "edit" || a.kind === "delete" || a.kind === "paste")) {
+      alert(`KRO ini sedang dikerjakan oleh ${kroOwnerNama || "pengguna lain"}. Anda tidak dapat menginput di sini.`);
+      return;
+    }
     if (a.kind === "delete") return onDelete();
     if (a.kind === "copy") {
       if (selectedRow?.ref && selType && selType !== "INFO") {
@@ -681,6 +770,47 @@ export function PenganggaranClient({
         </div>
       )}
 
+      {/* Status kunci KRO (input paralel) */}
+      {selKro && !isFinal && (
+        <div
+          className={cn(
+            "flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm",
+            lockedByOther
+              ? "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30"
+              : ownedByMe
+                ? "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30"
+                : "border-border bg-muted/40",
+          )}
+        >
+          <span className="flex items-center gap-2">
+            <Lock className={cn("size-4", lockedByOther ? "text-amber-600" : ownedByMe ? "text-emerald-600" : "text-muted-foreground")} />
+            {lockedByOther ? (
+              <span>
+                KRO <span className="font-medium">{selKro.kode}</span> sedang dikerjakan oleh{" "}
+                <span className="font-medium">{kroOwnerNama || "pengguna lain"}</span>. Anda tidak dapat menginput di bawahnya.
+              </span>
+            ) : ownedByMe ? (
+              <span>
+                Anda sedang mengerjakan KRO <span className="font-medium">{selKro.kode}</span>. Pengguna lain tidak dapat menginput di sini.
+              </span>
+            ) : (
+              <span>
+                KRO <span className="font-medium">{selKro.kode}</span> belum diklaim. Klaim agar tidak bentrok dengan operator lain.
+              </span>
+            )}
+          </span>
+          {ownedByMe ? (
+            <Button size="sm" variant="outline" onClick={onRelease} disabled={claimBusy}>
+              {claimBusy ? "…" : "Lepas KRO"}
+            </Button>
+          ) : !lockedByOther ? (
+            <Button size="sm" onClick={onClaim} disabled={claimBusy}>
+              {claimBusy ? "…" : "Kerjakan KRO ini"}
+            </Button>
+          ) : null}
+        </div>
+      )}
+
       {/* Toolbar dinamis + pagu */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
@@ -697,7 +827,11 @@ export function PenganggaranClient({
                       : "default"
               }
               size="sm"
-              disabled={isFinal || (a.kind === "paste" && pasting)}
+              disabled={
+                isFinal ||
+                (a.kind === "paste" && pasting) ||
+                (lockedByOther && (a.kind === "add" || a.kind === "edit" || a.kind === "delete" || a.kind === "paste"))
+              }
               onClick={() => handleAction(a)}
             >
               {iconFor(a)} {a.kind === "add" ? `${i + 1}. ` : ""}
@@ -782,7 +916,59 @@ export function PenganggaranClient({
         </Button>
       </div>
 
-      <TreeGrid rows={display} selectedId={selectedId} onSelect={select} />
+      {/* Filter tampilan: Program → KRO */}
+      {programs.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
+          <span className="font-medium text-muted-foreground">Filter tampilan:</span>
+          <label className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">Program</span>
+            <Select
+              value={filterProgram}
+              onChange={(e) => setFilterProgram(e.target.value)}
+              className="min-w-[200px]"
+            >
+              <option value="ALL">Semua Program</option>
+              {programs.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.kode ? `${p.kode} — ` : ""}{p.uraian}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">KRO</span>
+            <Select
+              value={filterKro}
+              onChange={(e) => setFilterKro(e.target.value)}
+              disabled={filterProgram === "ALL" || kros.length === 0}
+              className="min-w-[240px]"
+            >
+              <option value="ALL">Semua KRO</option>
+              {kros.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.kode ? `${k.kode} — ` : ""}{k.uraian}
+                </option>
+              ))}
+            </Select>
+          </label>
+          {filterProgram !== "ALL" && (
+            <button
+              className="rounded px-2 py-1 text-muted-foreground hover:bg-accent"
+              onClick={() => {
+                setFilterProgram("ALL");
+                setFilterKro("ALL");
+              }}
+            >
+              Reset
+            </button>
+          )}
+          <span className="ml-auto text-muted-foreground">
+            {display.length} baris ditampilkan
+          </span>
+        </div>
+      )}
+
+      <TreeGrid rows={display} selectedId={selectedId} onSelect={select} meId={me.id} />
 
       <p className="text-xs text-muted-foreground">
         Klik baris untuk memilih — tombol menyesuaikan level (Program → Kegiatan

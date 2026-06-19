@@ -69,8 +69,11 @@ export function buildTree(rows: UsulanStruktur[]): { roots: Node[] } {
       map.get(n.parent_id)!.children.push(n);
     else roots.push(n);
   });
+  // Level dengan kode terstruktur diurutkan by kode (hirarkis atas→bawah);
+  // sisanya (Komponen/Sub Komponen/Detail) mengikuti urutan input.
+  const CODE_SORT = new Set(["PROGRAM", "KEGIATAN", "KRO", "RO", "AKUN"]);
   const byUrut = (a: Node, b: Node) =>
-    a.level === "AKUN" && b.level === "AKUN"
+    CODE_SORT.has(a.level) && CODE_SORT.has(b.level)
       ? (a.kode || "").localeCompare(b.kode || "", undefined, { numeric: true }) ||
         a.urutan - b.urutan
       : a.urutan - b.urutan || (a.kode || "").localeCompare(b.kode || "");
@@ -160,4 +163,60 @@ export function flattenForGrid(
 
   const total = roots.reduce((s, n) => s + n.agg, 0);
   return { gridRows: out, total };
+}
+
+/**
+ * Saring baris struktur untuk tampilan grid berdasarkan Program (+ KRO opsional).
+ *  • tanpa programId          → semua baris (tanpa filter).
+ *  • programId saja           → subtree program tsb (program + seluruh turunan).
+ *  • programId + kroId        → leluhur KRO (program, kegiatan) + subtree KRO.
+ * Mengembalikan subset `rows` yang konsisten (rantai induk tetap utuh).
+ */
+export function filterStruktur(
+  rows: UsulanStruktur[],
+  programId: string | null,
+  kroId: string | null,
+): UsulanStruktur[] {
+  if (!programId) return rows;
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const childrenOf = new Map<string, string[]>();
+  for (const r of rows) {
+    if (!r.parent_id) continue;
+    const arr = childrenOf.get(r.parent_id) ?? [];
+    arr.push(r.id);
+    childrenOf.set(r.parent_id, arr);
+  }
+  const allow = new Set<string>();
+  const addSubtree = (id: string) => {
+    allow.add(id);
+    for (const c of childrenOf.get(id) ?? []) addSubtree(c);
+  };
+  const addAncestors = (id: string) => {
+    let cur: UsulanStruktur | undefined = byId.get(id);
+    while (cur) {
+      allow.add(cur.id);
+      cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+    }
+  };
+  if (kroId && byId.has(kroId)) {
+    addAncestors(kroId);
+    addSubtree(kroId);
+  } else {
+    addSubtree(programId);
+  }
+  return rows.filter((r) => allow.has(r.id));
+}
+
+/** Id PROGRAM leluhur dari sebuah node (atau null). */
+export function programAncestorId(
+  rows: UsulanStruktur[],
+  nodeId: string,
+): string | null {
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  let cur: UsulanStruktur | undefined = byId.get(nodeId);
+  while (cur) {
+    if (cur.level === "PROGRAM") return cur.id;
+    cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+  }
+  return null;
 }

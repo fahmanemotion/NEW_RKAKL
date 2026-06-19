@@ -169,6 +169,39 @@ export async function deleteNode(id: string): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * Klaim KRO untuk pengguna saat ini (input paralel). Gagal bila sudah diklaim
+ * pengguna lain. Idempoten bila sudah milik sendiri.
+ */
+export async function claimKro(
+  kroId: string,
+  me: { id: string; nama: string | null },
+): Promise<void> {
+  const { data, error } = await sb()
+    .from("usulan_struktur")
+    .update({
+      dikerjakan_oleh: me.id,
+      dikerjakan_oleh_nama: me.nama ?? "",
+      dikerjakan_pada: new Date().toISOString(),
+    })
+    .eq("id", kroId)
+    .or(`dikerjakan_oleh.is.null,dikerjakan_oleh.eq.${me.id}`)
+    .select("id");
+  if (error) throw error;
+  if (!data || data.length === 0)
+    throw new Error("KRO_TERKUNCI: KRO ini sedang dikerjakan pengguna lain.");
+}
+
+/** Lepas klaim KRO (hanya pemiliknya). */
+export async function releaseKro(kroId: string, me: { id: string }): Promise<void> {
+  const { error } = await sb()
+    .from("usulan_struktur")
+    .update({ dikerjakan_oleh: null, dikerjakan_oleh_nama: null, dikerjakan_pada: null })
+    .eq("id", kroId)
+    .eq("dikerjakan_oleh", me.id);
+  if (error) throw error;
+}
+
 /** Hapus beberapa node sekaligus (mis. sebuah node beserta seluruh turunannya). */
 export async function deleteNodes(ids: string[]): Promise<void> {
   if (ids.length === 0) return;

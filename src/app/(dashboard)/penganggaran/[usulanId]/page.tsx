@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { getCurrentUser } from "@/lib/auth";
 import { fetchStrukturServer } from "./data";
 import {
   PenganggaranClient,
@@ -97,6 +98,8 @@ export default async function Page({
   };
 
   const rows = await fetchStrukturServer(usulanId);
+  const cu = await getCurrentUser();
+  const me = { id: cu?.id ?? "", nama: cu?.nama ?? null };
 
   return (
     <div className="space-y-4">
@@ -113,7 +116,7 @@ export default async function Page({
           {header.satker}
         </p>
       </div>
-      <PenganggaranClient header={header} initialRows={rows} />
+      <PenganggaranClient header={header} initialRows={rows} me={me} />
     </div>
   );
 }
