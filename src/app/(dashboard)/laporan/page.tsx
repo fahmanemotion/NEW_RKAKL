@@ -4,6 +4,7 @@ import {
   LaporanClient,
   type LaporanUsulan,
 } from "@/components/laporan/laporan-client";
+import { KertasKerjaImport } from "@/components/laporan/kertas-kerja-import";
 
 export default async function LaporanPage() {
   await requireUser();
@@ -36,5 +37,10 @@ export default async function LaporanPage() {
     }),
   );
 
-  return <LaporanClient usulanList={usulanList} />;
+  return (
+    <div className="space-y-5">
+      <KertasKerjaImport usulanList={usulanList} />
+      <LaporanClient usulanList={usulanList} />
+    </div>
+  );
 }
