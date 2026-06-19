@@ -147,3 +147,162 @@ export async function bulkImport(
 }
 
 export { MASTERS };
+
+/* ─────────────── Import KODE gabungan (BA→Komponen sekaligus) ─────────────── */
+import { parseKodeSheet } from "@/lib/kode-import";
+
+type IdMap = Map<string, string>;
+
+async function buildMap(table: string, kodeCol: string, fkCol?: string): Promise<IdMap> {
+  const cols = fkCol ? `id, ${fkCol}, ${kodeCol}` : `id, ${kodeCol}`;
+  const { data, error } = await sb().from(table).select(cols).limit(100000);
+  if (error) throw error;
+  const m: IdMap = new Map();
+  for (const row of (data ?? []) as unknown as Record<string, unknown>[]) {
+    const key = fkCol ? `${row[fkCol]}::${row[kodeCol]}` : String(row[kodeCol]);
+    m.set(key, String(row.id));
+  }
+  return m;
+}
+
+async function upsertLevel(
+  table: string,
+  rows: Record<string, unknown>[],
+  onConflict: string,
+): Promise<void> {
+  if (rows.length === 0) return;
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await sb()
+      .from(table)
+      .upsert(rows.slice(i, i + 500), { onConflict, ignoreDuplicates: false });
+    if (error) throw error;
+  }
+}
+
+export interface KodeImportResult {
+  counts: { ba: number; program: number; kegiatan: number; kro: number; ro: number; komponen: number };
+  totalRows: number;
+}
+
+/**
+ * Impor seluruh kode (BA→Program→Kegiatan→KRO→RO→Komponen) dari satu sheet Excel.
+ * Upsert per level berurutan, resolusi induk berdasarkan jalur lengkap.
+ */
+export async function importKodeGabungan(raw: unknown[][]): Promise<KodeImportResult> {
+  const p = parseKodeSheet(raw);
+
+  // BA
+  await upsertLevel("master_ba", p.ba.map((b) => ({ kode_ba: b.kode, nama_ba: b.nama })), "kode_ba");
+  const baMap = await buildMap("master_ba", "kode_ba");
+
+  // Program (induk: BA)
+  const progRows = p.program
+    .map((x) => {
+      const baId = baMap.get(x.ba);
+      return baId ? { ba_id: baId, kode_program: x.kode, nama_program: x.nama } : null;
+    })
+    .filter(Boolean) as Record<string, unknown>[];
+  await upsertLevel("master_program", progRows, "ba_id,kode_program");
+  const progMap = await buildMap("master_program", "kode_program", "ba_id");
+
+  // Kegiatan (induk: Program)
+  const kegRows = p.kegiatan
+    .map((x) => {
+      const pid = progMap.get(`${baMap.get(x.ba)}::${x.program}`);
+      return pid ? { program_id: pid, kode_kegiatan: x.kode, nama_kegiatan: x.nama } : null;
+    })
+    .filter(Boolean) as Record<string, unknown>[];
+  await upsertLevel("master_kegiatan", kegRows, "program_id,kode_kegiatan");
+  const kegMap = await buildMap("master_kegiatan", "kode_kegiatan", "program_id");
+
+  const progIdOf = (ba: string, program: string) => progMap.get(`${baMap.get(ba)}::${program}`);
+  const kegIdOf = (ba: string, program: string, keg: string) =>
+    kegMap.get(`${progIdOf(ba, program)}::${keg}`);
+
+  // KRO (induk: Kegiatan)
+  const kroRows = p.kro
+    .map((x) => {
+      const kid = kegIdOf(x.ba, x.program, x.kegiatan);
+      return kid ? { kegiatan_id: kid, kode_kro: x.kode, nama_kro: x.nama } : null;
+    })
+    .filter(Boolean) as Record<string, unknown>[];
+  await upsertLevel("master_kro", kroRows, "kegiatan_id,kode_kro");
+  const kroMap = await buildMap("master_kro", "kode_kro", "kegiatan_id");
+  const kroIdOf = (ba: string, program: string, keg: string, kro: string) =>
+    kroMap.get(`${kegIdOf(ba, program, keg)}::${kro}`);
+
+  // RO (induk: KRO)
+  const roRows = p.ro
+    .map((x) => {
+      const krid = kroIdOf(x.ba, x.program, x.kegiatan, x.kro);
+      return krid ? { kro_id: krid, kode_ro: x.kode, nama_ro: x.nama } : null;
+    })
+    .filter(Boolean) as Record<string, unknown>[];
+  await upsertLevel("master_ro", roRows, "kro_id,kode_ro");
+  const roMap = await buildMap("master_ro", "kode_ro", "kro_id");
+  const roIdOf = (ba: string, program: string, keg: string, kro: string, ro: string) =>
+    roMap.get(`${kroIdOf(ba, program, keg, kro)}::${ro}`);
+
+  // Komponen (induk: RO)
+  const kompRows = p.komponen
+    .map((x) => {
+      const roid = roIdOf(x.ba, x.program, x.kegiatan, x.kro, x.ro);
+      return roid ? { ro_id: roid, kode_komponen: x.kode, nama_komponen: x.nama } : null;
+    })
+    .filter(Boolean) as Record<string, unknown>[];
+  await upsertLevel("master_komponen", kompRows, "ro_id,kode_komponen");
+
+  return {
+    counts: {
+      ba: p.ba.length, program: progRows.length, kegiatan: kegRows.length,
+      kro: kroRows.length, ro: roRows.length, komponen: kompRows.length,
+    },
+    totalRows: p.dataRows,
+  };
+}
+
+/** Ambil seluruh kode sebagai jalur lengkap untuk ditampilkan (BA→Komponen). */
+export interface KodePathRow {
+  ba: string; program: string; programNama: string;
+  kegiatan: string; kegiatanNama: string;
+  kro: string; kroNama: string; ro: string; roNama: string;
+  komponen: string; komponenNama: string;
+}
+
+export async function listKodePaths(): Promise<KodePathRow[]> {
+  const { data, error } = await sb()
+    .from("master_komponen")
+    .select(
+      `kode_komponen, nama_komponen,
+       master_ro!inner ( kode_ro, nama_ro,
+         master_kro!inner ( kode_kro, nama_kro,
+           master_kegiatan!inner ( kode_kegiatan, nama_kegiatan,
+             master_program!inner ( kode_program, nama_program,
+               master_ba!inner ( kode_ba ) ) ) ) )`,
+    )
+    .limit(100000);
+  if (error) throw error;
+  type Nested = Record<string, unknown> & { master_ro?: Record<string, unknown> };
+  const out: KodePathRow[] = [];
+  for (const k of (data ?? []) as Nested[]) {
+    const ro = (k.master_ro ?? {}) as Record<string, unknown>;
+    const kro = (ro.master_kro ?? {}) as Record<string, unknown>;
+    const keg = (kro.master_kegiatan ?? {}) as Record<string, unknown>;
+    const prog = (keg.master_program ?? {}) as Record<string, unknown>;
+    const ba = (prog.master_ba ?? {}) as Record<string, unknown>;
+    out.push({
+      ba: String(ba.kode_ba ?? ""),
+      program: String(prog.kode_program ?? ""), programNama: String(prog.nama_program ?? ""),
+      kegiatan: String(keg.kode_kegiatan ?? ""), kegiatanNama: String(keg.nama_kegiatan ?? ""),
+      kro: String(kro.kode_kro ?? ""), kroNama: String(kro.nama_kro ?? ""),
+      ro: String(ro.kode_ro ?? ""), roNama: String(ro.nama_ro ?? ""),
+      komponen: String(k.kode_komponen ?? ""), komponenNama: String(k.nama_komponen ?? ""),
+    });
+  }
+  out.sort((a, b) =>
+    (a.program + a.kegiatan + a.kro + a.ro + a.komponen).localeCompare(
+      b.program + b.kegiatan + b.kro + b.ro + b.komponen,
+    ),
+  );
+  return out;
+}

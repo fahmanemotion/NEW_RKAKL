@@ -1,0 +1,184 @@
+"use client";
+import * as React from "react";
+import * as XLSX from "xlsx";
+import { Upload, Download, Search, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Button, Input, Card } from "@/components/ui";
+import {
+  importKodeGabungan,
+  listKodePaths,
+  type KodeImportResult,
+  type KodePathRow,
+} from "@/lib/referensi-api";
+
+const HEADERS = [
+  "BA", "URAIAN BA", "PROGRAM", "URAIAN PROGRAM", "KEGIATAN", "URAIAN KEGIATAN",
+  "KRO", "URAIAN KRO", "RO", "URAIAN RO", "KOMP", "URAIAN KOMP",
+];
+
+export function KodeManager() {
+  const [rows, setRows] = React.useState<KodePathRow[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [err, setErr] = React.useState<string | null>(null);
+  const [q, setQ] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [result, setResult] = React.useState<KodeImportResult | null>(null);
+  const fileRef = React.useRef<HTMLInputElement | null>(null);
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    setErr(null);
+    try {
+      setRows(await listKodePaths());
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) e.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    setErr(null);
+    setResult(null);
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false, defval: "" });
+      const res = await importKodeGabungan(raw);
+      setResult(res);
+      await load();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function downloadTemplate() {
+    const ws = XLSX.utils.aoa_to_sheet([
+      HEADERS,
+      ["22", "KEMENTERIAN PERHUBUNGAN", "12.DL", "Program Pendidikan dan Pelatihan", "1975",
+        "Pengembangan SDM Perhubungan", "DAB", "Pendidikan Vokasi", "2", "Diklat Pembentukan",
+        "051", "Diploma IV Nautika"],
+    ]);
+    ws["!cols"] = HEADERS.map((h) => ({ wch: h.startsWith("URAIAN") ? 32 : 10 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "KODE");
+    XLSX.writeFile(wb, "TEMPLATE_REFERENSI_KODE.xlsx");
+  }
+
+  const term = q.trim().toLowerCase();
+  const filtered = term
+    ? rows.filter((r) =>
+        [r.program, r.programNama, r.kegiatan, r.kegiatanNama, r.kro, r.kroNama, r.ro, r.roNama, r.komponen, r.komponenNama]
+          .join(" ").toLowerCase().includes(term),
+      )
+    : rows;
+
+  return (
+    <div className="space-y-4">
+      <Card className="space-y-3 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={() => fileRef.current?.click()} disabled={busy}>
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+            {busy ? "Mengimpor…" : "Import Excel"}
+          </Button>
+          <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onFile} />
+          <Button variant="outline" onClick={downloadTemplate}>
+            <Download className="size-4" /> Unduh Template
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Satu file Excel berisi seluruh kode (BA → Program → Kegiatan → KRO → RO → Komponen).
+          Setiap baris adalah satu jalur lengkap. Data yang sudah ada akan diperbarui (kode sama
+          tidak digandakan), data baru ditambahkan.
+        </p>
+        {result && (
+          <div className="flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+            <div>
+              <p className="font-medium">Impor selesai — {result.totalRows} baris diproses.</p>
+              <p className="text-muted-foreground">
+                BA {result.counts.ba} · Program {result.counts.program} · Kegiatan {result.counts.kegiatan} ·
+                KRO {result.counts.kro} · RO {result.counts.ro} · Komponen {result.counts.komponen}
+              </p>
+            </div>
+          </div>
+        )}
+        {err && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <span>{err}</span>
+          </div>
+        )}
+      </Card>
+
+      <div className="relative max-w-md">
+        <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+        <Input
+          className="pl-8"
+          placeholder="Cari program / kegiatan / KRO / RO / komponen…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+      </div>
+
+      <Card className="overflow-hidden">
+        <div className="overflow-auto" style={{ maxHeight: "60vh" }}>
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 bg-muted text-[11px] uppercase tracking-wide">
+              <tr>
+                <th className="px-2 py-2 text-left font-semibold">Program</th>
+                <th className="px-2 py-2 text-left font-semibold">Kegiatan</th>
+                <th className="px-2 py-2 text-left font-semibold">KRO</th>
+                <th className="px-2 py-2 text-left font-semibold">RO</th>
+                <th className="px-2 py-2 text-left font-semibold">Komponen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={5} className="py-10 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={5} className="py-10 text-center text-muted-foreground">
+                  Belum ada kode. Klik <strong>Import Excel</strong> untuk memuat data.
+                </td></tr>
+              ) : (
+                filtered.map((r, i) => (
+                  <tr key={i} className="border-t border-border align-top hover:bg-accent/40">
+                    <Cell kode={r.program} nama={r.programNama} />
+                    <Cell kode={r.kegiatan} nama={r.kegiatanNama} />
+                    <Cell kode={r.kro} nama={r.kroNama} />
+                    <Cell kode={r.ro} nama={r.roNama} />
+                    <Cell kode={r.komponen} nama={r.komponenNama} />
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        {!loading && (
+          <div className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
+            {filtered.length} dari {rows.length} jalur komponen
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function Cell({ kode, nama }: { kode: string; nama: string }) {
+  return (
+    <td className="px-2 py-1.5">
+      <div className="font-mono font-medium">{kode}</div>
+      <div className="text-muted-foreground">{nama}</div>
+    </td>
+  );
+}
