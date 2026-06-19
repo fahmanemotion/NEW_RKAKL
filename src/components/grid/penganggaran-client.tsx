@@ -10,6 +10,7 @@ import {
   Save,
   Loader2,
   Copy,
+  ClipboardPaste,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { Button, Card, Select } from "@/components/ui";
@@ -22,6 +23,7 @@ import {
   addNode,
   upsertDetail,
   deleteNodes,
+  pasteNode,
   editNode,
   setChildrenSumber,
   fetchStruktur,
@@ -224,10 +226,37 @@ export function PenganggaranClient({
   }, [gridRows, header, total, hasProgramNode]);
 
   const selType = selectedRow?.type ?? null;
-  const actions = toolbarActions(selType);
+  const [clip, setClip] = React.useState<{ id: string; level: Level; label: string } | null>(null);
+  const [pasting, setPasting] = React.useState(false);
+  const actions = toolbarActions(selType, clip?.level ?? null);
+
+  async function onPaste() {
+    if (!clip || !selectedRow?.ref) return;
+    setPasting(true);
+    try {
+      await pasteNode(header.id, clip.id, selectedRow.ref.id);
+      await refresh();
+    } catch (e) {
+      alert(
+        (e as Error).message?.includes("DUPLIKAT")
+          ? "Tidak bisa menempel: sudah ada item dengan kode yang sama pada induk tujuan."
+          : `Gagal menempel: ${(e as Error).message}`,
+      );
+    } finally {
+      setPasting(false);
+    }
+  }
 
   function handleAction(a: ToolbarAction) {
     if (a.kind === "delete") return onDelete();
+    if (a.kind === "copy") {
+      if (selectedRow?.ref && selType && selType !== "INFO") {
+        const label = `${selectedRow.kode ? selectedRow.kode + " — " : ""}${selectedRow.uraian ?? ""}`;
+        setClip({ id: selectedRow.ref.id, level: selType as Level, label });
+      }
+      return;
+    }
+    if (a.kind === "paste") return onPaste();
     if (a.kind === "edit") {
       if (selType === "DETAIL") return onEditDetail();
       if (selType === "SUB_KOMPONEN") return onEditSubkomp();
@@ -530,6 +559,10 @@ export function PenganggaranClient({
       <Pencil className="size-4" />
     ) : a.kind === "delete" ? (
       <Trash2 className="size-4" />
+    ) : a.kind === "copy" ? (
+      <Copy className="size-4" />
+    ) : a.kind === "paste" ? (
+      <ClipboardPaste className="size-4" />
     ) : (
       <Plus className="size-4" />
     );
@@ -621,6 +654,33 @@ export function PenganggaranClient({
         </Card>
       )}
 
+      {/* Indikator clipboard salin/tempel */}
+      {clip && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sm dark:border-sky-900 dark:bg-sky-950/30">
+          <span className="flex items-center gap-2">
+            <Copy className="size-4 text-sky-600" />
+            <span>
+              Tersalin{" "}
+              <span className="font-medium">
+                {clip.level === "SUB_KOMPONEN" ? "Sub Komponen" : clip.level === "AKUN" ? "Akun" : "Detail"}
+              </span>
+              : {clip.label}.{" "}
+              <span className="text-muted-foreground">
+                Pilih{" "}
+                {clip.level === "SUB_KOMPONEN" ? "Komponen" : clip.level === "AKUN" ? "Sub Komponen" : "Akun"}{" "}
+                tujuan lalu klik <strong>Tempel</strong>.
+              </span>
+            </span>
+          </span>
+          <button
+            className="rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent"
+            onClick={() => setClip(null)}
+          >
+            Batal salin
+          </button>
+        </div>
+      )}
+
       {/* Toolbar dinamis + pagu */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
@@ -630,16 +690,18 @@ export function PenganggaranClient({
               variant={
                 a.kind === "delete"
                   ? "destructive"
-                  : a.kind === "edit"
-                    ? "secondary"
-                    : "default"
+                  : a.kind === "paste"
+                    ? "default"
+                    : a.kind === "edit" || a.kind === "copy"
+                      ? "secondary"
+                      : "default"
               }
               size="sm"
-              disabled={isFinal}
+              disabled={isFinal || (a.kind === "paste" && pasting)}
               onClick={() => handleAction(a)}
             >
               {iconFor(a)} {a.kind === "add" ? `${i + 1}. ` : ""}
-              {a.label}
+              {a.kind === "paste" && pasting ? "Menempel…" : a.label}
             </Button>
           ))}
         </div>

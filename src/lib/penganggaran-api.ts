@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Level, UsulanStruktur } from "@/types/database";
 import { LEVEL_LABEL } from "@/lib/constants";
 import { refQueryFor, type RefQuery } from "@/lib/ref-query";
+import { remapSubtree } from "@/lib/copy-subtree";
 
 export { refQueryFor };
 export type { RefQuery };
@@ -173,6 +174,32 @@ export async function deleteNodes(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   const { error } = await sb().from("usulan_struktur").delete().in("id", ids);
   if (error) throw error;
+}
+
+/**
+ * Salin sebuah node (Sub Komponen / Akun / Detail) beserta seluruh turunannya
+ * ke bawah induk baru dalam usulan yang sama. Menghasilkan id-id baru.
+ */
+export async function pasteNode(
+  usulanId: string,
+  rootId: string,
+  newParentId: string,
+): Promise<void> {
+  const rows = await fetchStruktur(usulanId);
+  const rootUrutan = await nextUrutan(usulanId, newParentId);
+  const batches = remapSubtree(
+    rows as unknown as Parameters<typeof remapSubtree>[0],
+    rootId,
+    newParentId,
+    usulanId,
+    () => crypto.randomUUID(),
+    rootUrutan,
+  );
+  // Sisipkan dari level dangkal ke dalam (induk sebelum anak) agar FK aman.
+  for (const batch of batches) {
+    const { error } = await sb().from("usulan_struktur").insert(batch);
+    if (error) throw error;
+  }
 }
 
 /** Ubah field sebuah node (mis. kode/uraian Sub Komponen, atau ganti referensi Akun). */
