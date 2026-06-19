@@ -4,6 +4,7 @@ import { MASTERS, type MasterKey } from '@/lib/referensi';
 import { ReferensiTabs } from '@/components/referensi/tabs';
 import { MasterManager } from '@/components/referensi/master-manager';
 import { KodeManager } from '@/components/referensi/kode-manager';
+import { PenandatanganManager } from '@/components/referensi/penandatangan-manager';
 
 export default async function Page({ params }: { params: Promise<{ master: string }> }) {
   await requireUser();
@@ -21,6 +22,22 @@ export default async function Page({ params }: { params: Promise<{ master: strin
         </div>
         <ReferensiTabs />
         <KodeManager />
+      </div>
+    );
+  }
+
+  // Menu "Penandatanganan" = daftar pejabat penanda tangan (dipilih saat buat laporan).
+  if (master === 'penandatangan') {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-xl font-bold">Referensi Penandatanganan</h1>
+          <p className="text-sm text-muted-foreground">
+            Kelola daftar pejabat penanda tangan untuk laporan RAB.
+          </p>
+        </div>
+        <ReferensiTabs />
+        <PenandatanganManager />
       </div>
     );
   }

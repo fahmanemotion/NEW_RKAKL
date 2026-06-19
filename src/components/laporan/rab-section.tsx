@@ -63,10 +63,10 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
   const [sel, setSel] = React.useState(0);
   React.useEffect(() => setSel(0), [units]);
 
-  const [signerSets, setSignerSets] = React.useState<{ SUB: Signers; KOMPONEN: Signers }>({
-    SUB: DEFAULT_SIGNERS,
-    KOMPONEN: DEFAULT_SIGNERS,
-  });
+  interface PersonRow { id: string; nama: string; jabatan: string; pangkat: string; nip: string }
+  const [people, setPeople] = React.useState<PersonRow[]>([]);
+  const [kiriId, setKiriId] = React.useState("");
+  const [kananId, setKananId] = React.useState("");
   React.useEffect(() => {
     let alive = true;
     (async () => {
@@ -74,35 +74,20 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
         const sb = createClient();
         const { data } = await sb
           .from("master_penandatangan")
-          .select("posisi, jenis, nama, jabatan, pangkat_golongan, nip");
-        if (!alive || !data || data.length === 0) return;
-        const next = {
-          SUB: {
-            kiri: { ...DEFAULT_SIGNERS.kiri },
-            kanan: { ...DEFAULT_SIGNERS.kanan },
-            kota: DEFAULT_SIGNERS.kota,
-          },
-          KOMPONEN: {
-            kiri: { ...DEFAULT_SIGNERS.kiri },
-            kanan: { ...DEFAULT_SIGNERS.kanan },
-            kota: DEFAULT_SIGNERS.kota,
-          },
-        };
-        for (const r of data as {
-          posisi: string; jenis: string | null; nama: string;
-          jabatan: string | null; pangkat_golongan: string | null; nip: string | null;
-        }[]) {
-          const s: Signer = {
-            nama: r.nama ?? "",
-            jabatan: r.jabatan ?? "",
-            pangkat: r.pangkat_golongan ?? "",
-            nip: r.nip ?? "",
-          };
-          const grp = (r.jenis ?? "SUB_KOMPONEN").toUpperCase() === "KOMPONEN" ? next.KOMPONEN : next.SUB;
-          if ((r.posisi ?? "").toUpperCase() === "KIRI") grp.kiri = s;
-          else if ((r.posisi ?? "").toUpperCase() === "KANAN") grp.kanan = s;
-        }
-        setSignerSets(next);
+          .select("id, nama, jabatan, pangkat_golongan, nip")
+          .order("nama", { ascending: true });
+        if (!alive || !data) return;
+        const list: PersonRow[] = (data as {
+          id: string; nama: string; jabatan: string | null;
+          pangkat_golongan: string | null; nip: string | null;
+        }[]).map((r) => ({
+          id: r.id, nama: r.nama ?? "", jabatan: r.jabatan ?? "",
+          pangkat: r.pangkat_golongan ?? "", nip: r.nip ?? "",
+        }));
+        setPeople(list);
+        if (list[0]) setKiriId((k) => k || list[0].id);
+        if (list[1]) setKananId((k) => k || list[1].id);
+        else if (list[0]) setKananId((k) => k || list[0].id);
       } catch {
         /* pakai default */
       }
@@ -114,7 +99,14 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
 
   if (units.length === 0) return null;
   const unit = units[Math.min(sel, units.length - 1)];
-  const signers = mode === "SUB" ? signerSets.SUB : signerSets.KOMPONEN;
+  const toSigner = (p: PersonRow): Signer => ({ nama: p.nama, jabatan: p.jabatan, pangkat: p.pangkat, nip: p.nip });
+  const kiriP = people.find((p) => p.id === kiriId);
+  const kananP = people.find((p) => p.id === kananId);
+  const signers: Signers = {
+    kiri: kiriP ? toSigner(kiriP) : DEFAULT_SIGNERS.kiri,
+    kanan: kananP ? toSigner(kananP) : DEFAULT_SIGNERS.kanan,
+    kota: DEFAULT_SIGNERS.kota,
+  };
 
   return (
     <Card className="overflow-hidden">
@@ -135,6 +127,32 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
               Per Komponen
             </button>
           </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">Penanda tangan:</span>
+          <label className="flex items-center gap-1.5 text-xs">
+            <span className="text-muted-foreground">Kiri</span>
+            <Select value={kiriId} onChange={(e) => setKiriId(e.target.value)} className="min-w-[200px]">
+              <option value="">— pilih —</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>{p.nama}</option>
+              ))}
+            </Select>
+          </label>
+          <label className="flex items-center gap-1.5 text-xs">
+            <span className="text-muted-foreground">Kanan</span>
+            <Select value={kananId} onChange={(e) => setKananId(e.target.value)} className="min-w-[200px]">
+              <option value="">— pilih —</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>{p.nama}</option>
+              ))}
+            </Select>
+          </label>
+          {people.length === 0 && (
+            <span className="text-xs text-muted-foreground">
+              (tambah di Referensi → Penandatanganan)
+            </span>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select

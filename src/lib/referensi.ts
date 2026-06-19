@@ -64,19 +64,6 @@ export const MASTERS: Record<string, MasterDef> = {
     ],
     importCols: ['kode_akun', 'nama_akun', 'kategori_belanja', 'sumber_dana'],
   },
-  penandatangan: {
-    table: 'master_penandatangan', label: 'Penandatangan', kodeCol: 'posisi', namaCol: 'nama',
-    extraFields: [
-      { key: 'jenis', label: 'Jenis TTD', type: 'select', required: true, options: [
-        { value: 'SUB_KOMPONEN', label: 'TTD Sub Komponen' },
-        { value: 'KOMPONEN', label: 'TTD Komponen' },
-      ] },
-      { key: 'jabatan', label: 'Jabatan' },
-      { key: 'pangkat_golongan', label: 'Pangkat/Golongan' },
-      { key: 'nip', label: 'NIP' },
-    ],
-    importCols: ['jenis', 'posisi', 'nama', 'jabatan', 'pangkat_golongan', 'nip'],
-  },
 };
 
 export type MasterKey = keyof typeof MASTERS;
