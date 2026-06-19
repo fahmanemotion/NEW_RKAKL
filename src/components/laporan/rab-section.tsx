@@ -87,7 +87,6 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
         setPeople(list);
         if (list[0]) setKiriId((k) => k || list[0].id);
         if (list[1]) setKananId((k) => k || list[1].id);
-        else if (list[0]) setKananId((k) => k || list[0].id);
       } catch {
         /* pakai default */
       }
@@ -135,7 +134,7 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
             <Select value={kiriId} onChange={(e) => setKiriId(e.target.value)} className="min-w-[200px]">
               <option value="">— pilih —</option>
               {people.map((p) => (
-                <option key={p.id} value={p.id}>{p.nama}</option>
+                <option key={p.id} value={p.id} disabled={p.id === kananId}>{p.nama}</option>
               ))}
             </Select>
           </label>
@@ -144,7 +143,7 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
             <Select value={kananId} onChange={(e) => setKananId(e.target.value)} className="min-w-[200px]">
               <option value="">— pilih —</option>
               {people.map((p) => (
-                <option key={p.id} value={p.id}>{p.nama}</option>
+                <option key={p.id} value={p.id} disabled={p.id === kiriId}>{p.nama}</option>
               ))}
             </Select>
           </label>
@@ -462,16 +461,26 @@ function buildRabSheet(unit: RabUnit, ctx: Ctx, signers: Signers): XLSX.WorkShee
       });
     }
   });
+  // JUMLAH BIAYA / TOTAL BIAYA / Dibulatkan — label rata kiri, nilai Rp rata kanan, semua sel berbingkai.
   for (let i = 0; i < 3; i++) {
     const rr = jumlahRow + i;
-    setStyle(enc(rr, A), { font: { bold: true, sz: 10 }, alignment: { horizontal: "right", vertical: "center" } });
-    setStyle(enc(rr, G), {
-      font: { bold: true, sz: 10 }, numFmt: RP,
-      alignment: { horizontal: "right", vertical: "center" }, border: BORDER,
+    for (let c = A; c <= G; c++) {
+      setStyle(enc(rr, c), {
+        font: { bold: true, sz: 10 },
+        alignment: { horizontal: c === G ? "right" : "left", vertical: "center" },
+        numFmt: c === G ? RP : undefined,
+        border: BORDER,
+      });
+    }
+  }
+  // Terbilang — rata kiri, semua sel berbingkai.
+  for (let c = A; c <= G; c++) {
+    setStyle(enc(terbilangRow, c), {
+      font: { bold: c === A, italic: c !== A, sz: 9 },
+      alignment: { horizontal: "left", vertical: "top", wrapText: c !== A },
+      border: BORDER,
     });
   }
-  setStyle(enc(terbilangRow, A), { font: { bold: true, sz: 9 }, alignment: { horizontal: "left", vertical: "top" } });
-  setStyle(enc(terbilangRow, B), { font: { italic: true, sz: 9 }, alignment: { horizontal: "left", vertical: "top", wrapText: true } });
 
   const sigText = [sig + 1, sig + 2, sig + 6, sig + 7, sig + 8];
   for (const rr of sigText) {
