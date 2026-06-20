@@ -318,6 +318,8 @@ export function PenganggaranClient({
     try {
       await pasteNode(header.id, clip.id, selectedRow.ref.id);
       await refresh();
+      // Item sudah ditempel → kosongkan clipboard agar tombol Tempel hilang.
+      setClip(null);
     } catch (e) {
       alert(
         (e as Error).message?.includes("DUPLIKAT")
@@ -353,7 +355,7 @@ export function PenganggaranClient({
       return;
     }
     if (a.kind !== "add" || !a.addLevel) return;
-    openAdd(a.addLevel);
+    openAdd(a.addLevel, a.as === "sibling");
   }
 
   // Peta level anak → tipe parent yang harus dipilih + judul modal.
@@ -367,42 +369,57 @@ export function PenganggaranClient({
     DETAIL: "AKUN",
   };
 
-  async function openAdd(level: Level) {
-    // PROGRAM = akar (tanpa induk).
+  async function openAdd(level: Level, asSibling = false) {
+    // Tentukan node INDUK tempat node baru dilekatkan.
+    let parentId: string | null;
+    let parentRef: string | null = null;
+    let parentKode: string;
+    let parentSumber: string | null = null;
+
     if (level === "PROGRAM") {
-      const q = refQueryFor("PROGRAM", null);
-      if (!q) return;
-      return setPicker({
-        level,
-        query: q,
-        parentStrukturId: null,
-        parentKode: "022",
-      });
+      // Program selalu di akar (Tambah Program = saudara antar program).
+      parentId = null;
+      parentKode = "022";
+    } else if (asSibling) {
+      // Tambah saudara: level sama, induk = induk node terpilih.
+      const sel = selectedRow?.ref;
+      if (selectedRow?.type !== level || !sel) {
+        return alert(`Pilih baris ${level} dulu untuk menambah ${level} sejajar.`);
+      }
+      const p = sel.parent_id ? byId.get(sel.parent_id) ?? null : null;
+      if (!p) return alert(`Induk untuk ${level} tidak ditemukan.`);
+      parentId = p.id;
+      parentRef = p.referensi_id ?? null;
+      parentKode = p.kode ?? "";
+      parentSumber = p.sumber_dana ?? null;
+    } else {
+      // Tambah anak: induk = node terpilih (harus level induk yang tepat).
+      const needType = PARENT_OF[level];
+      if (selectedRow?.type !== needType || !selectedRow.ref) {
+        return alert(`Pilih baris ${needType} dulu untuk menambahkan ${level}.`);
+      }
+      parentId = selectedRow.ref.id;
+      parentRef = selectedRow.ref.referensi_id ?? null;
+      parentKode = selectedRow.kode;
+      parentSumber = selectedRow.sumber_dana ?? null;
     }
-    // Level lain butuh baris induk terpilih.
-    const needType = PARENT_OF[level];
-    if (selectedRow?.type !== needType || !selectedRow.ref) {
-      return alert(`Pilih baris ${needType} dulu untuk menambahkan ${level}.`);
-    }
-    const parentId = selectedRow.ref.id;
-    const parentRef = selectedRow.ref.referensi_id ?? null;
-    const parentKode = selectedRow.kode;
 
     if (level === "SUB_KOMPONEN") return setSubkompParent({ parentId });
     if (level === "DETAIL") {
-      // Sumber dana & kategori detail otomatis ikut akun (parent).
-      const akunSumber = selectedRow.sumber_dana ?? "RM";
+      // Sumber dana & kategori detail otomatis ikut akun (induk).
+      const akunSumber = parentSumber ?? "RM";
       let kategori: string | undefined;
       if (parentRef) {
         const meta = await getAkunMeta(parentRef);
         if (meta) kategori = meta.kategori_belanja;
       }
+      const akunNode = parentId ? byId.get(parentId) ?? null : null;
       return setDetail({
         parentId,
         inheritedSumberDana: akunSumber,
         akunInfo: {
-          kode: selectedRow.kode,
-          uraian: selectedRow.uraian,
+          kode: akunNode?.kode ?? "",
+          uraian: akunNode?.uraian ?? "",
           sumberDana: akunSumber,
           kategori,
         },
