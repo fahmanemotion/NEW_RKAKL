@@ -5,6 +5,7 @@ import type { Level, UsulanStruktur } from "@/types/database";
 import { LEVEL_LABEL } from "@/lib/constants";
 import { refQueryFor, type RefQuery } from "@/lib/ref-query";
 import { remapSubtree } from "@/lib/copy-subtree";
+import { fetchAllStruktur } from "@/lib/fetch-struktur";
 
 export { refQueryFor };
 export type { RefQuery };
@@ -285,13 +286,7 @@ export async function deleteUsulan(usulanId: string): Promise<void> {
 export async function fetchStruktur(
   usulan_id: string,
 ): Promise<UsulanStruktur[]> {
-  const { data, error } = await sb()
-    .from("usulan_struktur")
-    .select("*")
-    .eq("usulan_id", usulan_id)
-    .order("urutan", { ascending: true });
-  if (error) throw error;
-  return (data ?? []) as UsulanStruktur[];
+  return fetchAllStruktur(sb(), usulan_id);
 }
 
 async function nextUrutan(

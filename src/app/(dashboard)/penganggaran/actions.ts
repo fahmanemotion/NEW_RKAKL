@@ -10,6 +10,7 @@ import {
 } from "@/lib/tahap-pagu";
 import type { UsulanStruktur } from "@/types/database";
 import { remapStruktur } from "@/lib/copy-anggaran";
+import { fetchAllStruktur } from "@/lib/fetch-struktur";
 
 /**
  * Buat usulan Draft untuk satu Tahap Pagu. Program/Kegiatan ditambahkan
@@ -324,13 +325,7 @@ export async function copyAnggaranAction(
     if (source.satker_id !== target.satker_id)
       throw new Error("Hanya bisa menyalin dari usulan satker yang sama.");
 
-    const { data: srcRows, error: rErr } = await sb
-      .from("usulan_struktur")
-      .select("*")
-      .eq("usulan_id", sourceUsulanId)
-      .order("urutan", { ascending: true });
-    if (rErr) throw new Error(rErr.message);
-    const rows = (srcRows ?? []) as UsulanStruktur[];
+    const rows = await fetchAllStruktur(sb, sourceUsulanId);
     if (rows.length === 0)
       throw new Error("Usulan sumber tidak memiliki rincian untuk disalin.");
 

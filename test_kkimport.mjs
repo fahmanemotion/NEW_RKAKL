@@ -66,6 +66,43 @@ ok(res.programTotals[0].kode==="022.12.DL" && res.total===945000,"total program 
 ok(res.skipped.preProgramRows>=1,"baris di atas Program (judul) dilaporkan dilewati");
 ok(res.skipped.orphanDetails===0,"tidak ada detail orphan pada contoh ini");
 
+// Header Kegiatan/KRO HILANG di file → direkonstruksi dari kode RO 3-segmen
+{
+  const r4 = parseKertasKerja([
+    row({1:"022.12",2:"Satker"}),
+    row({1:"022.12.DL",2:"Program",21:1}),
+    row({1:"3996",2:"Pendidikan",21:1}),
+    row({1:"3996.AEC",2:"KRO AEC",21:1}),
+    row({1:"3996.AEC.002",2:"RO AEC",21:1}),
+    row({1:"051",2:"Komp",21:1}),
+    row({1:"A",2:"Sub",21:1}),
+    row({1:"525112",2:"Belanja",21:1,32:"BLU"}),
+    row({2:"d1",18:1,20:1,21:1}),
+    // RO dgn KRO 3996.BMA yang TIDAK ada header-nya → KRO harus dibangun
+    row({1:"3996.BMA.002",2:"RO BMA",21:1}),
+    row({1:"051",2:"Komp2",21:1}),
+    row({1:"A",2:"Sub2",21:1}),
+    row({1:"525112",2:"Belanja",21:1,32:"BLU"}),
+    row({2:"d2",18:1,20:1,21:1}),
+    // RO dgn KEGIATAN 4627 yang TIDAK ada header-nya → kegiatan + KRO dibangun
+    row({1:"4627.EBA.962",2:"RO EBA gaji",21:1}),
+    row({1:"052",2:"Komp3",21:1}),
+    row({1:"A",2:"Sub3",21:1}),
+    row({1:"511111",2:"Gaji",21:1,32:"RM"}),
+    row({2:"d3 gaji",18:1,20:1,21:1}),
+  ]);
+  const byId=new Map(r4.nodes.map(n=>[n.tempId,n]));
+  const kroParentKeg=(kroKode)=>{ const k=r4.nodes.find(n=>n.level==="KRO"&&n.kode===kroKode); let p=byId.get(k.parentTempId); return p?p.kode:null; };
+  ok(r4.nodes.some(n=>n.level==="KRO"&&n.kode==="3996.BMA"),"KRO 3996.BMA dibangun dari kode RO");
+  ok(kroParentKeg("3996.BMA")==="3996","KRO 3996.BMA di bawah Kegiatan 3996");
+  ok(r4.nodes.some(n=>n.level==="KEGIATAN"&&n.kode==="4627"),"Kegiatan 4627 (hilang) dibangun dari kode RO");
+  ok(kroParentKeg("4627.EBA")==="4627","KRO 4627.EBA di bawah Kegiatan 4627 (bukan 3996)");
+  let bad=0;
+  for(const n of r4.nodes){ if(n.level==="KRO"||n.level==="RO"){ let p=byId.get(n.parentTempId); while(p&&p.level!=="KEGIATAN")p=byId.get(p.parentTempId); if(p&&p.kode!==(n.kode||"").split(".")[0])bad++; } }
+  ok(bad===0,"semua KRO/RO bersarang di kegiatan yang benar (0 salah prefix)");
+  ok(r4.nodes.filter(n=>n.level==="DETAIL").length===3,"3 detail utuh setelah rekonstruksi");
+}
+
 // Kode dipakai ULANG untuk kegiatan berbeda → WAJIB tetap terpisah (tidak tergabung)
 {
   const r3 = parseKertasKerja([

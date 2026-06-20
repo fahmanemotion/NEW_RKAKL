@@ -182,6 +182,41 @@ export function parseKertasKerja(aoa0: unknown[][]): KKImportResult {
     }
 
     while (stack.length && ORDER[stack[stack.length - 1].level] >= ORDER[lv]) stack.pop();
+
+    // Rekonstruksi rantai induk (KEGIATAN, KRO) dari prefix kode bila header-nya
+    // HILANG atau urutan baris teracak di file SAKTI. Kode RO 3-segmen
+    // ("3996.BMA.005") memuat kegiatan "3996" + KRO "3996.BMA"; kode KRO
+    // ("4627.EBA") memuat kegiatan "4627". Tanpa ini, KRO/RO "nyasar" ke
+    // kegiatan/KRO yang salah sehingga susunan jadi berantakan.
+    if ((lv === "KRO" || lv === "RO") && kode.includes(".")) {
+      const seg = kode.split(".");
+      let prog: TNode | null = null;
+      for (let i = stack.length - 1; i >= 0; i--) {
+        if (stack[i].level === "PROGRAM") { prog = stack[i]; break; }
+      }
+      if (prog) {
+        const kegKode = seg[0];
+        const kegKey = kegKode.toUpperCase();
+        let keg = prog.byKey.get(kegKey);
+        if (!keg) {
+          keg = mk("KEGIATAN", kegKode, "Kegiatan " + kegKode);
+          keg.parent = prog; prog.children.push(keg); prog.byKey.set(kegKey, keg);
+        }
+        while (stack.length && stack[stack.length - 1] !== prog) stack.pop();
+        stack.push(keg);
+        if (lv === "RO" && seg.length >= 3) {
+          const kroKode = seg[0] + "." + seg[1];
+          const kroKey = kroKode.toUpperCase();
+          let kro = keg.byKey.get(kroKey);
+          if (!kro) {
+            kro = mk("KRO", kroKode, "KRO " + kroKode);
+            kro.parent = keg; keg.children.push(kro); keg.byKey.set(kroKey, kro);
+          }
+          stack.push(kro);
+        }
+      }
+    }
+
     const parent = stack.length ? stack[stack.length - 1] : null;
 
     if (lv === "DETAIL") {
@@ -205,10 +240,14 @@ export function parseKertasKerja(aoa0: unknown[][]): KKImportResult {
       continue;
     }
 
-    // Gabung HANYA bila kode DAN uraian sama persis (duplikat sejati).
-    // SAKTI memakai ulang kode (051, A, B, akun) untuk kegiatan berbeda —
-    // node berkode sama tapi uraian beda WAJIB dipertahankan terpisah.
-    const key = ((kode || uraianRaw) + "\u0001" + uraianRaw).toUpperCase();
+    // Identitas node: PROGRAM/KEGIATAN/KRO/RO punya kode berjenjang yang UNIK →
+    // gabung berdasar kode saja (cocok dgn rekonstruksi di atas). KOMPONEN/
+    // SUB_KOMPONEN/AKUN memakai ULANG kode untuk kegiatan berbeda → gabung hanya
+    // bila kode DAN uraian sama persis agar yang berbeda tidak hilang.
+    const codeOnly = lv === "PROGRAM" || lv === "KEGIATAN" || lv === "KRO" || lv === "RO";
+    const key = codeOnly
+      ? (kode || uraianRaw).toUpperCase()
+      : ((kode || uraianRaw) + "\u0001" + uraianRaw).toUpperCase();
     const bag = parent ? parent.byKey : rootByKey;
     const existing = MERGE_LEVELS.has(lv) ? bag.get(key) : undefined;
     if (existing) {

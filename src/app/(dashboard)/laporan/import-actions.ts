@@ -100,7 +100,7 @@ export async function importKertasKerjaAction(
       .eq("level", "KRO");
 
     const total = nodes
-      .filter((n) => n.level === "PROGRAM")
+      .filter((n) => n.level === "DETAIL")
       .reduce((s, n) => s + (n.jumlah ?? 0), 0);
     await sb.from("usulan_anggaran").update({ total_anggaran: total }).eq("id", usulanId);
 

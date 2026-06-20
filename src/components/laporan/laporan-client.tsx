@@ -4,6 +4,7 @@ import XLSX from "xlsx-js-style";
 import { Loader2, Inbox, Printer, Download } from "lucide-react";
 import { Card, Select, Button, Badge } from "@/components/ui";
 import { createClient } from "@/lib/supabase";
+import { fetchAllStruktur } from "@/lib/fetch-struktur";
 import { fmtN } from "@/lib/constants";
 import { STATUS_COLOR, type Status } from "@/lib/constants";
 import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
@@ -69,14 +70,14 @@ export function LaporanClient({
     }
     let alive = true;
     setLoading(true);
-    createClient()
-      .from("usulan_struktur")
-      .select("*")
-      .eq("usulan_id", usulan.id)
-      .order("urutan", { ascending: true })
-      .then(({ data }) => {
+    fetchAllStruktur(createClient(), usulan.id)
+      .then((data) => {
         if (!alive) return;
-        setRows((data ?? []) as UsulanStruktur[]);
+        setRows(data as UsulanStruktur[]);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!alive) return;
         setLoading(false);
       });
     return () => {
