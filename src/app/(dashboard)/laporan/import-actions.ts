@@ -23,6 +23,7 @@ export interface ImportResult {
 export async function importKertasKerjaAction(
   usulanId: string,
   nodes: KKImportNode[],
+  fileTotal = 0,
 ): Promise<ImportResult> {
   try {
     const user = await requireUser();
@@ -102,7 +103,7 @@ export async function importKertasKerjaAction(
     const total = nodes
       .filter((n) => n.level === "DETAIL")
       .reduce((s, n) => s + (n.jumlah ?? 0), 0);
-    await sb.from("usulan_anggaran").update({ total_anggaran: total }).eq("id", usulanId);
+    await sb.from("usulan_anggaran").update({ total_anggaran: total, total_header: fileTotal || null }).eq("id", usulanId);
 
     const counts: Record<string, number> = {};
     for (const n of nodes) counts[n.level] = (counts[n.level] ?? 0) + 1;

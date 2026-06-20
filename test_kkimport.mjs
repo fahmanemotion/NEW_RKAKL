@@ -66,6 +66,23 @@ ok(res.programTotals[0].kode==="022.12.DL" && res.total===945000,"total program 
 ok(res.skipped.preProgramRows>=1,"baris di atas Program (judul) dilaporkan dilewati");
 ok(res.skipped.orphanDetails===0,"tidak ada detail orphan pada contoh ini");
 
+// fileTotal: total resmi dari baris satker (UNIT) ditangkap dari kolom 21
+{
+  const rf = parseKertasKerja([
+    row({1:"022.12",2:"Satker",21:253182015000}),
+    row({1:"022.12.DL",2:"Program",21:1}),
+    row({1:"3996",2:"Keg",21:1}),
+    row({1:"3996.AEC",2:"KRO",21:1}),
+    row({1:"3996.AE002",2:"RO",21:1}),
+    row({1:"051",2:"Komp",21:1}),
+    row({1:"A",2:"Sub",21:1}),
+    row({1:"525112",2:"Belanja",21:1,32:"BLU"}),
+    row({2:"d1",18:1,20:100,21:100}),
+  ]);
+  ok(rf.fileTotal===253182015000,"fileTotal diambil dari baris satker (UNIT)");
+  ok(rf.total===100,"total = Σ rincian (independen dari header)");
+}
+
 // Header Kegiatan/KRO HILANG di file → direkonstruksi dari kode RO 3-segmen
 {
   const r4 = parseKertasKerja([

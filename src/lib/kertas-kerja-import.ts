@@ -37,6 +37,8 @@ export interface KKImportResult {
   programTotals: { kode: string; jumlah: number }[];
   total: number;
   skipped: { orphanDetails: number; preProgramRows: number; wrappedOperational: number };
+  /** Total resmi menurut baris satker (UNIT) di file SAKTI; 0 bila tak ada. */
+  fileTotal: number;
 }
 
 const ORDER: Record<string, number> = {
@@ -152,6 +154,15 @@ function injectOperationalHeaders(aoa: unknown[][]): { aoa: unknown[][]; wrapped
 }
 
 export function parseKertasKerja(aoa0: unknown[][]): KKImportResult {
+  // Total resmi menurut file: nilai pada baris satker (UNIT), kolom Jumlah.
+  let fileTotal = 0;
+  for (const raw of aoa0) {
+    const r = raw ?? [];
+    if (levelOf(ct(r[1]), ct(r[2])) === "UNIT") {
+      fileTotal = num(r[21]) ?? 0;
+      break;
+    }
+  }
   const inj = injectOperationalHeaders(aoa0);
   const aoa = inj.aoa;
   const roots: TNode[] = [];
@@ -289,7 +300,7 @@ export function parseKertasKerja(aoa0: unknown[][]): KKImportResult {
     .map((n) => ({ kode: n.kode ?? "", jumlah: sumDetails(n) }));
   const total = programTotals.reduce((s, p) => s + p.jumlah, 0);
   return {
-    nodes, counts, programTotals, total,
+    nodes, counts, programTotals, total, fileTotal,
     skipped: { orphanDetails: skipOrphanDetail, preProgramRows: skipPreProgram, wrappedOperational: inj.wrapped },
   };
 }

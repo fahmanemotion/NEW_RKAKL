@@ -15,7 +15,7 @@ export default async function LaporanPage() {
   const { data } = await sb
     .from("usulan_anggaran")
     .select(
-      "id, tahun_anggaran, tahap_pagu, status, total_anggaran, satker:master_satker!satker_id(nama_satker, kode_satker)",
+      "id, tahun_anggaran, tahap_pagu, status, total_anggaran, total_header, satker:master_satker!satker_id(nama_satker, kode_satker)",
     )
     .order("tahun_anggaran", { ascending: false });
 
@@ -26,6 +26,7 @@ export default async function LaporanPage() {
       tahap_pagu: string | null;
       status: string;
       total_anggaran: number | null;
+      total_header: number | null;
       satker: { nama_satker?: string; kode_satker?: string } | null;
     }) => ({
       id: u.id,
@@ -34,6 +35,8 @@ export default async function LaporanPage() {
       status: u.status,
       satkerNama: u.satker?.nama_satker ?? "Satker",
       satkerKode: u.satker?.kode_satker ?? "",
+      total: u.total_anggaran ?? 0,
+      totalHeader: u.total_header ?? null,
     }),
   );
 

@@ -28,6 +28,8 @@ export interface LaporanUsulan {
   status: string;
   satkerNama: string;
   satkerKode: string;
+  total?: number;
+  totalHeader?: number | null;
 }
 
 export function LaporanClient({
@@ -253,6 +255,17 @@ export function LaporanClient({
                   <div className="text-lg font-bold tabular-nums text-amber-700 dark:text-amber-400">
                     {fmtN(kk.totalJumlah)}
                   </div>
+                  {usulan.totalHeader != null &&
+                    usulan.totalHeader > 0 &&
+                    Math.abs(usulan.totalHeader - kk.totalJumlah) >= 1 && (
+                      <div className="mt-1 max-w-[260px] text-[11px] leading-snug text-muted-foreground">
+                        Header file SAKTI: {fmtN(usulan.totalHeader)} (selisih{" "}
+                        {fmtN(Math.abs(kk.totalJumlah - usulan.totalHeader))}).
+                        Angka di atas menjumlahkan seluruh rincian; selisih
+                        berasal dari akun yang rinciannya melebihi pagu akun
+                        (umumnya gaji/tunjangan pada Pagu Kebutuhan).
+                      </div>
+                    )}
                 </div>
               </div>
             </Card>

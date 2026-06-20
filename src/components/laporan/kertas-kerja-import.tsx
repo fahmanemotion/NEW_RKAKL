@@ -62,7 +62,7 @@ export function KertasKerjaImport({ usulanList }: { usulanList: ImportUsulan[] }
     setErr(null);
     setDone(null);
     try {
-      const res = await importKertasKerjaAction(target, parsed.nodes);
+      const res = await importKertasKerjaAction(target, parsed.nodes, parsed.fileTotal);
       if (!res.ok) throw new Error(res.error || "Gagal mengimpor.");
       setDone({ inserted: res.inserted ?? 0, total: res.total ?? 0 });
       setParsed(null);
@@ -131,6 +131,15 @@ export function KertasKerjaImport({ usulanList }: { usulanList: ImportUsulan[] }
                 {parsed.skipped.orphanDetails > 0 && (
                   <>{parsed.skipped.orphanDetails} detail tanpa induk akun dilewati. </>
                 )}
+              </span>
+            </p>
+          )}
+          {parsed.fileTotal > 0 && Math.abs(parsed.total - parsed.fileTotal) >= 1 && (
+            <p className="mt-2 flex items-start gap-1.5 text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                Σ rincian <strong>Rp {fmtN(parsed.total)}</strong> berbeda dari total header satker di file <strong>Rp {fmtN(parsed.fileTotal)}</strong> (selisih Rp {fmtN(Math.abs(parsed.total - parsed.fileTotal))}).
+                {" "}Ini karena di file ada akun yang rincian (kebutuhan)-nya melebihi nilai pagu akun — umumnya akun gaji/tunjangan pada file <em>Pagu Kebutuhan</em>, di mana sebagian item (mis. pakaian dinas) tercatat tanpa header akun tersendiri. Aplikasi menjumlahkan <strong>seluruh rincian</strong>, sehingga angkanya lebih lengkap daripada subtotal header file.
               </span>
             </p>
           )}
