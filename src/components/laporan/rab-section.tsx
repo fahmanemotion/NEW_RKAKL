@@ -1,8 +1,9 @@
 "use client";
 import * as React from "react";
 import XLSX from "xlsx-js-style";
-import { Printer, Download, Layers } from "lucide-react";
+import { Printer, Download, Layers, ChevronsUpDown, Check, Search } from "lucide-react";
 import { Card, Select, Button } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase";
 import { fmtN } from "@/lib/constants";
 import {
@@ -53,6 +54,105 @@ interface Ctx {
   tahun: number;
 }
 type Mode = "SUB" | "KOMPONEN";
+
+const unitOptionText = (u: RabUnit): string =>
+  `${u.roKode} · ${u.sheetName} — ${labelOf(u)} (${fmtN(u.total)})`;
+
+/**
+ * Combobox komponen/sub komponen: bisa diketik untuk mencari, daftar
+ * digulir dengan tinggi maksimal (tidak lagi memanjang ke bawah walau item
+ * ratusan). Menggantikan <select> native yang popup-nya bisa sangat panjang.
+ */
+function UnitCombo({
+  units,
+  value,
+  onChange,
+  placeholder,
+}: {
+  units: RabUnit[];
+  value: number;
+  onChange: (i: number) => void;
+  placeholder: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [q, setQ] = React.useState("");
+  const wrapRef = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onEsc);
+    setTimeout(() => inputRef.current?.focus(), 0);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [open]);
+
+  const filtered = React.useMemo(() => {
+    const s = q.trim().toLowerCase();
+    const list = units.map((u, i) => ({ u, i }));
+    if (!s) return list;
+    return list.filter(({ u }) => unitOptionText(u).toLowerCase().includes(s));
+  }, [units, q]);
+
+  const current = units[value];
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-9 w-full min-w-[300px] max-w-[460px] items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-left text-sm shadow-sm hover:bg-accent/40 focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        <span className="truncate">{current ? unitOptionText(current) : placeholder}</span>
+        <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
+      </button>
+      {open && (
+        <div className="absolute left-0 z-50 mt-1 w-[min(460px,92vw)] overflow-hidden rounded-md border bg-card text-card-foreground shadow-lg">
+          <div className="flex items-center gap-2 border-b px-2.5 py-1.5">
+            <Search className="size-4 shrink-0 opacity-50" />
+            <input
+              ref={inputRef}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Cari kode / uraian…"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+          <ul className="max-h-64 overflow-y-auto py-1">
+            {filtered.length === 0 && (
+              <li className="px-3 py-2 text-sm text-muted-foreground">Tidak ditemukan.</li>
+            )}
+            {filtered.map(({ u, i }) => (
+              <li key={u.id}>
+                <button
+                  type="button"
+                  onClick={() => { onChange(i); setOpen(false); setQ(""); }}
+                  className={cn(
+                    "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent",
+                    i === value && "bg-accent/60 font-medium",
+                  )}
+                >
+                  <Check className={cn("size-3.5 shrink-0", i === value ? "opacity-100" : "opacity-0")} />
+                  <span className="truncate">{unitOptionText(u)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="border-t px-3 py-1 text-[11px] text-muted-foreground">
+            {filtered.length} dari {units.length} item
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
   const [mode, setMode] = React.useState<Mode>("SUB");
@@ -187,17 +287,12 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
           )}
           <label className="flex items-center gap-1.5 text-xs">
             <span className="text-muted-foreground">{mode === "SUB" ? "Sub Komponen" : "Komponen"}</span>
-            <Select
-              value={sel}
-              onChange={(e) => setSel(Number(e.target.value))}
-              className="min-w-[340px]"
-            >
-              {filteredUnits.map((u, i) => (
-                <option key={u.id} value={i}>
-                  {u.roKode} · {u.sheetName} — {labelOf(u)} ({fmtN(u.total)})
-                </option>
-              ))}
-            </Select>
+            <UnitCombo
+              units={filteredUnits}
+              value={Math.min(sel, Math.max(0, filteredUnits.length - 1))}
+              onChange={(i) => setSel(i)}
+              placeholder="— pilih —"
+            />
           </label>
           <Button size="sm" variant="outline" onClick={() => printRab(unit, ctx, signers)}>
             <Printer className="size-4" /> Cetak
