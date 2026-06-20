@@ -36,6 +36,7 @@ export interface KKImportResult {
   counts: Record<string, number>;
   programTotals: { kode: string; jumlah: number }[];
   total: number;
+  skipped: { orphanDetails: number; preProgramRows: number };
 }
 
 const ORDER: Record<string, number> = {
@@ -108,6 +109,8 @@ export function parseKertasKerja(aoa: unknown[][]): KKImportResult {
   const stack: TNode[] = [];
   let seq = 0;
   let started = false;
+  let skipPreProgram = 0;
+  let skipOrphanDetail = 0;
 
   const mk = (lv: string, kode: string | null, uraian: string): TNode => ({
     tempId: "n" + ++seq, level: lv, kode, uraian,
@@ -125,14 +128,14 @@ export function parseKertasKerja(aoa: unknown[][]): KKImportResult {
 
     if (!started) {
       if (lv === "PROGRAM") started = true;
-      else continue;
+      else { skipPreProgram++; continue; } // blok rekap/operasional di atas Program
     }
 
     while (stack.length && ORDER[stack[stack.length - 1].level] >= ORDER[lv]) stack.pop();
     const parent = stack.length ? stack[stack.length - 1] : null;
 
     if (lv === "DETAIL") {
-      if (!parent || parent.level !== "AKUN") continue;
+      if (!parent || parent.level !== "AKUN") { skipOrphanDetail++; continue; }
       const node = mk("DETAIL", null, uraianRaw.replace(/^[\s-]+/, "").trim());
       const segs: { qty: number; sat: string }[] = [];
       for (const [cq, cs] of SEG_COLS) {
@@ -191,5 +194,8 @@ export function parseKertasKerja(aoa: unknown[][]): KKImportResult {
     .filter((n) => n.level === "PROGRAM")
     .map((n) => ({ kode: n.kode ?? "", jumlah: n.jumlah }));
   const total = programTotals.reduce((s, p) => s + p.jumlah, 0);
-  return { nodes, counts, programTotals, total };
+  return {
+    nodes, counts, programTotals, total,
+    skipped: { orphanDetails: skipOrphanDetail, preProgramRows: skipPreProgram },
+  };
 }

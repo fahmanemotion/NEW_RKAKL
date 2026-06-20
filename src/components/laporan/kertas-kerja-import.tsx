@@ -121,6 +121,20 @@ export function KertasKerjaImport({ usulanList }: { usulanList: ImportUsulan[] }
               <span key={l}>{LABEL[l]}: <strong className="text-foreground">{parsed.counts[l] ?? 0}</strong></span>
             ))}
           </div>
+          {(parsed.skipped.preProgramRows > 0 || parsed.skipped.orphanDetails > 0) && (
+            <p className="mt-2 flex items-start gap-1.5 text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                {parsed.skipped.preProgramRows > 0 && (
+                  <>{parsed.skipped.preProgramRows} baris di atas Program (blok rekap/operasional satker) dilewati karena berada di luar struktur Program→Komponen. </>
+                )}
+                {parsed.skipped.orphanDetails > 0 && (
+                  <>{parsed.skipped.orphanDetails} detail tanpa induk Akun dilewati. </>
+                )}
+                Untuk impor lengkap termasuk gaji/operasional, gunakan ekspor <strong>Kertas Kerja</strong> (bukan Komposisi Anggaran).
+              </span>
+            </p>
+          )}
         </div>
       )}
 
