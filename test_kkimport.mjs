@@ -28,8 +28,8 @@ const aoa=[
   row({1:"525112",2:"Belanja Barang",21:60000,26:60000,32:"BLU"}), // AKUN (nonops BLU)
   row({2:"Goodie Bag",4:9,5:"keg",7:1,8:"buah",18:9,19:"buah",20:55000,21:495000}), // detail tanpa '-'
   row({2:"- Spanduk",18:1,19:"Keg",20:200000,21:200000}),  // detail format lama
-  // DUPLIKAT komponen 052 (induk RO sama) → harus digabung
-  row({1:"052",2:"Publikasi Internasional",21:40000}),     // KOMPONEN 052 (dup)
+  // DUPLIKAT SEJATI komponen 052 (kode + uraian sama persis, induk RO sama) → digabung
+  row({1:"052",2:"Publikasi Nasional",21:40000}),     // KOMPONEN 052 (dup persis)
   row({1:"A",2:"Sub A",21:40000}),                         // SUB A (dup)
   row({1:"525112",2:"Belanja Barang",21:40000,26:40000,32:"BLU"}), // AKUN (dup)
   row({2:"Plakat",18:1,19:"buah",20:250000,21:250000}),    // detail baru di komponen ke-2
@@ -45,8 +45,8 @@ ok(res.counts.DETAIL===3,"semua 3 detail dipertahankan (Goodie Bag, Spanduk, Pla
 const byId=new Map(res.nodes.map(n=>[n.tempId,n]));
 // no sibling duplicate
 const seen=new Map(); let dup=0;
-for(const n of res.nodes){ const k=(n.parentTempId||"root")+"|"+n.level+"|"+(n.kode||"").toUpperCase(); if(["PROGRAM","KEGIATAN","KRO","RO","KOMPONEN","SUB_KOMPONEN","AKUN"].includes(n.level)){ if(seen.has(k))dup++; seen.set(k,1);} }
-ok(dup===0,"tidak ada duplikat sibling Program..Akun");
+for(const n of res.nodes){ const k=(n.parentTempId||"root")+"|"+n.level+"|"+(n.kode||"").toUpperCase()+"|"+(n.uraian||"").toUpperCase(); if(["PROGRAM","KEGIATAN","KRO","RO","KOMPONEN","SUB_KOMPONEN","AKUN"].includes(n.level)){ if(seen.has(k))dup++; seen.set(k,1);} }
+ok(dup===0,"tidak ada duplikat sibling (kode+uraian) Program..Akun");
 
 const det=res.nodes.find(n=>n.uraian==="Goodie Bag");
 ok(det.level==="DETAIL" && det.kode===null,"Goodie Bag = DETAIL tanpa kode");
@@ -66,7 +66,39 @@ ok(res.programTotals[0].kode==="022.12.DL" && res.total===945000,"total program 
 ok(res.skipped.preProgramRows>=1,"baris di atas Program (judul) dilaporkan dilewati");
 ok(res.skipped.orphanDetails===0,"tidak ada detail orphan pada contoh ini");
 
-// Blok operasional menggantung (di bawah satker sebelum Program) → DIBUNGKUS ke program sintetis
+// Kode dipakai ULANG untuk kegiatan berbeda → WAJIB tetap terpisah (tidak tergabung)
+{
+  const r3 = parseKertasKerja([
+    row({1:"022.12",2:"Satker"}),
+    row({1:"022.12.DL",2:"Program",21:1}),
+    row({1:"3996",2:"Keg",21:1}),
+    row({1:"3996.AEC",2:"KRO",21:1}),
+    row({1:"3996.AE002",2:"RO",21:1}),
+    // dua komponen "051" beda uraian
+    row({1:"051",2:"Workshop Silabus",21:1}),
+    row({1:"A",2:"Penyusunan",21:1}),
+    row({1:"525112",2:"Belanja Barang",21:1,32:"BLU"}),
+    row({2:"d1",18:1,20:1,21:1}),
+    row({1:"051",2:"Basic Safety Training",21:1}),    // kode 051 LAGI, uraian beda
+    row({1:"A",2:"Pelaksanaan BST",21:1}),
+    row({1:"525112",2:"Belanja Barang",21:1,32:"BLU"}),
+    row({2:"d2",18:1,20:1,21:1}),
+    // duplikat sejati: komponen 052 uraian sama dua kali → tergabung
+    row({1:"052",2:"Review Modul",21:1}),
+    row({1:"A",2:"Tahap 1",21:1}),
+    row({1:"525112",2:"Belanja Barang",21:1,32:"BLU"}),
+    row({2:"d3",18:1,20:1,21:1}),
+    row({1:"052",2:"Review Modul",21:1}),            // kode+uraian SAMA → gabung
+    row({1:"A",2:"Tahap 1",21:1}),
+    row({1:"525112",2:"Belanja Barang",21:1,32:"BLU"}),
+    row({2:"d4",18:1,20:1,21:1}),
+  ]);
+  const komp = r3.nodes.filter(n=>n.level==="KOMPONEN");
+  ok(komp.filter(n=>n.kode==="051").length===2,"dua komponen 051 (uraian beda) tetap terpisah");
+  ok(komp.filter(n=>n.kode==="052").length===1,"komponen 052 (uraian sama) digabung jadi satu");
+  ok(r3.nodes.filter(n=>n.level==="DETAIL").length===4,"semua 4 detail terjaga");
+  ok(r3.nodes.some(n=>n.uraian==="Basic Safety Training"),"komponen 'Basic Safety Training' tidak hilang");
+}
 {
   const r2 = parseKertasKerja([
     row({1:"022.12",2:"Satker"}),

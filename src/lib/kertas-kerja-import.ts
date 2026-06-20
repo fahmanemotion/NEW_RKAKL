@@ -205,7 +205,10 @@ export function parseKertasKerja(aoa0: unknown[][]): KKImportResult {
       continue;
     }
 
-    const key = (kode || uraianRaw).toUpperCase();
+    // Gabung HANYA bila kode DAN uraian sama persis (duplikat sejati).
+    // SAKTI memakai ulang kode (051, A, B, akun) untuk kegiatan berbeda —
+    // node berkode sama tapi uraian beda WAJIB dipertahankan terpisah.
+    const key = ((kode || uraianRaw) + "\u0001" + uraianRaw).toUpperCase();
     const bag = parent ? parent.byKey : rootByKey;
     const existing = MERGE_LEVELS.has(lv) ? bag.get(key) : undefined;
     if (existing) {
