@@ -71,7 +71,7 @@ export function buildTree(rows: UsulanStruktur[]): { roots: Node[] } {
   });
   // Level dengan kode terstruktur diurutkan by kode (hirarkis atas→bawah);
   // sisanya (Komponen/Sub Komponen/Detail) mengikuti urutan input.
-  const CODE_SORT = new Set(["PROGRAM", "KEGIATAN", "KRO", "RO", "AKUN"]);
+  const CODE_SORT = new Set(["PROGRAM", "KEGIATAN", "KRO", "RO", "KOMPONEN", "AKUN"]);
   const byUrut = (a: Node, b: Node) =>
     CODE_SORT.has(a.level) && CODE_SORT.has(b.level)
       ? (a.kode || "").localeCompare(b.kode || "", undefined, { numeric: true }) ||

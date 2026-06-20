@@ -80,5 +80,47 @@ console.log("Urutan AKUN hirarkis by kode:");
   ok(idxAk211 < idxD2 && idxD2 < idxAk811, "detail 521211 tetap menempel di bawah akunnya, sebelum 521811");
 }
 
+// ── Urutan Kegiatan/KRO/RO hirarkis by kode ─────────────────────────────────
+console.log("Urutan Program→RO hirarkis by kode:");
+{
+  const rows = [
+    { id: "p", parent_id: null, level: "PROGRAM", kode: "022.12", uraian: "P", jumlah: 0, urutan: 0 },
+    // dua kegiatan diinput terbalik (3996 dulu, lalu 1975)
+    { id: "kg2", parent_id: "p", level: "KEGIATAN", kode: "3996", uraian: "Keg2", jumlah: 0, urutan: 0 },
+    { id: "kg1", parent_id: "p", level: "KEGIATAN", kode: "1975", uraian: "Keg1", jumlah: 0, urutan: 1 },
+    // dua KRO di kg1 terbalik
+    { id: "krB", parent_id: "kg1", level: "KRO", kode: "1975.DCB", uraian: "KRO B", jumlah: 0, urutan: 0 },
+    { id: "krA", parent_id: "kg1", level: "KRO", kode: "1975.DAB", uraian: "KRO A", jumlah: 0, urutan: 1 },
+    // dua RO di krA terbalik
+    { id: "ro9", parent_id: "krA", level: "RO", kode: "1975.DAB.994", uraian: "RO 994", jumlah: 0, urutan: 0 },
+    { id: "ro2", parent_id: "krA", level: "RO", kode: "1975.DAB.002", uraian: "RO 002", jumlah: 0, urutan: 1 },
+  ];
+  const out = buildKertasKerja(rows).rows;
+  const kegOrder = out.filter((r) => r.level === "KEGIATAN").map((r) => r.kode);
+  ok(kegOrder[0] === "1975" && kegOrder[1] === "3996", "Kegiatan 1975 di atas 3996 (walau diinput belakangan)");
+  const kroOrder = out.filter((r) => r.level === "KRO").map((r) => r.kode);
+  ok(kroOrder[0] === "1975.DAB" && kroOrder[1] === "1975.DCB", "KRO DAB di atas DCB");
+  const roOrder = out.filter((r) => r.level === "RO").map((r) => r.kode);
+  ok(roOrder[0] === "1975.DAB.002" && roOrder[1] === "1975.DAB.994", "RO 002 di atas 994");
+}
+
+// Komponen juga urut by kode (walau diinput acak)
+console.log("Urutan Komponen hirarkis by kode:");
+{
+  const rows = [
+    { id: "p", parent_id: null, level: "PROGRAM", kode: "022.12", uraian: "P", jumlah: 0, urutan: 0 },
+    { id: "kg", parent_id: "p", level: "KEGIATAN", kode: "3996", uraian: "K", jumlah: 0, urutan: 0 },
+    { id: "kro", parent_id: "kg", level: "KRO", kode: "3996.AEC", uraian: "KRO", jumlah: 0, urutan: 0 },
+    { id: "ro", parent_id: "kro", level: "RO", kode: "3996.AE002", uraian: "RO", jumlah: 0, urutan: 0 },
+    // komponen diinput acak: 053, 051, 052, 601
+    { id: "c53", parent_id: "ro", level: "KOMPONEN", kode: "053", uraian: "C53", jumlah: 0, urutan: 0 },
+    { id: "c51", parent_id: "ro", level: "KOMPONEN", kode: "051", uraian: "C51", jumlah: 0, urutan: 1 },
+    { id: "c52", parent_id: "ro", level: "KOMPONEN", kode: "052", uraian: "C52", jumlah: 0, urutan: 2 },
+    { id: "c601", parent_id: "ro", level: "KOMPONEN", kode: "601", uraian: "C601", jumlah: 0, urutan: 3 },
+  ];
+  const komp = buildKertasKerja(rows).rows.filter((r) => r.level === "KOMPONEN").map((r) => r.kode);
+  ok(JSON.stringify(komp) === JSON.stringify(["051", "052", "053", "601"]), "Komponen terurut 051,052,053,601 (walau diinput acak)");
+}
+
 console.log("\nHasil: " + pass + " lulus, " + fail + " gagal");
 if (fail > 0) process.exit(1);

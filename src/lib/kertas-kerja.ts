@@ -148,8 +148,11 @@ export function buildKertasKerja(rows: UsulanStruktur[]): {
       byId.get(n.parent_id)!.children.push(n);
     else roots.push(n);
   });
+  // Level dengan kode terstruktur diurutkan by kode (hirarkis atas→bawah);
+  // sisanya (Komponen/Sub Komponen/Detail) mengikuti urutan input.
+  const CODE_SORT = new Set(["PROGRAM", "KEGIATAN", "KRO", "RO", "KOMPONEN", "AKUN"]);
   const byUrut = (a: Node, b: Node) =>
-    a.level === "AKUN" && b.level === "AKUN"
+    CODE_SORT.has(a.level) && CODE_SORT.has(b.level)
       ? (a.kode || "").localeCompare(b.kode || "", undefined, { numeric: true }) ||
         a.urutan - b.urutan
       : a.urutan - b.urutan || (a.kode || "").localeCompare(b.kode || "");
