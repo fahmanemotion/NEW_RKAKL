@@ -36,7 +36,7 @@ export interface KKImportResult {
   counts: Record<string, number>;
   programTotals: { kode: string; jumlah: number }[];
   total: number;
-  skipped: { orphanDetails: number; preProgramRows: number };
+  skipped: { orphanDetails: number; preProgramRows: number; wrappedOperational: number };
 }
 
 const ORDER: Record<string, number> = {
@@ -103,7 +103,57 @@ interface TNode {
   byKey: Map<string, TNode>;
 }
 
-export function parseKertasKerja(aoa: unknown[][]): KKImportResult {
+/**
+ * Bungkus blok operasional/gaji yang menggantung (detail/komponen di bawah
+ * satker SEBELUM Program pertama) ke dalam satu Program sintetis
+ * "Belanja Pegawai & Operasional" — dengan menyisipkan baris header sintetis
+ * (Program→Kegiatan→KRO→RO→Komponen→Sub→Akun) sehingga parser utama
+ * menanganinya secara wajar. File yang sudah rapi (tanpa blok menggantung)
+ * tidak diubah.
+ */
+function injectOperationalHeaders(aoa: unknown[][]): { aoa: unknown[][]; wrapped: number } {
+  let unitIdx = -1;
+  let progIdx = -1;
+  let satker = "022.XX";
+  for (let i = 0; i < aoa.length; i++) {
+    const k = ct((aoa[i] ?? [])[1]);
+    const u = ct((aoa[i] ?? [])[2]);
+    const lv = levelOf(k, u);
+    if (lv === "UNIT" && unitIdx < 0) { unitIdx = i; satker = k; }
+    if (lv === "PROGRAM") { progIdx = i; break; }
+  }
+  if (progIdx < 0) return { aoa, wrapped: 0 };
+
+  const start = unitIdx < 0 ? 0 : unitIdx + 1;
+  let wrapped = 0;
+  for (let i = start; i < progIdx; i++) {
+    const k = ct((aoa[i] ?? [])[1]);
+    const u = ct((aoa[i] ?? [])[2]);
+    const lv = levelOf(k, u);
+    if (lv && lv !== "UNIT") wrapped++;
+  }
+  if (wrapped === 0) return { aoa, wrapped: 0 };
+
+  const mkRow = (kode: string, uraian: string): unknown[] => {
+    const r: unknown[] = new Array(34).fill("");
+    r[1] = kode; r[2] = uraian;
+    return r;
+  };
+  const headers: unknown[][] = [
+    mkRow(satker + ".00", "Belanja Pegawai & Operasional (Non-Program)"), // PROGRAM
+    mkRow("0001", "Operasional dan Pemeliharaan Satker"),                 // KEGIATAN
+    mkRow("0001.OPS", "Layanan Operasional"),                            // KRO
+    mkRow("0001.OP000", "Layanan Operasional"),                          // RO
+    mkRow("000", "Belanja Operasional (perlu dirinci)"),                 // KOMPONEN catch-all
+    mkRow("A", "Belanja Operasional"),                                    // SUB_KOMPONEN
+    mkRow("525111", "Belanja Operasional (perlu dirinci)"),              // AKUN catch-all
+  ];
+  return { aoa: [...aoa.slice(0, start), ...headers, ...aoa.slice(start)], wrapped };
+}
+
+export function parseKertasKerja(aoa0: unknown[][]): KKImportResult {
+  const inj = injectOperationalHeaders(aoa0);
+  const aoa = inj.aoa;
   const roots: TNode[] = [];
   const rootByKey = new Map<string, TNode>();
   const stack: TNode[] = [];
@@ -190,12 +240,14 @@ export function parseKertasKerja(aoa: unknown[][]): KKImportResult {
   };
   for (const r of roots) walk(r, null);
 
+  const sumDetails = (n: TNode): number =>
+    n.level === "DETAIL" ? (n.jumlah ?? 0) : n.children.reduce((s, c) => s + sumDetails(c), 0);
   const programTotals = roots
     .filter((n) => n.level === "PROGRAM")
-    .map((n) => ({ kode: n.kode ?? "", jumlah: n.jumlah }));
+    .map((n) => ({ kode: n.kode ?? "", jumlah: sumDetails(n) }));
   const total = programTotals.reduce((s, p) => s + p.jumlah, 0);
   return {
     nodes, counts, programTotals, total,
-    skipped: { orphanDetails: skipOrphanDetail, preProgramRows: skipPreProgram },
+    skipped: { orphanDetails: skipOrphanDetail, preProgramRows: skipPreProgram, wrappedOperational: inj.wrapped },
   };
 }

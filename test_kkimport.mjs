@@ -62,15 +62,15 @@ ok(akunIds.size===1,"3 detail menempel pada SATU akun (hasil gabung)");
 const komp=res.nodes.find(n=>n.level==="KOMPONEN");
 ok(komp.uraian==="Publikasi Nasional","komponen gabungan memakai uraian kemunculan pertama");
 
-ok(res.programTotals[0].kode==="022.12.DL" && res.total===100000,"total program dari baris program");
-ok(res.skipped.preProgramRows>=1,"baris di atas Program (judul/rekap) dilaporkan sebagai dilewati");
+ok(res.programTotals[0].kode==="022.12.DL" && res.total===945000,"total program = penjumlahan detail (495rb+200rb+250rb)");
+ok(res.skipped.preProgramRows>=1,"baris di atas Program (judul) dilaporkan dilewati");
 ok(res.skipped.orphanDetails===0,"tidak ada detail orphan pada contoh ini");
 
-// Detail rekap menggantung (di bawah UNIT sebelum akun mana pun) → dilewati & dilaporkan
+// Blok operasional menggantung (di bawah satker sebelum Program) → DIBUNGKUS ke program sintetis
 {
   const r2 = parseKertasKerja([
     row({1:"022.12",2:"Satker"}),
-    row({2:"- Belanja Tunj Struktural PNS",18:1,20:30240000,21:30240000}), // detail rekap, tanpa program/akun
+    row({2:"- Belanja Tunj Struktural PNS",18:1,20:30240000,21:30240000}), // detail operasional menggantung
     row({2:"- Uang Lembur",18:1,20:17000,21:17000}),
     row({1:"022.12.DL",2:"Program",21:100000}),
     row({1:"3996",2:"Keg",21:100000}),
@@ -81,9 +81,14 @@ ok(res.skipped.orphanDetails===0,"tidak ada detail orphan pada contoh ini");
     row({1:"525112",2:"Belanja Barang",21:100000,32:"BLU"}),
     row({2:"Item nyata",18:1,20:100000,21:100000}),
   ]);
-  ok(r2.skipped.preProgramRows===2,"2 detail rekap di atas Program dilewati & dihitung");
-  ok(r2.counts.DETAIL===1 && r2.nodes.some(n=>n.uraian==="Item nyata"),"hanya detail nyata (di bawah akun) yang diimpor");
-  ok(!r2.nodes.some(n=>n.uraian.includes("Lembur")),"detail rekap tidak ikut sebagai orphan");
+  ok(r2.skipped.wrappedOperational===2,"2 baris operasional dibungkus (bukan dilewati)");
+  ok(r2.counts.PROGRAM===2,"jadi 2 program: sintetis operasional + DL");
+  ok(r2.nodes.some(n=>n.level==="PROGRAM" && (n.kode||"").endsWith(".00")),"ada program sintetis berkode '.00'");
+  ok(r2.nodes.some(n=>n.uraian.includes("Lembur")),"detail operasional TETAP terimpor (tidak hilang)");
+  ok(r2.counts.DETAIL===3,"3 detail: 2 operasional dibungkus + 1 nyata");
+  // semua detail tetap di bawah akun
+  const byId=new Map(r2.nodes.map(n=>[n.tempId,n]));
+  ok(r2.nodes.filter(n=>n.level==="DETAIL").every(d=>{const p=byId.get(d.parentTempId); return p&&p.level==="AKUN";}),"semua detail (termasuk yang dibungkus) berada di bawah AKUN");
 }
 
 console.log("\nHasil: "+pass+" lulus, "+fail+" gagal"); if(fail>0)process.exit(1);
