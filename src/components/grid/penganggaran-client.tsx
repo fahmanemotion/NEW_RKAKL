@@ -182,6 +182,8 @@ export function PenganggaranClient({
     };
     const lbl = (n?: { kode?: string | null; uraian?: string | null }) =>
       n ? `${n.kode ?? ""} ${n.uraian ?? ""}`.trim() : "";
+    const cmp = (a: string, b: string) =>
+      a.localeCompare(b, "id", { numeric: true, sensitivity: "base" });
     return rows
       .filter((r) => r.level === "KRO")
       .map((r) => ({
@@ -190,12 +192,32 @@ export function PenganggaranClient({
         uraian: r.uraian ?? "",
         programLabel: lbl(anc(r.id, "PROGRAM")),
         kegiatanLabel: lbl(anc(r.id, "KEGIATAN")),
-      }));
+      }))
+      // Urutkan hirarkis: Program → Kegiatan → kode KRO (numeric-aware).
+      .sort(
+        (a, b) =>
+          cmp(a.programLabel, b.programLabel) ||
+          cmp(a.kegiatanLabel, b.kegiatanLabel) ||
+          cmp(a.kode, b.kode),
+      );
   }, [rows]);
 
   // KRO yang dicentang. Kosong = tampilkan semua.
   const [visibleKros, setVisibleKros] = React.useState<Set<string>>(new Set());
   const [kroModalOpen, setKroModalOpen] = React.useState(false);
+
+  // Komponen yang sedang di-expand (klik 2x). Saat KRO difilter, tampilan
+  // menciut sampai level Komponen; expand untuk melihat sub/akun/detail.
+  const [expandedKomp, setExpandedKomp] = React.useState<Set<string>>(new Set());
+  // Reset expand setiap pilihan KRO berubah (default: semua menciut).
+  React.useEffect(() => setExpandedKomp(new Set()), [visibleKros]);
+  // Komponen yang punya anak (layak diberi penanda expand).
+  const komponenWithChildren = React.useMemo(() => {
+    const parents = new Set(rows.map((r) => r.parent_id).filter(Boolean) as string[]);
+    return new Set(
+      rows.filter((r) => r.level === "KOMPONEN" && parents.has(r.id)).map((r) => r.id),
+    );
+  }, [rows]);
 
   // Buang id KRO yang tak ada lagi (mis. setelah refresh data).
   React.useEffect(() => {
@@ -210,8 +232,13 @@ export function PenganggaranClient({
   const gridRows = React.useMemo(() => {
     if (visibleKros.size === 0) return allGridRows;
     const sub = filterByKros(rows, visibleKros);
-    return flattenForGrid(sub, { kppn: header.kppn, lokus: header.lokus }).gridRows;
-  }, [visibleKros, rows, allGridRows, header.kppn, header.lokus]);
+    // Saat KRO dipilih → menciut sampai level Komponen (expand via klik 2x).
+    return flattenForGrid(sub, {
+      kppn: header.kppn,
+      lokus: header.lokus,
+      collapse: expandedKomp,
+    }).gridRows;
+  }, [visibleKros, expandedKomp, rows, allGridRows, header.kppn, header.lokus]);
 
   // Muat kandidat sumber salinan saat usulan masih Draft & belum berisi rincian.
   const isEmptyDraft = header.status !== "Final" && rows.length === 0;
@@ -1030,12 +1057,31 @@ export function PenganggaranClient({
             </button>
           )}
           <span className="ml-auto text-muted-foreground">
+            {visibleKros.size > 0 && (
+              <span className="mr-3 italic">Klik 2× Komponen untuk buka rincian</span>
+            )}
             {display.length} baris ditampilkan
           </span>
         </div>
       )}
 
-      <TreeGrid rows={display} selectedId={selectedId} onSelect={select} meId={me.id} />
+      <TreeGrid
+        rows={display}
+        selectedId={selectedId}
+        onSelect={select}
+        meId={me.id}
+        collapseActive={visibleKros.size > 0}
+        expandedKomp={expandedKomp}
+        expandableKomp={komponenWithChildren}
+        onToggleKomponen={(row) => {
+          setExpandedKomp((prev) => {
+            const next = new Set(prev);
+            if (next.has(row.id)) next.delete(row.id);
+            else next.add(row.id);
+            return next;
+          });
+        }}
+      />
 
       <p className="text-xs text-muted-foreground">
         Klik baris untuk memilih — tombol menyesuaikan level (Program → Kegiatan

@@ -97,12 +97,15 @@ export function buildTree(rows: UsulanStruktur[]): { roots: Node[] } {
 /** Datarkan pohon menjadi GridRow[] terurut + sisipkan baris-info ala SAKTI. */
 export function flattenForGrid(
   rows: UsulanStruktur[],
-  opts: { kppn?: string; lokus?: string } = {},
+  opts: { kppn?: string; lokus?: string; collapse?: Set<string> | null } = {},
 ): { gridRows: GridRow[]; total: number } {
   const { roots } = buildTree(rows);
   const out: GridRow[] = [];
   const lokus = opts.lokus || "19.51-KOTA MAKASSAR";
   const kppn = opts.kppn || "054-Makassar I";
+  // Saat `collapse` diset (boleh Set kosong), anak KOMPONEN disembunyikan
+  // kecuali id komponennya tercantum (sudah di-expand lewat klik 2x).
+  const collapse = opts.collapse ?? null;
 
   const push = (n: Node, depth: number, detailIndex?: number) => {
     out.push({
@@ -146,6 +149,9 @@ export function flattenForGrid(
 
   const walk = (n: Node, depth: number) => {
     push(n, depth);
+    // Komponen yang diciutkan: tampilkan barisnya (total tetap terlihat) tetapi
+    // jangan turunkan anak-anaknya sampai di-expand (klik 2x).
+    if (collapse && n.level === "KOMPONEN" && !collapse.has(n.id)) return;
     if (n.level === "KRO")
       out.push(info(n.id, depth + 1, "", `(Lokasi :${lokus}) (KDIB=00 Base Line)`));
     if (n.level === "RO")
