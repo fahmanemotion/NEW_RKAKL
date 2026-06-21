@@ -11,6 +11,7 @@ import {
   Loader2,
   Copy,
   ClipboardPaste,
+  Rows3,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { Button, Card, Select } from "@/components/ui";
@@ -22,6 +23,7 @@ import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
 import { usePenganggaran } from "@/store/penganggaran";
 import {
   addNode,
+  addHeader,
   upsertDetail,
   deleteNodes,
   pasteNode,
@@ -44,6 +46,7 @@ import {
 import { TreeGrid } from "./tree-grid";
 import { ReferencePicker } from "./reference-picker";
 import { SubKomponenForm } from "./subkomponen-form";
+import { HeaderForm } from "./header-form";
 import { DetailForm, type DetailValues } from "./detail-form";
 import type { RefRow, RefQuery } from "@/lib/penganggaran-api";
 
@@ -107,6 +110,11 @@ export function PenganggaranClient({
     parentId?: string;
     editId?: string;
     initial?: { kode: string; uraian: string };
+  } | null>(null);
+  const [headerModal, setHeaderModal] = React.useState<{
+    parentId?: string; // id AKUN (saat membuat header baru)
+    editId?: string; // id HEADER (saat mengubah uraian)
+    initial?: string;
   } | null>(null);
   const [detail, setDetail] = React.useState<DetailState>(null);
 
@@ -335,7 +343,7 @@ export function PenganggaranClient({
 
   function handleAction(a: ToolbarAction) {
     // Blokir input bila KRO induk dikerjakan pengguna lain.
-    if (lockedByOther && (a.kind === "add" || a.kind === "edit" || a.kind === "delete" || a.kind === "paste")) {
+    if (lockedByOther && (a.kind === "add" || a.kind === "edit" || a.kind === "delete" || a.kind === "paste" || a.kind === "header")) {
       alert(`KRO ini sedang dikerjakan oleh ${kroOwnerNama || "pengguna lain"}. Anda tidak dapat menginput di sini.`);
       return;
     }
@@ -348,14 +356,51 @@ export function PenganggaranClient({
       return;
     }
     if (a.kind === "paste") return onPaste();
+    if (a.kind === "header") return openHeaderModal();
     if (a.kind === "edit") {
       if (selType === "DETAIL") return onEditDetail();
       if (selType === "SUB_KOMPONEN") return onEditSubkomp();
       if (selType === "AKUN") return onEditAkun();
+      if (selType === "HEADER") return openHeaderModal(selectedRow?.ref?.id);
       return;
     }
     if (a.kind !== "add" || !a.addLevel) return;
+    // "Tambah Header" (sejajar di bawah akun) memakai modal header, bukan picker.
+    if (a.addLevel === "HEADER") return openHeaderModal();
     openAdd(a.addLevel, a.as === "sibling");
+  }
+
+  // Akun terdekat di atas sebuah node (untuk menautkan header & mewarisi meta).
+  function akunAncestorId(id: string | null): string | null {
+    let cur = id ? byId.get(id) ?? null : null;
+    while (cur) {
+      if (cur.level === "AKUN") return cur.id;
+      cur = cur.parent_id ? byId.get(cur.parent_id) ?? null : null;
+    }
+    return null;
+  }
+
+  function openHeaderModal(editId?: string) {
+    if (editId) {
+      const r = byId.get(editId);
+      return setHeaderModal({ editId, initial: r?.uraian ?? "" });
+    }
+    const akunId = akunAncestorId(selectedId);
+    if (!akunId)
+      return alert("Header dibuat di bawah Akun. Pilih baris Akun atau Detail dulu.");
+    setHeaderModal({ parentId: akunId });
+  }
+
+  async function onSaveHeader(uraian: string) {
+    const u = uraian.trim();
+    if (!headerModal || !u) return setHeaderModal(null);
+    if (headerModal.editId) {
+      await editNode(headerModal.editId, { uraian: u });
+    } else if (headerModal.parentId) {
+      await addHeader({ usulan_id: header.id, parent_id: headerModal.parentId, uraian: u });
+    }
+    setHeaderModal(null);
+    await refresh();
   }
 
   // Peta level anak → tipe parent yang harus dipilih + judul modal.
@@ -394,9 +439,19 @@ export function PenganggaranClient({
       parentSumber = p.sumber_dana ?? null;
     } else {
       // Tambah anak: induk = node terpilih (harus level induk yang tepat).
-      const needType = PARENT_OF[level];
-      if (selectedRow?.type !== needType || !selectedRow.ref) {
-        return alert(`Pilih baris ${needType} dulu untuk menambahkan ${level}.`);
+      // DETAIL khusus: boleh di bawah AKUN ATAU HEADER.
+      if (level === "DETAIL") {
+        if (
+          (selectedRow?.type !== "AKUN" && selectedRow?.type !== "HEADER") ||
+          !selectedRow.ref
+        ) {
+          return alert("Pilih baris Akun atau Header untuk menambahkan Detail.");
+        }
+      } else {
+        const needType = PARENT_OF[level];
+        if (selectedRow?.type !== needType || !selectedRow.ref) {
+          return alert(`Pilih baris ${needType} dulu untuk menambahkan ${level}.`);
+        }
       }
       parentId = selectedRow.ref.id;
       parentRef = selectedRow.ref.referensi_id ?? null;
@@ -406,14 +461,17 @@ export function PenganggaranClient({
 
     if (level === "SUB_KOMPONEN") return setSubkompParent({ parentId });
     if (level === "DETAIL") {
-      // Sumber dana & kategori detail otomatis ikut akun (induk).
-      const akunSumber = parentSumber ?? "RM";
+      // Sumber dana & kategori SELALU diwarisi dari AKUN, walau induk langsung
+      // berupa HEADER (telusuri ke atas sampai akun).
+      const akunId = akunAncestorId(parentId);
+      const akunNode = akunId ? byId.get(akunId) ?? null : null;
+      const akunSumber = (akunNode?.sumber_dana ?? parentSumber) ?? "RM";
+      const akunRef = akunNode?.referensi_id ?? parentRef;
       let kategori: string | undefined;
-      if (parentRef) {
-        const meta = await getAkunMeta(parentRef);
+      if (akunRef) {
+        const meta = await getAkunMeta(akunRef);
         if (meta) kategori = meta.kategori_belanja;
       }
-      const akunNode = parentId ? byId.get(parentId) ?? null : null;
       return setDetail({
         parentId,
         inheritedSumberDana: akunSumber,
@@ -669,6 +727,8 @@ export function PenganggaranClient({
       <Copy className="size-4" />
     ) : a.kind === "paste" ? (
       <ClipboardPaste className="size-4" />
+    ) : a.kind === "header" ? (
+      <Rows3 className="size-4" />
     ) : (
       <Plus className="size-4" />
     );
@@ -1024,6 +1084,12 @@ export function PenganggaranClient({
         initial={subkompParent?.initial}
         onSubmit={onSubmitSubkomp}
         onClose={() => setSubkompParent(null)}
+      />
+      <HeaderForm
+        open={!!headerModal}
+        initial={headerModal?.editId ? (headerModal?.initial ?? "") : undefined}
+        onSubmit={onSaveHeader}
+        onClose={() => setHeaderModal(null)}
       />
       <DetailForm
         open={!!detail}

@@ -65,6 +65,7 @@ const DEPTH: Record<string, number> = {
   KOMPONEN: 4,
   SUB_KOMPONEN: 5,
   AKUN: 6,
+  HEADER: 7,
   DETAIL: 7,
 };
 

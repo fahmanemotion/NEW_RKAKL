@@ -11,7 +11,15 @@ ok(lbl('RO')==='Tambah RO,Tambah Komponen,Hapus','RO -> Tambah RO + Tambah Kompo
 ok(lbl('KOMPONEN')==='Tambah Komponen,Tambah Sub Komponen,Hapus','Komponen -> Tambah Komponen + Tambah Sub Komponen + Hapus');
 ok(lbl('SUB_KOMPONEN')==='Tambah Sub Komponen,Tambah Akun,Edit,Salin,Hapus','Sub Komponen -> +Sub +Akun +Edit +Salin +Hapus');
 ok(lbl('AKUN')==='Tambah Akun,Tambah Detail,Edit,Salin,Hapus','Akun -> +Akun +Detail +Edit +Salin +Hapus');
-ok(lbl('DETAIL')==='Tambah Detail,Edit,Salin,Hapus','Detail -> Tambah Detail + Edit + Salin + Hapus (tanpa anak)');
+ok(lbl('DETAIL')==='Tambah Detail,Header,Edit,Salin,Hapus','Detail -> Tambah Detail + Header + Edit + Salin + Hapus');
+ok(toolbarActions('DETAIL').some(a=>a.kind==='header'),'Detail punya tombol Header (kind header)');
+ok(lbl('HEADER')==='Tambah Header,Tambah Detail,Edit,Hapus','Header -> Tambah Header + Tambah Detail + Edit + Hapus');
+{
+  const h=toolbarActions('HEADER');
+  ok(h.find(a=>a.as==='child')?.addLevel==='DETAIL','child Header = DETAIL');
+  ok(h.find(a=>a.as==='sibling')?.addLevel==='HEADER','sibling Header = HEADER');
+  ok(h.some(a=>a.kind==='edit'),'Header bisa di-Edit (uraian)');
+}
 
 // Dua tombol tambah: pertama sibling (level sama), kedua child (level anak)
 ['PROGRAM','KEGIATAN','KRO','RO','KOMPONEN','SUB_KOMPONEN','AKUN'].forEach((s)=>{

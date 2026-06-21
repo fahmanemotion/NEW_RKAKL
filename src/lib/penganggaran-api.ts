@@ -106,6 +106,32 @@ export async function addNode(input: {
   return data as UsulanStruktur;
 }
 
+/** Tambah node HEADER (pengelompok di bawah Akun; hanya uraian). */
+export async function addHeader(input: {
+  usulan_id: string;
+  parent_id: string; // id AKUN
+  uraian: string;
+}): Promise<UsulanStruktur> {
+  const urutan = await nextUrutan(input.usulan_id, input.parent_id);
+  const { data, error } = await sb()
+    .from("usulan_struktur")
+    .insert({
+      usulan_id: input.usulan_id,
+      parent_id: input.parent_id,
+      level: "HEADER" as Level,
+      kode: "",
+      uraian: input.uraian,
+      volume: 0,
+      harga: 0,
+      jumlah: 0,
+      urutan,
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as UsulanStruktur;
+}
+
 /** Tambah / ubah Detail Belanja (jumlah dihitung trigger DB). */
 export async function upsertDetail(input: {
   id?: string;

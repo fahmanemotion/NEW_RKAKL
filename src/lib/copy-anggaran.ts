@@ -13,6 +13,7 @@ export const LEVEL_DEPTH: Record<string, number> = {
   KOMPONEN: 4,
   SUB_KOMPONEN: 5,
   AKUN: 6,
+  HEADER: 6.5,
   DETAIL: 7,
 };
 

@@ -1,6 +1,6 @@
 // SIPPT — konstanta domain bersama (selaras dengan enum database).
 
-export const LEVELS = ['PROGRAM', 'KEGIATAN', 'KRO', 'RO', 'KOMPONEN', 'SUB_KOMPONEN', 'AKUN', 'DETAIL'] as const;
+export const LEVELS = ['PROGRAM', 'KEGIATAN', 'KRO', 'RO', 'KOMPONEN', 'SUB_KOMPONEN', 'AKUN', 'HEADER', 'DETAIL'] as const;
 export type Level = (typeof LEVELS)[number];
 
 // Urutan + label tampilan grid.
@@ -12,6 +12,7 @@ export const LEVEL_LABEL: Record<Level, string> = {
   KOMPONEN: 'Komponen',
   SUB_KOMPONEN: 'Sub Komponen',
   AKUN: 'Akun',
+  HEADER: 'Header',
   DETAIL: 'Detail Belanja',
 };
 
@@ -24,6 +25,7 @@ export const CHILD_OF: Partial<Record<Level, Level>> = {
   KOMPONEN: 'SUB_KOMPONEN',
   SUB_KOMPONEN: 'AKUN',
   AKUN: 'DETAIL',
+  HEADER: 'DETAIL',
 };
 
 export const STATUS = ['Draft', 'Diajukan', 'Direview', 'Disetujui', 'Final'] as const;

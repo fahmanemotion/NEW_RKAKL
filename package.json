@@ -10,7 +10,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "db:types": "supabase gen types typescript --local > src/types/database.ts",
-    "test": "node test_tree.mjs && node test_toolbar.mjs && node test_refquery.mjs && node test_referensi.mjs && node test_detail.mjs"
+    "test": "node test_tree.mjs && node test_toolbar.mjs && node test_refquery.mjs && node test_referensi.mjs && node test_detail.mjs && node test_pengguna.mjs && node test_kertaskerja.mjs && node test_copyanggaran.mjs && node test_copysubtree.mjs && node test_kkimport.mjs && node test_filterstruktur.mjs && node test_header.mjs && node test_monitoring.mjs && node test_laporan.mjs && node test_rab.mjs && node test_kode.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

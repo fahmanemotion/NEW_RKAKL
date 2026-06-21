@@ -5,7 +5,7 @@ import type { KKImportNode } from "@/lib/kertas-kerja-import";
 
 const LEVEL_DEPTH: Record<string, number> = {
   PROGRAM: 0, KEGIATAN: 1, KRO: 2, RO: 3,
-  KOMPONEN: 4, SUB_KOMPONEN: 5, AKUN: 6, DETAIL: 7,
+  KOMPONEN: 4, SUB_KOMPONEN: 5, AKUN: 6, HEADER: 6.5, DETAIL: 7,
 };
 
 export interface ImportResult {

@@ -8,7 +8,7 @@ export type SelType = Level | 'INFO' | null;
 export interface ToolbarAction {
   key: string;
   label: string;
-  kind: 'add' | 'edit' | 'delete' | 'copy' | 'paste';
+  kind: 'add' | 'edit' | 'delete' | 'copy' | 'paste' | 'header';
   addLevel?: Level;             // level yang akan ditambahkan (untuk kind 'add')
   as?: 'sibling' | 'child';     // sibling = level sama (induk = induk node terpilih)
                                 // child   = level di bawahnya (induk = node terpilih)
@@ -23,6 +23,7 @@ const CHILD: Partial<Record<Level, Level>> = {
   KOMPONEN: 'SUB_KOMPONEN',
   SUB_KOMPONEN: 'AKUN',
   AKUN: 'DETAIL',
+  HEADER: 'DETAIL',
 };
 
 // Label tampilan tiap level (untuk teks tombol "Tambah …").
@@ -34,11 +35,12 @@ const LABEL: Record<Level, string> = {
   KOMPONEN: 'Komponen',
   SUB_KOMPONEN: 'Sub Komponen',
   AKUN: 'Akun',
+  HEADER: 'Header',
   DETAIL: 'Detail',
 };
 
 // Level yang bisa di-Edit langsung dari toolbar.
-const EDITABLE = new Set<Level>(['SUB_KOMPONEN', 'AKUN', 'DETAIL']);
+const EDITABLE = new Set<Level>(['SUB_KOMPONEN', 'AKUN', 'HEADER', 'DETAIL']);
 // Level yang bisa di-Salin (beserta seluruh turunannya).
 const COPYABLE = new Set<Level>(['SUB_KOMPONEN', 'AKUN', 'DETAIL']);
 
@@ -99,6 +101,11 @@ export function toolbarActions(
   // 2) Tambah anak (level di bawahnya), bila ada.
   const child = CHILD[lv];
   if (child) out.push(addChild(child));
+  // 2b) Tombol HEADER: muncul saat Detail dipilih (bersama "Tambah Detail").
+  //     Membuat header pengelompok di bawah Akun yang sama.
+  if (lv === 'DETAIL') {
+    out.push({ key: 'add-header', label: 'Header', kind: 'header' });
+  }
   // 3) Edit.
   if (EDITABLE.has(lv)) out.push(EDIT);
   // 4) Salin.

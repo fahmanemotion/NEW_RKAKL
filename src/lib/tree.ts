@@ -29,6 +29,7 @@ const DEPTH: Record<string, number> = {
   KOMPONEN: 4,
   SUB_KOMPONEN: 5,
   AKUN: 6,
+  HEADER: 7,
   DETAIL: 7,
 };
 
@@ -103,11 +104,11 @@ export function flattenForGrid(
   const lokus = opts.lokus || "19.51-KOTA MAKASSAR";
   const kppn = opts.kppn || "054-Makassar I";
 
-  const push = (n: Node, detailIndex?: number) => {
+  const push = (n: Node, depth: number, detailIndex?: number) => {
     out.push({
       id: n.id,
       type: n.level,
-      depth: DEPTH[n.level],
+      depth,
       kode: n.kode || "",
       uraian:
         n.level === "DETAIL"
@@ -143,23 +144,32 @@ export function flattenForGrid(
     selectable: false,
   });
 
-  const walk = (n: Node) => {
-    push(n);
-    const d = DEPTH[n.level];
+  const walk = (n: Node, depth: number) => {
+    push(n, depth);
     if (n.level === "KRO")
-      out.push(info(n.id, d + 1, "", `(Lokasi :${lokus}) (KDIB=00 Base Line)`));
+      out.push(info(n.id, depth + 1, "", `(Lokasi :${lokus}) (KDIB=00 Base Line)`));
     if (n.level === "RO")
-      out.push(info(n.id, d + 1, "", "Jumlah Komponen Utama [100.00%]", n.agg));
-    if (n.level === "AKUN") out.push(info(n.id, d + 1, "", `(KPPN.${kppn})`));
+      out.push(info(n.id, depth + 1, "", "Jumlah Komponen Utama [100.00%]", n.agg));
+    if (n.level === "AKUN") out.push(info(n.id, depth + 1, "", `(KPPN.${kppn})`));
+
     if (n.level === "AKUN") {
+      // Anak akun: campuran HEADER (rekursi) dan DETAIL langsung (push).
+      let di = 0;
+      n.children.forEach((c) => {
+        if (c.level === "DETAIL") push(c, depth + 1, di++);
+        else walk(c, depth + 1); // HEADER
+      });
+    } else if (n.level === "HEADER") {
       n.children
         .filter((c) => c.level === "DETAIL")
-        .forEach((c, i) => push(c, i));
+        .forEach((c, i) => push(c, depth + 1, i));
     } else {
-      n.children.filter((c) => c.level !== "DETAIL").forEach(walk);
+      n.children
+        .filter((c) => c.level !== "DETAIL")
+        .forEach((c) => walk(c, depth + 1));
     }
   };
-  roots.forEach(walk);
+  roots.forEach((n) => walk(n, DEPTH[n.level] ?? 0));
 
   const total = roots.reduce((s, n) => s + n.agg, 0);
   return { gridRows: out, total };
