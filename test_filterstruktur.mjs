@@ -40,4 +40,20 @@ ok(programAncestorId(rows,"kmA")==="p1","komponen kmA → program p1");
 ok(programAncestorId(rows,"roC")==="p2","ro roC → program p2");
 ok(programAncestorId(rows,"p1")==="p1","program → dirinya");
 
+console.log("filterByKros (multi):");
+import { filterByKros } from "./src/lib/tree.ts";
+ok(ids(filterByKros(rows,new Set()))===ids(rows),"set kosong → semua baris");
+ok(
+  ids(filterByKros(rows,new Set(["kroA"])))===ids([{id:"p1"},{id:"k1"},{id:"kroA"},{id:"roA"},{id:"kmA"}]),
+  "1 KRO (kroA) → leluhur p1,k1 + subtree kroA",
+);
+ok(
+  ids(filterByKros(rows,new Set(["kroA","kroC"])))===ids([{id:"p1"},{id:"k1"},{id:"kroA"},{id:"roA"},{id:"kmA"},{id:"p2"},{id:"k2"},{id:"kroC"},{id:"roC"}]),
+  "2 KRO lintas program → kedua subtree + leluhur masing-masing",
+);
+ok(
+  !ids(filterByKros(rows,new Set(["kroA"]))).split(",").includes("kroB"),
+  "KRO yang tak dicentang (kroB) tidak ikut",
+);
+
 console.log("\nHasil: "+pass+" lulus, "+fail+" gagal"); if(fail>0)process.exit(1);

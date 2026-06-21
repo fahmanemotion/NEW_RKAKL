@@ -217,6 +217,43 @@ export function filterStruktur(
   return rows.filter((r) => allow.has(r.id));
 }
 
+/**
+ * Saring baris untuk menampilkan HANYA KRO yang dipilih (beserta leluhur
+ * Program/Kegiatan dan seluruh turunannya). Set kosong → kembalikan semua.
+ */
+export function filterByKros(
+  rows: UsulanStruktur[],
+  kroIds: Set<string>,
+): UsulanStruktur[] {
+  if (!kroIds || kroIds.size === 0) return rows;
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const childrenOf = new Map<string, string[]>();
+  for (const r of rows) {
+    if (!r.parent_id) continue;
+    const arr = childrenOf.get(r.parent_id) ?? [];
+    arr.push(r.id);
+    childrenOf.set(r.parent_id, arr);
+  }
+  const allow = new Set<string>();
+  const addSubtree = (id: string) => {
+    allow.add(id);
+    for (const c of childrenOf.get(id) ?? []) addSubtree(c);
+  };
+  const addAncestors = (id: string) => {
+    let cur: UsulanStruktur | undefined = byId.get(id);
+    while (cur) {
+      allow.add(cur.id);
+      cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+    }
+  };
+  for (const kroId of kroIds) {
+    if (!byId.has(kroId)) continue;
+    addAncestors(kroId);
+    addSubtree(kroId);
+  }
+  return rows.filter((r) => allow.has(r.id));
+}
+
 /** Id PROGRAM leluhur dari sebuah node (atau null). */
 export function programAncestorId(
   rows: UsulanStruktur[],

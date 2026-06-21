@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { Button, Card, Select } from "@/components/ui";
-import { flattenForGrid, subtreeIds, filterStruktur, programAncestorId, type GridRow } from "@/lib/tree";
+import { flattenForGrid, subtreeIds, filterByKros, type GridRow } from "@/lib/tree";
 import { toolbarActions, type ToolbarAction } from "@/lib/toolbar";
 import { fmtN, type Level } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -47,6 +47,7 @@ import { TreeGrid } from "./tree-grid";
 import { ReferencePicker } from "./reference-picker";
 import { SubKomponenForm } from "./subkomponen-form";
 import { HeaderForm } from "./header-form";
+import { KroFilterModal, type KroOption } from "./kro-filter-modal";
 import { DetailForm, type DetailValues } from "./detail-form";
 import type { RefRow, RefQuery } from "@/lib/penganggaran-api";
 
@@ -167,33 +168,50 @@ export function PenganggaranClient({
     [rows, header.kppn, header.lokus],
   );
 
-  // ── Filter tampilan: Program → KRO (agar tidak semua usulan tampil) ─────────
-  const programs = React.useMemo(
-    () =>
-      rows
-        .filter((r) => r.level === "PROGRAM")
-        .map((r) => ({ id: r.id, kode: r.kode ?? "", uraian: r.uraian ?? "" })),
-    [rows],
-  );
-  const [filterProgram, setFilterProgram] = React.useState("ALL");
-  const [filterKro, setFilterKro] = React.useState("ALL");
-  React.useEffect(() => setFilterKro("ALL"), [filterProgram]);
-  const kros = React.useMemo(() => {
-    if (filterProgram === "ALL") return [];
+  // ── Filter tampilan: pilih satu / beberapa KRO via modal ───────────────────
+  // Daftar KRO + konteks Program/Kegiatan (untuk ditampilkan di modal).
+  const kroOptions = React.useMemo<KroOption[]>(() => {
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const anc = (id: string, level: string) => {
+      let cur = byId.get(id);
+      while (cur) {
+        if (cur.level === level) return cur;
+        cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+      }
+      return undefined;
+    };
+    const lbl = (n?: { kode?: string | null; uraian?: string | null }) =>
+      n ? `${n.kode ?? ""} ${n.uraian ?? ""}`.trim() : "";
     return rows
-      .filter((r) => r.level === "KRO" && programAncestorId(rows, r.id) === filterProgram)
-      .map((r) => ({ id: r.id, kode: r.kode ?? "", uraian: r.uraian ?? "" }));
-  }, [rows, filterProgram]);
+      .filter((r) => r.level === "KRO")
+      .map((r) => ({
+        id: r.id,
+        kode: r.kode ?? "",
+        uraian: r.uraian ?? "",
+        programLabel: lbl(anc(r.id, "PROGRAM")),
+        kegiatanLabel: lbl(anc(r.id, "KEGIATAN")),
+      }));
+  }, [rows]);
+
+  // KRO yang dicentang. Kosong = tampilkan semua.
+  const [visibleKros, setVisibleKros] = React.useState<Set<string>>(new Set());
+  const [kroModalOpen, setKroModalOpen] = React.useState(false);
+
+  // Buang id KRO yang tak ada lagi (mis. setelah refresh data).
+  React.useEffect(() => {
+    setVisibleKros((prev) => {
+      if (prev.size === 0) return prev;
+      const valid = new Set(kroOptions.map((o) => o.id));
+      const next = new Set([...prev].filter((id) => valid.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [kroOptions]);
 
   const gridRows = React.useMemo(() => {
-    if (filterProgram === "ALL") return allGridRows;
-    const sub = filterStruktur(
-      rows,
-      filterProgram,
-      filterKro === "ALL" ? null : filterKro,
-    );
+    if (visibleKros.size === 0) return allGridRows;
+    const sub = filterByKros(rows, visibleKros);
     return flattenForGrid(sub, { kppn: header.kppn, lokus: header.lokus }).gridRows;
-  }, [filterProgram, filterKro, rows, allGridRows, header.kppn, header.lokus]);
+  }, [visibleKros, rows, allGridRows, header.kppn, header.lokus]);
 
   // Muat kandidat sumber salinan saat usulan masih Draft & belum berisi rincian.
   const isEmptyDraft = header.status !== "Final" && rows.length === 0;
@@ -993,48 +1011,20 @@ export function PenganggaranClient({
         </Button>
       </div>
 
-      {/* Filter tampilan: Program → KRO */}
-      {programs.length > 0 && (
+      {/* Filter tampilan: tombol → modal pilih KRO (boleh lebih dari satu) */}
+      {kroOptions.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
           <span className="font-medium text-muted-foreground">Filter tampilan:</span>
-          <label className="flex items-center gap-1.5">
-            <span className="text-muted-foreground">Program</span>
-            <Select
-              value={filterProgram}
-              onChange={(e) => setFilterProgram(e.target.value)}
-              className="min-w-[200px]"
-            >
-              <option value="ALL">Semua Program</option>
-              {programs.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.kode ? `${p.kode} — ` : ""}{p.uraian}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label className="flex items-center gap-1.5">
-            <span className="text-muted-foreground">KRO</span>
-            <Select
-              value={filterKro}
-              onChange={(e) => setFilterKro(e.target.value)}
-              disabled={filterProgram === "ALL" || kros.length === 0}
-              className="min-w-[240px]"
-            >
-              <option value="ALL">Semua KRO</option>
-              {kros.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.kode ? `${k.kode} — ` : ""}{k.uraian}
-                </option>
-              ))}
-            </Select>
-          </label>
-          {filterProgram !== "ALL" && (
+          <Button variant="outline" onClick={() => setKroModalOpen(true)}>
+            <Rows3 className="size-4" />
+            {visibleKros.size === 0
+              ? "Semua KRO"
+              : `${visibleKros.size} KRO dipilih`}
+          </Button>
+          {visibleKros.size > 0 && (
             <button
               className="rounded px-2 py-1 text-muted-foreground hover:bg-accent"
-              onClick={() => {
-                setFilterProgram("ALL");
-                setFilterKro("ALL");
-              }}
+              onClick={() => setVisibleKros(new Set())}
             >
               Reset
             </button>
@@ -1090,6 +1080,13 @@ export function PenganggaranClient({
         initial={headerModal?.editId ? (headerModal?.initial ?? "") : undefined}
         onSubmit={onSaveHeader}
         onClose={() => setHeaderModal(null)}
+      />
+      <KroFilterModal
+        open={kroModalOpen}
+        options={kroOptions}
+        value={visibleKros}
+        onApply={setVisibleKros}
+        onClose={() => setKroModalOpen(false)}
       />
       <DetailForm
         open={!!detail}
