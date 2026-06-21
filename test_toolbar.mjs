@@ -57,6 +57,13 @@ ok(!toolbarActions('AKUN','SUB_KOMPONEN').some(a=>a.kind==='paste'), 'clipboard 
 ok(!toolbarActions('KOMPONEN','AKUN').some(a=>a.kind==='paste'), 'clipboard Akun + pilih Komponen -> tidak ada Tempel');
 ok(!toolbarActions('KOMPONEN',null).some(a=>a.kind==='paste'), 'clipboard kosong -> tidak ada Tempel');
 ok(toolbarActions('KOMPONEN','SUB_KOMPONEN').find(a=>a.kind==='paste').label==='Tempel Sub Komponen', 'label Tempel Sub Komponen');
+// clipboard multi-item (Set) — salin > 1 item
+console.log('Tempel (clipboard multi-level / Set):');
+ok(toolbarActions('AKUN',new Set(['DETAIL'])).some(a=>a.kind==='paste'),'Set{DETAIL} + pilih Akun -> Tempel');
+ok(toolbarActions('AKUN',new Set(['DETAIL','AKUN'])).some(a=>a.kind==='paste'),'Set campuran berisi DETAIL + pilih Akun -> Tempel');
+ok(!toolbarActions('SUB_KOMPONEN',new Set(['DETAIL'])).some(a=>a.kind==='paste'),'Set{DETAIL} + pilih Sub Komponen -> tidak ada Tempel');
+ok(!toolbarActions('AKUN',new Set()).some(a=>a.kind==='paste'),'Set kosong -> tidak ada Tempel');
+ok(toolbarActions('SUB_KOMPONEN',new Set(['AKUN','DETAIL'])).find(a=>a.kind==='paste').label==='Tempel Akun','Set{AKUN,DETAIL} + pilih Sub -> label Tempel Akun');
 
 // Edit untuk Sub Komponen & Akun & Detail; KRO tanpa Edit
 {

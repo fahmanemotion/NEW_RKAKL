@@ -87,11 +87,18 @@ const addChild = (lv: Level): ToolbarAction => ({
  */
 export function toolbarActions(
   sel: SelType,
-  clipboardLevel: Level | null = null,
+  clipboard: Level | Set<Level> | null = null,
 ): ToolbarAction[] {
   if (!sel || sel === 'INFO') {
     return [addSibling('PROGRAM')];
   }
+
+  const clipLevels =
+    clipboard == null
+      ? null
+      : clipboard instanceof Set
+        ? clipboard
+        : new Set<Level>([clipboard]);
 
   const lv = sel as Level;
   const out: ToolbarAction[] = [];
@@ -112,9 +119,10 @@ export function toolbarActions(
   if (COPYABLE.has(lv)) out.push(COPY);
   // 5) Hapus.
   out.push(DEL);
-  // 6) Tempel (bila clipboard cocok untuk induk terpilih).
-  if (clipboardLevel && PASTE_TARGET[lv] === clipboardLevel) {
-    out.push({ key: 'paste', label: PASTE_LABEL[clipboardLevel] ?? 'Tempel', kind: 'paste' });
+  // 6) Tempel (bila clipboard cocok untuk induk terpilih; mendukung > 1 item).
+  const tgt = PASTE_TARGET[lv];
+  if (tgt && clipLevels && clipLevels.has(tgt)) {
+    out.push({ key: 'paste', label: PASTE_LABEL[tgt] ?? 'Tempel', kind: 'paste' });
   }
 
   return out;

@@ -3,9 +3,12 @@ import * as React from "react";
 import type { GridRow } from "@/lib/tree";
 import { fmtN } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { ChevronRight, ChevronDown } from "lucide-react";
+import { ChevronRight, ChevronDown, Check } from "lucide-react";
 
 const SD_KODE: Record<string, string> = { RM: "A00", BLU: "F00", SBSN: "SBSN" };
+
+// Level yang boleh dicentang untuk salin massal.
+const CHECKABLE = new Set(["SUB_KOMPONEN", "AKUN", "DETAIL"]);
 
 export function TreeGrid({
   rows,
@@ -16,6 +19,8 @@ export function TreeGrid({
   expandedKomp,
   expandableKomp,
   onToggleKomponen,
+  checkedIds,
+  onToggleCheck,
 }: {
   rows: GridRow[];
   selectedId: string | null;
@@ -25,7 +30,10 @@ export function TreeGrid({
   expandedKomp?: Set<string>;
   expandableKomp?: Set<string>;
   onToggleKomponen?: (row: GridRow) => void;
+  checkedIds?: Set<string>;
+  onToggleCheck?: (row: GridRow) => void;
 }) {
+  const showCheck = !!onToggleCheck;
   return (
     <div
       className="overflow-auto rounded-md border border-border"
@@ -34,6 +42,7 @@ export function TreeGrid({
       <table className="saktigrid">
         <thead>
           <tr>
+            {showCheck && <th style={{ width: 34 }} title="Pilih untuk salin"></th>}
             <th style={{ width: 130 }}>KODE</th>
             <th>URAIAN</th>
             <th style={{ width: 70 }}>VOL</th>
@@ -48,7 +57,7 @@ export function TreeGrid({
           {rows.length === 0 ? (
             <tr>
               <td
-                colSpan={8}
+                colSpan={showCheck ? 9 : 8}
                 className="py-10 text-center text-muted-foreground"
               >
                 Belum ada data. Mulai dengan <strong>Tambah KRO</strong>.
@@ -76,6 +85,8 @@ export function TreeGrid({
               const canExpand =
                 collapseActive && isKomp && (expandableKomp?.has(r.id) ?? false);
               const expanded = expandedKomp?.has(r.id) ?? false;
+              const canCheck = showCheck && r.selectable && CHECKABLE.has(r.type);
+              const checked = checkedIds?.has(r.id) ?? false;
               return (
                 <tr
                   key={r.id}
@@ -85,6 +96,28 @@ export function TreeGrid({
                   style={canExpand ? { cursor: "pointer" } : undefined}
                   title={canExpand ? "Klik 2x untuk buka/tutup rincian" : undefined}
                 >
+                  {showCheck && (
+                    <td className="ctr">
+                      {canCheck && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleCheck?.(r);
+                          }}
+                          aria-label={checked ? "Batal pilih" : "Pilih"}
+                          className={cn(
+                            "inline-flex size-4 items-center justify-center rounded border align-middle",
+                            checked
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-input bg-background hover:border-primary",
+                          )}
+                        >
+                          {checked && <Check className="size-3" strokeWidth={3} />}
+                        </button>
+                      )}
+                    </td>
+                  )}
                   <td className="code-cell">{r.kode}</td>
                   <td className="ur" style={{ paddingLeft: 10 + r.depth * 16 }}>
                     {canExpand && (
@@ -94,13 +127,19 @@ export function TreeGrid({
                           e.stopPropagation();
                           onToggleKomponen?.(r);
                         }}
-                        className="mr-1 inline-flex size-4 -translate-y-px items-center justify-center rounded text-muted-foreground hover:bg-accent"
+                        className={cn(
+                          "mr-1.5 inline-flex size-5 -translate-y-px items-center justify-center rounded border align-middle shadow-sm transition-colors",
+                          expanded
+                            ? "border-amber-300 bg-amber-100 text-amber-700 hover:bg-amber-200 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                            : "border-sky-300 bg-sky-100 text-sky-700 hover:bg-sky-200 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+                        )}
                         aria-label={expanded ? "Tutup" : "Buka"}
+                        title={expanded ? "Tutup rincian" : "Buka rincian"}
                       >
                         {expanded ? (
-                          <ChevronDown className="size-3.5" />
+                          <ChevronDown className="size-4" strokeWidth={2.5} />
                         ) : (
-                          <ChevronRight className="size-3.5" />
+                          <ChevronRight className="size-4" strokeWidth={2.5} />
                         )}
                       </button>
                     )}

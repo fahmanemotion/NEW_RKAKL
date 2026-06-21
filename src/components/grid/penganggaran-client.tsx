@@ -12,6 +12,7 @@ import {
   Copy,
   ClipboardPaste,
   Rows3,
+  Check,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { Button, Card, Select } from "@/components/ui";
@@ -312,9 +313,58 @@ export function PenganggaranClient({
   }, [gridRows, header, total, hasProgramNode]);
 
   const selType = selectedRow?.type ?? null;
-  const [clip, setClip] = React.useState<{ id: string; level: Level; label: string } | null>(null);
+  type ClipItem = { id: string; level: Level; label: string };
+  const [clip, setClip] = React.useState<{ items: ClipItem[] } | null>(null);
   const [pasting, setPasting] = React.useState(false);
-  const actions = toolbarActions(selType, clip?.level ?? null);
+  const clipLevels = React.useMemo(
+    () => new Set((clip?.items ?? []).map((i) => i.level)),
+    [clip],
+  );
+  const actions = toolbarActions(selType, clipLevels.size ? clipLevels : null);
+
+  // Centang massal untuk salin > 1 item (Sub Komponen / Akun / Detail).
+  const [checkedIds, setCheckedIds] = React.useState<Set<string>>(new Set());
+  function toggleCheck(row: GridRow) {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(row.id)) next.delete(row.id);
+      else next.add(row.id);
+      return next;
+    });
+  }
+  // Buang id tercentang yang sudah tak ada (mis. setelah refresh).
+  React.useEffect(() => {
+    setCheckedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const valid = new Set(rows.map((r) => r.id));
+      const next = new Set([...prev].filter((id) => valid.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [rows]);
+
+  // Induk yang valid untuk menempel tiap level clipboard.
+  const PASTE_TARGET: Partial<Record<Level, Level>> = {
+    KOMPONEN: "SUB_KOMPONEN",
+    SUB_KOMPONEN: "AKUN",
+    AKUN: "DETAIL",
+  };
+
+  // Salin semua item tercentang ke clipboard.
+  function copyChecked() {
+    const items: ClipItem[] = [];
+    for (const id of checkedIds) {
+      const n = byId.get(id);
+      if (!n) continue;
+      items.push({
+        id: n.id,
+        level: n.level as Level,
+        label: `${n.kode ? n.kode + " — " : ""}${n.uraian ?? ""}`,
+      });
+    }
+    if (items.length === 0) return;
+    setClip({ items });
+    setCheckedIds(new Set());
+  }
 
   // ── Kunci KRO (input paralel) ──────────────────────────────────────────────
   const byId = React.useMemo(
@@ -367,11 +417,19 @@ export function PenganggaranClient({
 
   async function onPaste() {
     if (!clip || !selectedRow?.ref) return;
+    const targetLevel = selType as Level;
+    const targetId = selectedRow.ref.id;
+    const toPaste = clip.items.filter(
+      (it) => PASTE_TARGET[targetLevel] === it.level,
+    );
+    if (toPaste.length === 0) return;
     setPasting(true);
     try {
-      await pasteNode(header.id, clip.id, selectedRow.ref.id);
+      for (const it of toPaste) {
+        await pasteNode(header.id, it.id, targetId);
+      }
       await refresh();
-      // Item sudah ditempel → kosongkan clipboard agar tombol Tempel hilang.
+      // Semua tertempel → kosongkan clipboard agar tombol Tempel hilang.
       setClip(null);
     } catch (e) {
       alert(
@@ -396,7 +454,7 @@ export function PenganggaranClient({
     if (a.kind === "copy") {
       if (selectedRow?.ref && selType && selType !== "INFO") {
         const label = `${selectedRow.kode ? selectedRow.kode + " — " : ""}${selectedRow.uraian ?? ""}`;
-        setClip({ id: selectedRow.ref.id, level: selType as Level, label });
+        setClip({ items: [{ id: selectedRow.ref.id, level: selType as Level, label }] });
       }
       return;
     }
@@ -865,6 +923,29 @@ export function PenganggaranClient({
         </Card>
       )}
 
+      {/* Bar pilihan massal: muncul saat ada item dicentang */}
+      {checkedIds.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2 text-sm">
+          <span className="flex items-center gap-2">
+            <Check className="size-4 text-primary" />
+            <span>
+              <span className="font-medium">{checkedIds.size} item</span> dipilih untuk disalin.
+            </span>
+          </span>
+          <span className="flex items-center gap-2">
+            <Button onClick={copyChecked}>
+              <Copy className="size-4" /> Salin {checkedIds.size} item
+            </Button>
+            <button
+              className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
+              onClick={() => setCheckedIds(new Set())}
+            >
+              Bersihkan
+            </button>
+          </span>
+        </div>
+      )}
+
       {/* Indikator clipboard salin/tempel */}
       {clip && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sm dark:border-sky-900 dark:bg-sky-950/30">
@@ -873,13 +954,18 @@ export function PenganggaranClient({
             <span>
               Tersalin{" "}
               <span className="font-medium">
-                {clip.level === "SUB_KOMPONEN" ? "Sub Komponen" : clip.level === "AKUN" ? "Akun" : "Detail"}
+                {clip.items.length} item
+                {clip.items.length === 1 ? ` (${clip.items[0].label})` : ""}
               </span>
-              : {clip.label}.{" "}
+              .{" "}
               <span className="text-muted-foreground">
-                Pilih{" "}
-                {clip.level === "SUB_KOMPONEN" ? "Komponen" : clip.level === "AKUN" ? "Sub Komponen" : "Akun"}{" "}
-                tujuan lalu klik <strong>Tempel</strong>.
+                Pilih induk tujuan (
+                {[...clipLevels]
+                  .map((l) =>
+                    l === "SUB_KOMPONEN" ? "Komponen" : l === "AKUN" ? "Sub Komponen" : l === "DETAIL" ? "Akun" : l,
+                  )
+                  .join(" / ")}
+                ) lalu klik <strong>Tempel</strong>. Semua item akan ditempel.
               </span>
             </span>
           </span>
@@ -1081,6 +1167,8 @@ export function PenganggaranClient({
             return next;
           });
         }}
+        checkedIds={checkedIds}
+        onToggleCheck={toggleCheck}
       />
 
       <p className="text-xs text-muted-foreground">
