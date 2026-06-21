@@ -1,11 +1,14 @@
 "use client";
 import * as React from "react";
 import * as XLSX from "xlsx";
-import { Upload, Download, Search, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Upload, Download, Search, Loader2, CheckCircle2, AlertTriangle, Pencil, Trash2 } from "lucide-react";
 import { Button, Input, Card } from "@/components/ui";
+import { Modal } from "@/components/ui/modal";
 import {
   importKodeGabungan,
   listKodePaths,
+  updateKomponen,
+  deleteKomponen,
   type KodeImportResult,
   type KodePathRow,
 } from "@/lib/referensi-api";
@@ -23,6 +26,43 @@ export function KodeManager() {
   const [busy, setBusy] = React.useState(false);
   const [result, setResult] = React.useState<KodeImportResult | null>(null);
   const fileRef = React.useRef<HTMLInputElement | null>(null);
+  const [edit, setEdit] = React.useState<KodePathRow | null>(null);
+  const [rowBusy, setRowBusy] = React.useState(false);
+
+  async function onDelete(r: KodePathRow) {
+    if (
+      !confirm(
+        `Hapus Komponen "${r.komponen} — ${r.komponenNama}" pada ${r.ro}?\n\n` +
+          "Tindakan ini hanya menghapus baris komponen ini dari referensi.",
+      )
+    )
+      return;
+    try {
+      await deleteKomponen(r.komponenId);
+      await load();
+    } catch (e) {
+      alert("Gagal menghapus: " + (e as Error).message.replace("KODE_DUPLIKAT: ", ""));
+    }
+  }
+
+  async function onSaveEdit(kode: string, nama: string, jenis: string) {
+    if (!edit) return;
+    if (!kode.trim() || !nama.trim()) return alert("Kode dan nama komponen wajib diisi.");
+    setRowBusy(true);
+    try {
+      await updateKomponen(edit.komponenId, {
+        kode_komponen: kode.trim(),
+        nama_komponen: nama.trim(),
+        jenis: jenis || undefined,
+      });
+      setEdit(null);
+      await load();
+    } catch (e) {
+      alert((e as Error).message.replace("KODE_DUPLIKAT: ", ""));
+    } finally {
+      setRowBusy(false);
+    }
+  }
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -141,13 +181,14 @@ export function KodeManager() {
                 <th className="px-2 py-2 text-left font-semibold">KRO</th>
                 <th className="px-2 py-2 text-left font-semibold">RO</th>
                 <th className="px-2 py-2 text-left font-semibold">Komponen</th>
+                <th className="w-24 px-2 py-2 text-right font-semibold">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} className="py-10 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></td></tr>
+                <tr><td colSpan={6} className="py-10 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={5} className="py-10 text-center text-muted-foreground">
+                <tr><td colSpan={6} className="py-10 text-center text-muted-foreground">
                   Belum ada kode. Klik <strong>Import Excel</strong> untuk memuat data.
                 </td></tr>
               ) : (
@@ -158,6 +199,24 @@ export function KodeManager() {
                     <Cell kode={r.kro} nama={r.kroNama} />
                     <Cell kode={r.ro} nama={r.roNama} />
                     <Cell kode={r.komponen} nama={r.komponenNama} />
+                    <td className="px-2 py-1.5">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          className="rounded p-1.5 hover:bg-accent"
+                          title="Edit komponen"
+                          onClick={() => setEdit(r)}
+                        >
+                          <Pencil className="size-4" />
+                        </button>
+                        <button
+                          className="rounded p-1.5 text-destructive hover:bg-destructive/10"
+                          title="Hapus komponen"
+                          onClick={() => onDelete(r)}
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -170,7 +229,78 @@ export function KodeManager() {
           </div>
         )}
       </Card>
+      <KomponenEditModal
+        row={edit}
+        busy={rowBusy}
+        onSave={onSaveEdit}
+        onClose={() => setEdit(null)}
+      />
     </div>
+  );
+}
+
+function KomponenEditModal({
+  row, busy, onSave, onClose,
+}: {
+  row: KodePathRow | null;
+  busy: boolean;
+  onSave: (kode: string, nama: string, jenis: string) => void;
+  onClose: () => void;
+}) {
+  const [kode, setKode] = React.useState("");
+  const [nama, setNama] = React.useState("");
+  const [jenis, setJenis] = React.useState("");
+  React.useEffect(() => {
+    if (row) {
+      setKode(row.komponen);
+      setNama(row.komponenNama);
+      setJenis(row.komponenJenis || "");
+    }
+  }, [row]);
+  return (
+    <Modal
+      open={!!row}
+      onClose={onClose}
+      title="Edit Komponen"
+      footer={<>
+        <Button variant="outline" onClick={onClose}>Batal</Button>
+        <Button onClick={() => onSave(kode, nama, jenis)} disabled={busy}>
+          {busy ? "Menyimpan…" : "Simpan"}
+        </Button>
+      </>}
+    >
+      <div className="space-y-3">
+        {row && (
+          <p className="text-xs text-muted-foreground">
+            Jalur: {row.program} › {row.kegiatan} › {row.kro} › {row.ro}
+          </p>
+        )}
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">Kode Komponen</label>
+          <Input value={kode} onChange={(e) => setKode(e.target.value)} placeholder="mis. 051" />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">Nama Komponen</label>
+          <Input value={nama} onChange={(e) => setNama(e.target.value)} />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">Jenis</label>
+          <select
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            value={jenis}
+            onChange={(e) => setJenis(e.target.value)}
+          >
+            <option value="">—</option>
+            <option value="Utama">Utama</option>
+            <option value="Pendukung">Pendukung</option>
+          </select>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Kode tidak boleh sama dengan komponen lain pada RO yang sama; bila kembar,
+          sistem akan menolak.
+        </p>
+      </div>
+    </Modal>
   );
 }
 

@@ -42,7 +42,7 @@ export function MasterForm({
     }
     if (!v[def.namaCol]) set(def.namaCol, kode);
     setBusy(true); setErr(null);
-    try { await onSubmit(v); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+    try { await onSubmit(v); } catch (e) { setErr((e as Error).message.replace('KODE_DUPLIKAT: ', '')); } finally { setBusy(false); }
   }
 
   const isEdit = !!initial?.id;

@@ -6,6 +6,18 @@ import { MASTERS, type MasterDef, type ParsedRow } from "@/lib/referensi";
 // Client longgar: tipe tabel belum memetakan Insert/Update (hindari error 'never').
 const sb = (): SupabaseClient => createClient() as unknown as SupabaseClient;
 
+/**
+ * Ubah error Postgres menjadi pesan yang jelas. Pelanggaran UNIQUE (23505)
+ * berarti kode duplikat — sistem menolak agar kode referensi tidak kembar.
+ */
+function refError(error: { code?: string; message?: string } | null): Error {
+  if (error?.code === "23505")
+    return new Error(
+      "KODE_DUPLIKAT: Kode ini sudah ada pada induk yang sama. Sistem menolak kode kembar — gunakan kode lain, atau edit/hapus data yang sudah ada.",
+    );
+  return new Error(error?.message ?? "Terjadi kesalahan.");
+}
+
 export interface RefRecord {
   id: string;
   [k: string]: unknown;
@@ -60,7 +72,7 @@ export async function createMaster(
   values: Record<string, unknown>,
 ): Promise<void> {
   const { error } = await sb().from(def.table).insert(values);
-  if (error) throw error;
+  if (error) throw refError(error);
 }
 
 export async function updateMaster(
@@ -69,12 +81,27 @@ export async function updateMaster(
   values: Record<string, unknown>,
 ): Promise<void> {
   const { error } = await sb().from(def.table).update(values).eq("id", id);
-  if (error) throw error;
+  if (error) throw refError(error);
 }
 
 export async function deleteMaster(def: MasterDef, id: string): Promise<void> {
   const { error } = await sb().from(def.table).delete().eq("id", id);
-  if (error) throw error;
+  if (error) throw refError(error);
+}
+
+/** Update kode/nama Komponen (leaf jalur KODE). Menolak kode duplikat. */
+export async function updateKomponen(
+  id: string,
+  values: { kode_komponen?: string; nama_komponen?: string; jenis?: string },
+): Promise<void> {
+  const { error } = await sb().from("master_komponen").update(values).eq("id", id);
+  if (error) throw refError(error);
+}
+
+/** Hapus satu Komponen pada jalur KODE. */
+export async function deleteKomponen(id: string): Promise<void> {
+  const { error } = await sb().from("master_komponen").delete().eq("id", id);
+  if (error) throw refError(error);
 }
 
 /**
@@ -263,17 +290,18 @@ export async function importKodeGabungan(raw: unknown[][]): Promise<KodeImportRe
 
 /** Ambil seluruh kode sebagai jalur lengkap untuk ditampilkan (BA→Komponen). */
 export interface KodePathRow {
+  komponenId: string;
   ba: string; program: string; programNama: string;
   kegiatan: string; kegiatanNama: string;
   kro: string; kroNama: string; ro: string; roNama: string;
-  komponen: string; komponenNama: string;
+  komponen: string; komponenNama: string; komponenJenis: string;
 }
 
 export async function listKodePaths(): Promise<KodePathRow[]> {
   const { data, error } = await sb()
     .from("master_komponen")
     .select(
-      `kode_komponen, nama_komponen,
+      `id, kode_komponen, nama_komponen, jenis,
        master_ro!inner ( kode_ro, nama_ro,
          master_kro!inner ( kode_kro, nama_kro,
            master_kegiatan!inner ( kode_kegiatan, nama_kegiatan,
@@ -291,12 +319,14 @@ export async function listKodePaths(): Promise<KodePathRow[]> {
     const prog = (keg.master_program ?? {}) as Record<string, unknown>;
     const ba = (prog.master_ba ?? {}) as Record<string, unknown>;
     out.push({
+      komponenId: String(k.id ?? ""),
       ba: String(ba.kode_ba ?? ""),
       program: String(prog.kode_program ?? ""), programNama: String(prog.nama_program ?? ""),
       kegiatan: String(keg.kode_kegiatan ?? ""), kegiatanNama: String(keg.nama_kegiatan ?? ""),
       kro: String(kro.kode_kro ?? ""), kroNama: String(kro.nama_kro ?? ""),
       ro: String(ro.kode_ro ?? ""), roNama: String(ro.nama_ro ?? ""),
       komponen: String(k.kode_komponen ?? ""), komponenNama: String(k.nama_komponen ?? ""),
+      komponenJenis: String(k.jenis ?? ""),
     });
   }
   out.sort((a, b) =>
