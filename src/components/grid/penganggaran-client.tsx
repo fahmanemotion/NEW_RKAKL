@@ -12,7 +12,6 @@ import {
   Copy,
   ClipboardPaste,
   Rows3,
-  Check,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { Button, Card, Select } from "@/components/ui";
@@ -369,6 +368,12 @@ export function PenganggaranClient({
     SUB_KOMPONEN: "AKUN",
     AKUN: "DETAIL",
   };
+  // Boleh tempel bila baris terpilih adalah induk yang cocok untuk isi clipboard.
+  const canPaste =
+    !!clip &&
+    !!selType &&
+    !!PASTE_TARGET[selType as Level] &&
+    clipLevels.has(PASTE_TARGET[selType as Level]!);
 
   // "Akar" terpilih (induk tak ikut tercentang); hanya akar yang disalin.
   const checkedRoots = React.useMemo(
@@ -376,7 +381,8 @@ export function PenganggaranClient({
     [rows, checkedIds],
   );
 
-  // Salin akar-akar terpilih ke clipboard (subtree ikut saat ditempel).
+  // Salin akar-akar terpilih ke clipboard. Centang DIBIARKAN tetap aktif
+  // sebagai penanda "sedang disalin"; dibersihkan otomatis setelah ditempel.
   function copyChecked() {
     const items: ClipItem[] = checkedRoots.map((n) => ({
       id: n.id,
@@ -385,7 +391,6 @@ export function PenganggaranClient({
     }));
     if (items.length === 0) return;
     setClip({ items });
-    setCheckedIds(new Set());
   }
 
   // ── Kunci KRO (input paralel) ──────────────────────────────────────────────
@@ -447,8 +452,10 @@ export function PenganggaranClient({
         await pasteNode(header.id, it.id, targetId);
       }
       await refresh();
-      // Semua tertempel → kosongkan clipboard agar tombol Tempel hilang.
+      // Semua tertempel → bersihkan clipboard & centang (penanda hilang,
+      // tombol Tempel kembali ke keadaan awal).
       setClip(null);
+      setCheckedIds(new Set());
     } catch (e) {
       alert(
         (e as Error).message?.includes("DUPLIKAT")
@@ -947,131 +954,25 @@ export function PenganggaranClient({
         </Card>
       )}
 
-      {/* Bar pilihan massal: muncul saat ada item dicentang */}
-      {checkedIds.size > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-1.5 text-xs">
-          <span className="flex items-center gap-2">
-            <Check className="size-4 text-primary" />
-            <span>
-              <span className="font-medium">{checkedRoots.length} item</span> dipilih
-              {checkedIds.size !== checkedRoots.length && (
-                <span className="text-muted-foreground"> ({checkedIds.size} baris termasuk anak)</span>
-              )}
-              . Klik <strong>Salin</strong>, lalu pilih induk tujuan & klik <strong>Tempel</strong>.
-            </span>
-          </span>
-          <span className="flex items-center gap-2">
-            <Button size="sm" onClick={copyChecked}>
-              <Copy className="size-4" /> Salin {checkedRoots.length} item
-            </Button>
-            <button
-              className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
-              onClick={() => setCheckedIds(new Set())}
-            >
-              Bersihkan
-            </button>
-          </span>
-        </div>
-      )}
-
-      {/* Indikator clipboard salin/tempel */}
-      {clip && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs dark:border-sky-900 dark:bg-sky-950/30">
-          <span className="flex items-center gap-2">
-            <Copy className="size-4 text-sky-600" />
-            <span>
-              Tersalin{" "}
-              <span className="font-medium">
-                {clip.items.length} item
-                {clip.items.length === 1 ? ` (${clip.items[0].label})` : ""}
-              </span>
-              .{" "}
-              <span className="text-muted-foreground">
-                Pilih induk tujuan (
-                {[...clipLevels]
-                  .map((l) =>
-                    l === "SUB_KOMPONEN" ? "Komponen" : l === "AKUN" ? "Sub Komponen" : l === "DETAIL" ? "Akun" : l,
-                  )
-                  .join(" / ")}
-                ) lalu klik <strong>Tempel</strong>. Semua item akan ditempel.
-              </span>
-            </span>
-          </span>
-          <button
-            className="rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent"
-            onClick={() => setClip(null)}
-          >
-            Batal salin
-          </button>
-        </div>
-      )}
-
-      {/* Status kunci KRO (input paralel) */}
-      {selKro && !isFinal && (
-        <div
-          className={cn(
-            "flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm",
-            lockedByOther
-              ? "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30"
-              : ownedByMe
-                ? "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30"
-                : "border-border bg-muted/40",
-          )}
-        >
-          <span className="flex items-center gap-2">
-            <Lock className={cn("size-4", lockedByOther ? "text-amber-600" : ownedByMe ? "text-emerald-600" : "text-muted-foreground")} />
-            {lockedByOther ? (
-              <span>
-                KRO <span className="font-medium">{selKro.kode}</span> sedang dikerjakan oleh{" "}
-                <span className="font-medium">{kroOwnerNama || "pengguna lain"}</span>. Anda tidak dapat menginput di bawahnya.
-              </span>
-            ) : ownedByMe ? (
-              <span>
-                Anda sedang mengerjakan KRO <span className="font-medium">{selKro.kode}</span>. Pengguna lain tidak dapat menginput di sini.
-              </span>
-            ) : (
-              <span>
-                KRO <span className="font-medium">{selKro.kode}</span> belum diklaim. Klaim agar tidak bentrok dengan operator lain.
-              </span>
-            )}
-          </span>
-          {ownedByMe ? (
-            <Button size="sm" variant="outline" onClick={onRelease} disabled={claimBusy}>
-              {claimBusy ? "…" : "Lepas KRO"}
-            </Button>
-          ) : !lockedByOther ? (
-            <Button size="sm" onClick={onClaim} disabled={claimBusy}>
-              {claimBusy ? "…" : "Kerjakan KRO ini"}
-            </Button>
-          ) : null}
-        </div>
-      )}
-
       {/* Toolbar ringkas (sticky) + pagu + simpan + finalisasi */}
       <div className="sticky top-0 z-20 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md border border-border bg-background/95 px-2 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/75">
         <div className="flex flex-wrap items-center gap-1">
-          {actions.map((a) => {
-            const iconOnly =
-              a.kind === "edit" ||
-              a.kind === "copy" ||
-              a.kind === "paste" ||
-              a.kind === "delete";
+          {actions
+            .filter((a) => a.kind !== "copy" && a.kind !== "paste")
+            .map((a) => {
+            const iconOnly = a.kind === "edit" || a.kind === "delete";
             const variant =
               a.kind === "delete"
                 ? "destructive"
-                : a.kind === "paste"
-                  ? "default"
-                  : a.kind === "edit" || a.kind === "copy" || a.kind === "header"
-                    ? "secondary"
-                    : "default";
+                : a.kind === "edit" || a.kind === "header"
+                  ? "secondary"
+                  : "default";
             const disabled =
               isFinal ||
-              (a.kind === "paste" && pasting) ||
               (lockedByOther &&
                 (a.kind === "add" ||
                   a.kind === "edit" ||
                   a.kind === "delete" ||
-                  a.kind === "paste" ||
                   a.kind === "header"));
             return (
               <Button
@@ -1079,19 +980,79 @@ export function PenganggaranClient({
                 variant={variant}
                 size="sm"
                 className={iconOnly ? "h-8 w-8 p-0" : "h-8"}
-                title={a.kind === "paste" && pasting ? "Menempel…" : a.label}
+                title={a.label}
                 disabled={disabled}
                 onClick={() => handleAction(a)}
               >
                 {iconFor(a)}
-                {!iconOnly && (
-                  <span>
-                    {a.kind === "paste" && pasting ? "Menempel…" : a.label}
-                  </span>
-                )}
+                {!iconOnly && <span>{a.label}</span>}
               </Button>
             );
           })}
+
+          {/* Salin: aktif saat ada item dicentang (penanda = centang tetap aktif) */}
+          {checkedIds.size > 0 && (
+            <Button
+              size="sm"
+              className="h-8 bg-sky-600 text-white hover:bg-sky-700"
+              title={`Salin ${checkedRoots.length} item terpilih (subtree ikut)`}
+              disabled={isFinal}
+              onClick={copyChecked}
+            >
+              <Copy className="size-4" /> Salin{clip ? " ulang" : ""} ({checkedRoots.length})
+            </Button>
+          )}
+          {/* Tempel: muncul setelah Salin; aktif bila induk tujuan yang cocok dipilih */}
+          {clip && (
+            <Button
+              size="sm"
+              className="h-8 bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-emerald-600/40"
+              title={
+                canPaste
+                  ? "Tempel ke induk yang dipilih"
+                  : "Pilih dulu induk tujuan yang sesuai (Komponen ← Sub, Sub ← Akun, Akun ← Detail)"
+              }
+              disabled={isFinal || pasting || !canPaste}
+              onClick={onPaste}
+            >
+              <ClipboardPaste className="size-4" />{" "}
+              {pasting ? "Menempel…" : `Tempel (${clip.items.length})`}
+            </Button>
+          )}
+          {clip && (
+            <button
+              className="h-8 rounded px-2 text-xs text-muted-foreground hover:bg-accent"
+              title="Batalkan salinan"
+              onClick={() => setClip(null)}
+            >
+              Batal
+            </button>
+          )}
+
+          {/* Klaim / lepas KRO (pengganti bar; status lock tampil pada baris KRO) */}
+          {selKro && !isFinal && ownedByMe && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={onRelease}
+              disabled={claimBusy}
+              title={`Lepas KRO ${selKro.kode}`}
+            >
+              <Unlock className="size-4" /> {claimBusy ? "…" : "Lepas KRO"}
+            </Button>
+          )}
+          {selKro && !isFinal && !ownedByMe && !lockedByOther && (
+            <Button
+              size="sm"
+              className="h-8"
+              onClick={onClaim}
+              disabled={claimBusy}
+              title={`Klaim KRO ${selKro.kode} agar tidak bentrok`}
+            >
+              <Lock className="size-4" /> {claimBusy ? "…" : "Kerjakan KRO"}
+            </Button>
+          )}
         </div>
 
         <div className="ml-auto flex items-center gap-2">

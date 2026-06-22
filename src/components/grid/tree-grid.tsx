@@ -65,12 +65,20 @@ export function TreeGrid({
             </tr>
           ) : (
             rows.map((r) => {
+              const lockedOther =
+                r.type === "KRO" &&
+                !!r.ref?.dikerjakan_oleh &&
+                r.ref.dikerjakan_oleh !== meId;
+              const ownedMine =
+                r.type === "KRO" && r.ref?.dikerjakan_oleh === meId && !!meId;
               const cls = cn(
                 "row-" + r.type.toLowerCase(),
                 r.selectable && "selectable",
                 r.id === selectedId && "is-selected",
                 (checkedIds?.has(r.id) ?? false) &&
                   "bg-primary/10 outline outline-1 -outline-offset-1 outline-primary/20",
+                lockedOther && "bg-orange-200/50 dark:bg-orange-900/30",
+                ownedMine && "bg-emerald-100/50 dark:bg-emerald-900/20",
               );
               const sd =
                 r.type === "AKUN" && r.sumber_dana
@@ -152,7 +160,7 @@ export function TreeGrid({
                           "ml-2 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium",
                           r.ref.dikerjakan_oleh === meId
                             ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                            : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+                            : "bg-orange-200/80 text-orange-800 dark:bg-orange-900/50 dark:text-orange-200",
                         )}
                         title={`Dikerjakan oleh ${r.ref.dikerjakan_oleh_nama}`}
                       >
