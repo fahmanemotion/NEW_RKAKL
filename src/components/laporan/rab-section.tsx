@@ -10,6 +10,7 @@ import {
   buildRabPerKomponen,
   buildRabPerSubKomponen,
   rincianText,
+  rincianCells,
   terbilang,
   titleCase,
   rabFileCode,
@@ -436,13 +437,18 @@ function indentFor(level: string): number {
 type Emit = {
   id: string; pid: string | null; kode: string; uraian: string;
   level: string; isDetail: boolean; rincian: string;
+  segments: { qty: number; sat: string }[] | null;
   vol: number | null; satuan: string | null; harga: number | null; jumlah: number;
 };
 
 function buildRabSheet(unit: RabUnit, ctx: Ctx, signers: Signers): XLSX.WorkSheet {
-  const A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6;
+  // Kolom 0-based A..N (14). "Rincian Perhitungan" dipecah C..J: 3 pasang
+  // (qty, satuan) dipisah "x" → C,D | E="x" | F,G | H="x" | I,J.
+  const A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7, I = 8, J = 9,
+    K = 10, Lc = 11, Mc = 12, N = 13;
+  const NC = 14;
   const aoa: (string | number | null)[][] = [];
-  const er = () => new Array(7).fill(null);
+  const er = () => new Array(NC).fill(null);
   const now = new Date();
   const tgl = `${signers.kota}, ${now.getDate()} ${BULAN[now.getMonth()]} ${now.getFullYear()}`;
 
@@ -465,19 +471,18 @@ function buildRabSheet(unit: RabUnit, ctx: Ctx, signers: Signers): XLSX.WorkShee
   hdr("Satuan Ukur", unit.roSatuan ?? "");
   hdr("Alokasi Anggaran", unit.total);
   const hdrCount = aoa.length + 1 - hdrFirst;
-  const alokasiRow = aoa.length; // baris Alokasi (1-based)
+  const alokasiRow = aoa.length;
   aoa.push(er());
 
-  const headRow = aoa.length; // 0-based index baris header tabel
+  const headRow = aoa.length;
   r = er();
   r[A] = "Kode"; r[B] = "Uraian"; r[C] = "Rincian Perhitungan";
-  r[D] = "Volume"; r[E] = "Satuan"; r[F] = "Harga Satuan"; r[G] = "Jumlah";
+  r[K] = "Volume"; r[Lc] = "Satuan"; r[Mc] = "Harga Satuan"; r[N] = "Jumlah";
   aoa.push(r);
 
-  // Susun emit (konteks + lines)
   const emit: Emit[] = [];
   const ctxRow = (id: string, pid: string | null, kode: string, uraian: string, level: string) =>
-    emit.push({ id, pid, kode, uraian, level, isDetail: false, rincian: "", vol: null, satuan: null, harga: null, jumlah: unit.total });
+    emit.push({ id, pid, kode, uraian, level, isDetail: false, rincian: "", segments: null, vol: null, satuan: null, harga: null, jumlah: unit.total });
   ctxRow("__kro", null, unit.kroKode, unit.kroUraian, "KRO");
   ctxRow("__ro", "__kro", unit.roKode, unit.roUraian, "RO");
   ctxRow(unit.komponenId, "__ro", unit.komponenKode, unit.komponenUraian, "KOMPONEN");
@@ -487,7 +492,7 @@ function buildRabSheet(unit: RabUnit, ctx: Ctx, signers: Signers): XLSX.WorkShee
     emit.push({
       id: l.id, pid: l.parentId, kode: l.kode, uraian: l.uraian, level: l.level,
       isDetail: l.isDetail, rincian: l.isDetail ? rincianText(l) : "",
-      vol: l.vol, satuan: l.satuan, harga: l.harga, jumlah: l.jumlah,
+      segments: l.segments, vol: l.vol, satuan: l.satuan, harga: l.harga, jumlah: l.jumlah,
     });
   }
 
@@ -499,39 +504,47 @@ function buildRabSheet(unit: RabUnit, ctx: Ctx, signers: Signers): XLSX.WorkShee
     r = er();
     r[A] = e.isDetail ? "" : e.kode;
     r[B] = "  ".repeat(indentFor(e.level)) + (e.isDetail ? "- " : "") + e.uraian;
-    if (e.isDetail) {
-      r[C] = e.rincian;
-      if (e.vol != null) r[D] = e.vol;
-      r[E] = e.satuan ?? "";
-      if (e.harga != null) r[F] = e.harga;
+    if (e.level === "AKUN") {
+      // Mini-header kolom rincian pada baris akun.
+      r[C] = "Vol"; r[D] = "sat"; r[F] = "vol"; r[G] = "sat"; r[I] = "vol"; r[J] = "sat";
     }
-    r[G] = e.jumlah || null;
+    if (e.isDetail) {
+      // Kolom rincian C..J via helper (3 pasang vol/sat dipisah "x").
+      const rc = rincianCells(e.segments, e.vol, e.satuan);
+      [C, D, E, F, G, H, I, J].forEach((col, idx) => {
+        if (rc[idx] != null && rc[idx] !== "") r[col] = rc[idx] as string | number;
+      });
+      if (e.vol != null) r[K] = e.vol;
+      r[Lc] = e.satuan ? titleCase(e.satuan) : "";
+      if (e.harga != null) r[Mc] = e.harga;
+    }
+    r[N] = e.jumlah || null;
     aoa.push(r);
   }
 
   const jumlahRow = aoa.length + 1;
-  r = er(); r[A] = "JUMLAH BIAYA"; r[G] = unit.total; aoa.push(r);
-  r = er(); r[A] = "TOTAL BIAYA"; r[G] = unit.total; aoa.push(r);
-  r = er(); r[A] = "Dibulatkan"; r[G] = unit.total; aoa.push(r);
+  r = er(); r[A] = "JUMLAH BIAYA"; r[N] = unit.total; aoa.push(r);
+  r = er(); r[A] = "TOTAL BIAYA"; r[N] = unit.total; aoa.push(r);
+  r = er(); r[A] = "Dibulatkan"; r[N] = unit.total; aoa.push(r);
   const terbilangRow = aoa.length + 1;
   r = er(); r[A] = "Terbilang :"; r[B] = titleCase(terbilang(unit.total)); aoa.push(r);
   aoa.push(er()); aoa.push(er());
 
-  // Tanda tangan
+  // Tanda tangan (kiri kolom A, kanan kolom L; tanggal di kolom L baris pertama)
   const sig = aoa.length;
   const k = signers.kiri, n = signers.kanan;
-  r = er(); r[A] = "Mengetahui"; r[E] = tgl; aoa.push(r);
-  r = er(); r[A] = k.jabatan; r[E] = n.jabatan; aoa.push(r);
+  r = er(); r[A] = "Mengetahui"; r[Lc] = tgl; aoa.push(r);
+  r = er(); r[A] = k.jabatan; r[Lc] = n.jabatan; aoa.push(r);
   aoa.push(er()); aoa.push(er()); aoa.push(er());
-  r = er(); r[A] = k.nama; r[E] = n.nama; aoa.push(r);
-  r = er(); r[A] = k.pangkat; r[E] = n.pangkat; aoa.push(r);
-  r = er(); r[A] = "NIP. " + k.nip; r[E] = "NIP. " + n.nip; aoa.push(r);
+  r = er(); r[A] = k.nama; r[Lc] = n.nama; aoa.push(r);
+  r = er(); r[A] = k.pangkat; r[Lc] = n.pangkat; aoa.push(r);
+  r = er(); r[A] = "NIP. " + k.nip; r[Lc] = "NIP. " + n.nip; aoa.push(r);
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   const enc = (row1: number, col0: number) => XLSX.utils.encode_cell({ r: row1 - 1, c: col0 });
   const cl = (c: number) => XLSX.utils.encode_col(c);
 
-  // Rumus: detail = ROUNDDOWN(D*F,-3); induk = SUM anak.
+  // Rumus: detail = ROUNDDOWN(Vol*Harga,-3); induk = SUM anak.
   const childrenRows = new Map<string, number[]>();
   for (const e of emit) {
     if (!e.pid) continue;
@@ -541,20 +554,20 @@ function buildRabSheet(unit: RabUnit, ctx: Ctx, signers: Signers): XLSX.WorkShee
   }
   for (const e of emit) {
     const row1 = rowOf.get(e.id)!;
-    const a = enc(row1, G);
+    const a = enc(row1, N);
     if (e.isDetail) {
       if (e.vol != null && e.harga != null && e.vol > 0 && e.harga > 0)
-        ws[a] = { t: "n", f: `ROUNDDOWN(${cl(D)}${row1}*${cl(F)}${row1},-3)`, v: e.jumlah };
+        ws[a] = { t: "n", f: `ROUNDDOWN(${cl(K)}${row1}*${cl(Mc)}${row1},-3)`, v: e.jumlah };
       else ws[a] = { t: "n", v: e.jumlah };
     } else {
       const kids = childrenRows.get(e.id) ?? [];
       if (kids.length)
-        ws[a] = { t: "n", f: kids.map((cr) => `${cl(G)}${cr}`).join("+"), v: e.jumlah };
+        ws[a] = { t: "n", f: kids.map((cr) => `${cl(N)}${cr}`).join("+"), v: e.jumlah };
     }
   }
   const kompRow = rowOf.get(unit.komponenId)!;
   for (let i = 0; i < 3; i++)
-    ws[enc(jumlahRow + i, G)] = { t: "n", f: `${cl(G)}${kompRow}`, v: unit.total };
+    ws[enc(jumlahRow + i, N)] = { t: "n", f: `${cl(N)}${kompRow}`, v: unit.total };
 
   // Styling
   const setStyle = (ref: string, s: Record<string, unknown>) => {
@@ -574,7 +587,7 @@ function buildRabSheet(unit: RabUnit, ctx: Ctx, signers: Signers): XLSX.WorkShee
       numFmt: isAlok ? RP : undefined,
     });
   }
-  for (let c = 0; c <= G; c++) {
+  for (let c = 0; c < NC; c++) {
     setStyle(enc(headRow + 1, c), {
       font: { bold: true, sz: 9, color: { rgb: "FFFFFF" } },
       fill: { patternType: "solid", fgColor: { rgb: "44546A" } },
@@ -591,34 +604,33 @@ function buildRabSheet(unit: RabUnit, ctx: Ctx, signers: Signers): XLSX.WorkShee
       : e.level === "KRO" || e.level === "RO" ? "DDEBF7"
       : "FFFFFF";
     const bold = !e.isDetail;
-    for (let c = 0; c <= G; c++) {
-      const isNum = c === D || c === F || c === G;
+    for (let c = 0; c < NC; c++) {
+      const isMoney = c === K || c === Mc || c === N;
+      const isRincian = c >= C && c <= J;
       setStyle(enc(row1, c), {
         font: { sz: 9, bold },
         fill: { patternType: "solid", fgColor: { rgb: fill } },
         alignment: {
-          horizontal: c === B || c === C ? "left" : isNum ? "right" : "center",
+          horizontal: c === B ? "left" : isMoney ? "right" : isRincian ? "left" : "center",
           vertical: "center",
         },
         border: BORDER,
-        numFmt: isNum ? MONEY : undefined,
+        numFmt: isMoney ? MONEY : undefined,
       });
     }
   });
-  // JUMLAH BIAYA / TOTAL BIAYA / Dibulatkan — label rata kiri, nilai Rp rata kanan, semua sel berbingkai.
   for (let i = 0; i < 3; i++) {
     const rr = jumlahRow + i;
-    for (let c = A; c <= G; c++) {
+    for (let c = A; c <= N; c++) {
       setStyle(enc(rr, c), {
         font: { bold: true, sz: 10 },
-        alignment: { horizontal: c === G ? "right" : "left", vertical: "center" },
-        numFmt: c === G ? RP : undefined,
+        alignment: { horizontal: c === N ? "right" : "left", vertical: "center" },
+        numFmt: c === N ? RP : undefined,
         border: BORDER,
       });
     }
   }
-  // Terbilang — rata kiri, semua sel berbingkai.
-  for (let c = A; c <= G; c++) {
+  for (let c = A; c <= N; c++) {
     setStyle(enc(terbilangRow, c), {
       font: { bold: c === A, italic: c !== A, sz: 9 },
       alignment: { horizontal: "left", vertical: "top", wrapText: c !== A },
@@ -635,34 +647,37 @@ function buildRabSheet(unit: RabUnit, ctx: Ctx, signers: Signers): XLSX.WorkShee
       alignment: { horizontal: "center" as const, vertical: "center" as const, wrapText: isJab },
     };
     setStyle(enc(rr, A), st);
-    setStyle(enc(rr, E), { ...st, font: { ...st.font } });
+    setStyle(enc(rr, Lc), { ...st, font: { ...st.font } });
   }
 
   // Merges
-  const M = (r1: number, c1: number, r2: number, c2: number) => ({ s: { r: r1 - 1, c: c1 }, e: { r: r2 - 1, c: c2 } });
-  const merges = [M(1, A, 1, G), M(2, A, 2, G)];
+  const Mg = (r1: number, c1: number, r2: number, c2: number) => ({ s: { r: r1 - 1, c: c1 }, e: { r: r2 - 1, c: c2 } });
+  const merges = [Mg(1, A, 1, N), Mg(2, A, 2, N)];
   for (let i = 0; i < hdrCount; i++) {
     const rr = hdrFirst + i;
-    merges.push(M(rr, A, rr, B));
-    merges.push(M(rr, D, rr, G));
+    merges.push(Mg(rr, A, rr, B));
+    merges.push(Mg(rr, D, rr, N));
   }
-  for (let i = 0; i < 3; i++) merges.push(M(jumlahRow + i, A, jumlahRow + i, F));
-  merges.push(M(terbilangRow, B, terbilangRow, G));
+  merges.push(Mg(headRow + 1, C, headRow + 1, J));
+  for (let i = 0; i < 3; i++) merges.push(Mg(jumlahRow + i, A, jumlahRow + i, Mc));
+  merges.push(Mg(terbilangRow, B, terbilangRow, N));
   for (const rr of sigText) {
-    merges.push(M(rr, A, rr, C));
-    merges.push(M(rr, E, rr, G));
+    merges.push(Mg(rr, A, rr, I));
+    merges.push(Mg(rr, Lc, rr, N));
   }
   ws["!merges"] = merges;
 
   ws["!rows"] = [];
   ws["!rows"][terbilangRow - 1] = { hpt: 26 };
-  ws["!rows"][sig + 1] = { hpt: 28 }; // jabatan (0-based index = excel row sig+2)
+  ws["!rows"][sig + 1] = { hpt: 28 };
 
   ws["!cols"] = [
-    { wch: 16 }, { wch: 44 }, { wch: 14 }, { wch: 12 },
-    { wch: 10 }, { wch: 16 }, { wch: 18 },
+    { wch: 16 }, { wch: 44 }, { wch: 5 }, { wch: 8 }, { wch: 3 },
+    { wch: 5 }, { wch: 8 }, { wch: 3 }, { wch: 5 }, { wch: 8 },
+    { wch: 12 }, { wch: 10 }, { wch: 16 }, { wch: 18 },
   ];
   return ws;
+
 }
 
 function safeSheetName(s: string): string {

@@ -179,6 +179,38 @@ export function buildRabPerSubKomponen(rows: KKRow[]): RabUnit[] {
   return out;
 }
 
+/**
+ * Nilai 8 kolom Rincian Perhitungan (C..J) untuk satu detail:
+ * [C qty1, D sat1, E "x", F qty2, G sat2, H "x", I qty3, J sat3].
+ * Maks 3 pasang (qty, satuan) dipisah "x"; sisanya null.
+ */
+export function rincianCells(
+  segments: { qty: number; sat: string }[] | null,
+  vol: number | null,
+  satuan: string | null,
+): (string | number | null)[] {
+  const segs = (
+    segments && segments.length
+      ? segments
+      : vol != null
+        ? [{ qty: vol, sat: satuan ?? "" }]
+        : []
+  ).slice(0, 3);
+  const cells: (string | number | null)[] = new Array(8).fill(null); // C D E F G H I J
+  const pair: [number, number][] = [
+    [0, 1],
+    [3, 4],
+    [6, 7],
+  ];
+  segs.forEach((s, idx) => {
+    cells[pair[idx][0]] = s.qty;
+    cells[pair[idx][1]] = s.sat;
+    if (idx === 1) cells[2] = "x"; // E
+    if (idx === 2) cells[5] = "x"; // H
+  });
+  return cells;
+}
+
 /** Teks rincian perhitungan, mis. "65 Org x 13 Bln" atau "10 Pack". */
 export function rincianText(line: {
   segments: { qty: number; sat: string }[] | null;
