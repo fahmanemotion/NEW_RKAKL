@@ -235,3 +235,25 @@ export function terbilang(n: number): string {
 export function titleCase(s: string): string {
   return s.replace(/\b\w/g, (c) => c.toUpperCase());
 }
+
+/**
+ * Kode pengenal file RAB sesuai format SAKTI: {RO}.{komponen}.{sub}.
+ * Contoh: RO "3996.AEC.002" + komponen "051" + sub "A" → "3996.AEC.002.051.A".
+ * Untuk unit per-Komponen (tanpa sub) → "3996.AEC.002.051".
+ * Dengan ini user langsung mengenali file tanpa membukanya.
+ */
+export function rabFileCode(u: {
+  level: "KOMPONEN" | "SUB_KOMPONEN";
+  roKode: string;
+  komponenKode: string;
+  subKode: string | null;
+}): string {
+  const parts = [u.roKode, u.komponenKode];
+  if (u.level === "SUB_KOMPONEN" && u.subKode) parts.push(u.subKode);
+  return parts.filter(Boolean).join(".");
+}
+
+/** Bersihkan karakter yang ilegal untuk nama file (titik dipertahankan). */
+export function safeFileName(s: string): string {
+  return (s || "RAB").replace(/[\\/:*?"<>|\r\n]+/g, "_").trim() || "RAB";
+}

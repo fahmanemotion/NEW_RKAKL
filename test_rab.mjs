@@ -56,5 +56,29 @@ ok(terbilang(6010000) === "enam juta sepuluh ribu rupiah", "terbilang 6.010.000"
 ok(terbilang(1500) === "seribu lima ratus rupiah", "1500");
 ok(titleCase(terbilang(1000)) === "Seribu Rupiah", "titleCase");
 
+// Nama file RAB sesuai format SAKTI: {RO}.{komponen}.{sub}
+import { rabFileCode, safeFileName } from "./src/lib/rab-data.ts";
+console.log("rabFileCode / safeFileName:");
+{
+  const sub = perS[0];
+  ok(
+    rabFileCode(sub) === `${sub.roKode}.${sub.komponenKode}.${sub.subKode}`,
+    `sub → ${rabFileCode(sub)} (RO.komponen.sub)`,
+  );
+  // Contoh persis yang diminta user.
+  ok(
+    rabFileCode({ level: "SUB_KOMPONEN", roKode: "3996.AEC.002", komponenKode: "051", subKode: "A" }) ===
+      "3996.AEC.002.051.A",
+    "format contoh 3996.AEC.002.051.A",
+  );
+  ok(
+    rabFileCode({ level: "KOMPONEN", roKode: "3996.AEC.002", komponenKode: "051", subKode: null }) ===
+      "3996.AEC.002.051",
+    "per komponen → 3996.AEC.002.051 (tanpa sub)",
+  );
+  ok(safeFileName('3996.AEC.002/051:A') === "3996.AEC.002_051_A", "karakter ilegal diganti, titik tetap");
+  ok(safeFileName("") === "RAB", "kosong → RAB");
+}
+
 console.log("\nHasil: " + pass + " lulus, " + fail + " gagal");
 if (fail > 0) process.exit(1);

@@ -12,6 +12,8 @@ import {
   rincianText,
   terbilang,
   titleCase,
+  rabFileCode,
+  safeFileName,
   type RabUnit,
   type RabLine,
 } from "@/lib/rab-data";
@@ -175,6 +177,7 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
     [units, programFilter],
   );
   const [sel, setSel] = React.useState(0);
+  const [zipping, setZipping] = React.useState(false);
   React.useEffect(() => setSel(0), [filteredUnits]);
 
   interface PersonRow { id: string; nama: string; jabatan: string; pangkat: string; nip: string }
@@ -300,8 +303,20 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
           <Button size="sm" variant="outline" onClick={() => downloadOne(unit, ctx, signers)}>
             <Download className="size-4" /> Unduh ini
           </Button>
-          <Button size="sm" onClick={() => downloadAll(filteredUnits, ctx, signers, mode)}>
-            <Layers className="size-4" /> Unduh Semua
+          <Button
+            size="sm"
+            disabled={zipping}
+            onClick={async () => {
+              setZipping(true);
+              try {
+                await downloadAll(filteredUnits, ctx, signers, mode);
+              } finally {
+                setZipping(false);
+              }
+            }}
+            title="Unduh semua sebagai file terpisah, tiap file dinamai dengan kodenya (mis. 3996.AEC.002.051.A.xlsx)"
+          >
+            <Layers className="size-4" /> {zipping ? "Mengunduh…" : "Unduh Semua"}
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -668,21 +683,28 @@ function downloadWorkbook(wb: XLSX.WorkBook, filename: string) {
 function downloadOne(unit: RabUnit, ctx: Ctx, signers: Signers) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, buildRabSheet(unit, ctx, signers), safeSheetName(unit.sheetName));
-  downloadWorkbook(wb, `RAB_${ctx.satkerKode || "Satker"}_${safeSheetName(unit.sheetName)}_TA${ctx.tahun}.xlsx`);
+  // Nama file = kode RAB (mis. 3996.AEC.002.051.A.xlsx) agar langsung dikenali.
+  downloadWorkbook(wb, `${safeFileName(rabFileCode(unit))}.xlsx`);
 }
 
-function downloadAll(units: RabUnit[], ctx: Ctx, signers: Signers, mode: Mode) {
-  const wb = XLSX.utils.book_new();
+async function downloadAll(units: RabUnit[], ctx: Ctx, signers: Signers, _mode: Mode) {
+  // Tanpa dependensi tambahan: unduh SATU file .xlsx per unit secara berurutan,
+  // masing-masing dinamai dengan kodenya (mis. 3996.AEC.002.051.A.xlsx) sehingga
+  // mudah dikenali tanpa membuka satu per satu. Browser akan meminta izin
+  // "mengunduh beberapa berkas" sekali; setelah diizinkan, semuanya terunduh.
   const used = new Set<string>();
   for (const u of units) {
-    let name = safeSheetName(u.sheetName);
+    const base = safeFileName(rabFileCode(u));
+    let name = `${base}.xlsx`;
     let i = 2;
-    while (used.has(name)) name = safeSheetName(u.sheetName + "_" + i++);
+    while (used.has(name)) name = `${base}_${i++}.xlsx`;
     used.add(name);
-    XLSX.utils.book_append_sheet(wb, buildRabSheet(u, ctx, signers), name);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, buildRabSheet(u, ctx, signers), safeSheetName(u.sheetName));
+    downloadWorkbook(wb, name);
+    // Jeda kecil agar unduhan beruntun tidak diblokir/ditimpa browser.
+    await new Promise((res) => setTimeout(res, 300));
   }
-  const tag = mode === "SUB" ? "SubKomponen" : "Komponen";
-  downloadWorkbook(wb, `RAB_${ctx.satkerKode || "Satker"}_Semua_${tag}_TA${ctx.tahun}.xlsx`);
 }
 
 /* ───────────────────────── Cetak (HTML) ───────────────────────── */
