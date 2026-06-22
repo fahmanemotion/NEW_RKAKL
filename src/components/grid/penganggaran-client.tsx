@@ -206,6 +206,8 @@ export function PenganggaranClient({
   // KRO yang dicentang. Kosong = tampilkan semua.
   const [visibleKros, setVisibleKros] = React.useState<Set<string>>(new Set());
   const [kroModalOpen, setKroModalOpen] = React.useState(false);
+  // Header ringkas: detail satker/kementerian disembunyikan agar hemat ruang.
+  const [showInfo, setShowInfo] = React.useState(false);
 
   // Komponen yang sedang di-expand (klik 2x). Saat KRO difilter, tampilan
   // menciut sampai level Komponen; expand untuk melihat sub/akun/detail.
@@ -853,37 +855,43 @@ export function PenganggaranClient({
     );
 
   return (
-    <div className="space-y-4">
-      {/* Header penganggaran */}
-      <Card className="p-4">
-        <div className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Tahun Anggaran" value={String(header.tahun_anggaran)} />
-          <Field
-            label="Tahap Pagu"
-            value={
-              header.tahap_pagu
-                ? (TAHAP_LABEL[header.tahap_pagu as TahapPagu] ??
-                  header.tahap_pagu)
-                : "—"
-            }
-          />
-          <div>
-            <div className="text-xs text-muted-foreground">Status</div>
-            <div
-              className={
-                "font-medium " +
-                (isFinal ? "text-emerald-600 dark:text-emerald-400" : "")
-              }
-            >
-              {isFinal ? "Final (Selesai)" : status}
-            </div>
+    <div className="space-y-2">
+      {/* Header ringkas (klik "Detail" untuk info lengkap) */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border bg-card px-3 py-1.5 text-sm">
+        <span className="font-semibold">{header.satker}</span>
+        <span className="text-muted-foreground">·</span>
+        <span>TA {header.tahun_anggaran}</span>
+        <span className="text-muted-foreground">·</span>
+        <span>
+          {header.tahap_pagu
+            ? (TAHAP_LABEL[header.tahap_pagu as TahapPagu] ?? header.tahap_pagu)
+            : "—"}
+        </span>
+        <span
+          className={cn(
+            "ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+            isFinal
+              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+              : "bg-muted text-foreground",
+          )}
+        >
+          {isFinal ? "Final" : status}
+        </span>
+        <button
+          className="ml-auto text-xs text-primary hover:underline"
+          onClick={() => setShowInfo((v) => !v)}
+        >
+          {showInfo ? "Sembunyikan" : "Detail"}
+        </button>
+        {showInfo && (
+          <div className="mt-1 grid w-full gap-x-6 gap-y-1 border-t border-border pt-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
+            <Field label="BA" value={`${header.ba}`} />
+            <Field label="Kementerian" value={header.kementerian} />
+            <Field label="Unit Eselon I" value={header.unit} />
+            <Field label="Satker" value={header.satker} />
           </div>
-          <Field label="BA" value={`${header.ba}`} />
-          <Field label="Kementerian" value={header.kementerian} />
-          <Field label="Unit Eselon I" value={header.unit} />
-          <Field label="Satker" value={header.satker} />
-        </div>
-      </Card>
+        )}
+      </div>
 
       {/* Mulai cepat: Salin Anggaran dari usulan lain (Draft & kosong) */}
       {isEmptyDraft && copySources.length > 0 && (
@@ -941,7 +949,7 @@ export function PenganggaranClient({
 
       {/* Bar pilihan massal: muncul saat ada item dicentang */}
       {checkedIds.size > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-1.5 text-xs">
           <span className="flex items-center gap-2">
             <Check className="size-4 text-primary" />
             <span>
@@ -953,7 +961,7 @@ export function PenganggaranClient({
             </span>
           </span>
           <span className="flex items-center gap-2">
-            <Button onClick={copyChecked}>
+            <Button size="sm" onClick={copyChecked}>
               <Copy className="size-4" /> Salin {checkedRoots.length} item
             </Button>
             <button
@@ -968,7 +976,7 @@ export function PenganggaranClient({
 
       {/* Indikator clipboard salin/tempel */}
       {clip && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sm dark:border-sky-900 dark:bg-sky-950/30">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs dark:border-sky-900 dark:bg-sky-950/30">
           <span className="flex items-center gap-2">
             <Copy className="size-4 text-sky-600" />
             <span>
@@ -1039,64 +1047,94 @@ export function PenganggaranClient({
         </div>
       )}
 
-      {/* Toolbar dinamis + pagu */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
-          {actions.map((a, i) => (
-            <Button
-              key={a.key}
-              variant={
-                a.kind === "delete"
-                  ? "destructive"
-                  : a.kind === "paste"
-                    ? "default"
-                    : a.kind === "edit" || a.kind === "copy"
-                      ? "secondary"
-                      : "default"
-              }
-              size="sm"
-              disabled={
-                isFinal ||
-                (a.kind === "paste" && pasting) ||
-                (lockedByOther && (a.kind === "add" || a.kind === "edit" || a.kind === "delete" || a.kind === "paste"))
-              }
-              onClick={() => handleAction(a)}
-            >
-              {iconFor(a)} {a.kind === "add" ? `${i + 1}. ` : ""}
-              {a.kind === "paste" && pasting ? "Menempel…" : a.label}
-            </Button>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="text-sm font-semibold text-amber-700 dark:text-amber-400">
-            Pagu : {fmtN(total)}
-          </div>
-          {isFinal ? (
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2.5 py-1 text-sm font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                <Lock className="size-4" /> Tahap Final
-              </span>
+      {/* Toolbar ringkas (sticky) + pagu + simpan + finalisasi */}
+      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md border border-border bg-background/95 px-2 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+        <div className="flex flex-wrap items-center gap-1">
+          {actions.map((a) => {
+            const iconOnly =
+              a.kind === "edit" ||
+              a.kind === "copy" ||
+              a.kind === "paste" ||
+              a.kind === "delete";
+            const variant =
+              a.kind === "delete"
+                ? "destructive"
+                : a.kind === "paste"
+                  ? "default"
+                  : a.kind === "edit" || a.kind === "copy" || a.kind === "header"
+                    ? "secondary"
+                    : "default";
+            const disabled =
+              isFinal ||
+              (a.kind === "paste" && pasting) ||
+              (lockedByOther &&
+                (a.kind === "add" ||
+                  a.kind === "edit" ||
+                  a.kind === "delete" ||
+                  a.kind === "paste" ||
+                  a.kind === "header"));
+            return (
               <Button
-                variant="outline"
+                key={a.key}
+                variant={variant}
                 size="sm"
-                disabled={reopening}
-                onClick={onReopen}
-                title="Kembalikan ke Draft agar rincian dapat diubah lagi"
+                className={iconOnly ? "h-8 w-8 p-0" : "h-8"}
+                title={a.kind === "paste" && pasting ? "Menempel…" : a.label}
+                disabled={disabled}
+                onClick={() => handleAction(a)}
               >
-                <Unlock className="size-4" />{" "}
-                {reopening ? "Memproses…" : "Buka Finalisasi"}
+                {iconFor(a)}
+                {!iconOnly && (
+                  <span>
+                    {a.kind === "paste" && pasting ? "Menempel…" : a.label}
+                  </span>
+                )}
               </Button>
-            </div>
+            );
+          })}
+        </div>
+
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+            Pagu {fmtN(total)}
+          </span>
+          <span className="hidden items-center gap-1 text-xs text-muted-foreground md:flex">
+            {saving ? (
+              <><Loader2 className="size-3.5 animate-spin" /> Menyimpan…</>
+            ) : (
+              <><CheckCircle2 className="size-3.5 text-emerald-600" /> Tersimpan</>
+            )}
+          </span>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-8 w-8 p-0"
+            title="Simpan / sinkron sekarang"
+            onClick={onSave}
+            disabled={saving}
+          >
+            <Save className="size-4" />
+          </Button>
+          {isFinal ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8"
+              disabled={reopening}
+              onClick={onReopen}
+              title="Kembalikan ke Draft agar rincian dapat diubah lagi"
+            >
+              <Unlock className="size-4" /> {reopening ? "…" : "Buka Final"}
+            </Button>
           ) : (
             <Button
-              variant="default"
               size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700"
+              className="h-8 bg-emerald-600 hover:bg-emerald-700"
               disabled={finalizing}
               onClick={onFinalize}
+              title="Finalkan tahap ini"
             >
-              <CheckCircle2 className="size-4" />{" "}
-              {finalizing ? "Memproses…" : "Finalkan Tahap"}
+              <CheckCircle2 className="size-4" /> {finalizing ? "…" : "Finalkan"}
             </Button>
           )}
         </div>
@@ -1111,44 +1149,11 @@ export function PenganggaranClient({
         </p>
       )}
 
-      {/* Bar status simpan: setiap perubahan tersimpan otomatis; tombol Simpan untuk memastikan/sinkron. */}
-      <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
-        <span className="flex items-center gap-1.5 text-muted-foreground">
-          {saving ? (
-            <>
-              <Loader2 className="size-3.5 animate-spin" /> Menyimpan…
-            </>
-          ) : lastSavedAt ? (
-            <>
-              <CheckCircle2 className="size-3.5 text-emerald-600" /> Tersimpan
-              otomatis · pukul{" "}
-              {lastSavedAt.toLocaleTimeString("id-ID", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </>
-          ) : (
-            <>
-              <CheckCircle2 className="size-3.5 text-emerald-600" /> Setiap
-              perubahan tersimpan otomatis
-            </>
-          )}
-        </span>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={onSave}
-          disabled={saving}
-        >
-          <Save className="size-4" /> Simpan
-        </Button>
-      </div>
-
       {/* Filter tampilan: tombol → modal pilih KRO (boleh lebih dari satu) */}
       {kroOptions.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
           <span className="font-medium text-muted-foreground">Filter tampilan:</span>
-          <Button variant="outline" onClick={() => setKroModalOpen(true)}>
+          <Button variant="outline" size="sm" className="h-8" onClick={() => setKroModalOpen(true)}>
             <Rows3 className="size-4" />
             {visibleKros.size === 0
               ? "Semua KRO"
@@ -1192,9 +1197,8 @@ export function PenganggaranClient({
       />
 
       <p className="text-xs text-muted-foreground">
-        Klik baris untuk memilih — tombol menyesuaikan level (Program → Kegiatan
-        → KRO → RO → Komponen → Sub Komponen → Akun → Detail). Jumlah & pagu
-        dihitung otomatis oleh database.
+        Klik baris untuk memilih; tombol menyesuaikan level otomatis. Jumlah &
+        pagu dihitung otomatis oleh sistem.
       </p>
 
       {/* Modals */}
