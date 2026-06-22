@@ -69,6 +69,8 @@ export function TreeGrid({
                 "row-" + r.type.toLowerCase(),
                 r.selectable && "selectable",
                 r.id === selectedId && "is-selected",
+                (checkedIds?.has(r.id) ?? false) &&
+                  "bg-primary/10 outline outline-1 -outline-offset-1 outline-primary/20",
               );
               const sd =
                 r.type === "AKUN" && r.sumber_dana

@@ -43,6 +43,26 @@ interface Node extends UsulanStruktur {
  * Dipakai saat menghapus: hapus Program → semua child sampai detail ikut.
  * Hasil terurut "anak terdalam dulu" agar aman dihapus berurutan.
  */
+/**
+ * Dari kumpulan id tercentang, kembalikan node "akar" — yaitu node yang
+ * induknya TIDAK ikut tercentang. Hanya akar yang perlu disalin karena
+ * subtree-nya otomatis ikut saat ditempel (pasteNode menyalin seluruh subtree).
+ */
+export function checkedRootNodes(
+  rows: UsulanStruktur[],
+  checked: Set<string>,
+): UsulanStruktur[] {
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const roots: UsulanStruktur[] = [];
+  for (const id of checked) {
+    const n = byId.get(id);
+    if (!n) continue;
+    if (n.parent_id && checked.has(n.parent_id)) continue;
+    roots.push(n);
+  }
+  return roots;
+}
+
 export function subtreeIds(rows: UsulanStruktur[], rootId: string): string[] {
   const childrenOf = new Map<string, string[]>();
   for (const r of rows) {

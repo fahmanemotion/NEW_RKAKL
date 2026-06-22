@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { Button, Card, Select } from "@/components/ui";
-import { flattenForGrid, subtreeIds, filterByKros, type GridRow } from "@/lib/tree";
+import { flattenForGrid, subtreeIds, filterByKros, checkedRootNodes, type GridRow } from "@/lib/tree";
 import { toolbarActions, type ToolbarAction } from "@/lib/toolbar";
 import { fmtN, type Level } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -323,12 +323,31 @@ export function PenganggaranClient({
   const actions = toolbarActions(selType, clipLevels.size ? clipLevels : null);
 
   // Centang massal untuk salin > 1 item (Sub Komponen / Akun / Detail).
+  // Mencentang sebuah node otomatis mencentang SELURUH anak-cucunya, sehingga
+  // satu klik pada Sub Komponen / Akun memilih seluruh subtree-nya untuk disalin.
+  const byId = React.useMemo(
+    () => new Map(rows.map((r) => [r.id, r])),
+    [rows],
+  );
   const [checkedIds, setCheckedIds] = React.useState<Set<string>>(new Set());
+
   function toggleCheck(row: GridRow) {
     setCheckedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(row.id)) next.delete(row.id);
-      else next.add(row.id);
+      const sub = subtreeIds(rows, row.id); // termasuk dirinya
+      if (next.has(row.id)) {
+        // Lepas centang: buang subtree + para leluhur (agar tak ada induk
+        // tercentang dengan anak yang sudah tidak lengkap).
+        sub.forEach((x) => next.delete(x));
+        let cur = byId.get(row.id);
+        while (cur?.parent_id) {
+          next.delete(cur.parent_id);
+          cur = byId.get(cur.parent_id);
+        }
+      } else {
+        // Centang: tandai seluruh subtree (anak-cucu ikut tercentang).
+        sub.forEach((x) => next.add(x));
+      }
       return next;
     });
   }
@@ -349,28 +368,25 @@ export function PenganggaranClient({
     AKUN: "DETAIL",
   };
 
-  // Salin semua item tercentang ke clipboard.
+  // "Akar" terpilih (induk tak ikut tercentang); hanya akar yang disalin.
+  const checkedRoots = React.useMemo(
+    () => checkedRootNodes(rows, checkedIds),
+    [rows, checkedIds],
+  );
+
+  // Salin akar-akar terpilih ke clipboard (subtree ikut saat ditempel).
   function copyChecked() {
-    const items: ClipItem[] = [];
-    for (const id of checkedIds) {
-      const n = byId.get(id);
-      if (!n) continue;
-      items.push({
-        id: n.id,
-        level: n.level as Level,
-        label: `${n.kode ? n.kode + " — " : ""}${n.uraian ?? ""}`,
-      });
-    }
+    const items: ClipItem[] = checkedRoots.map((n) => ({
+      id: n.id,
+      level: n.level as Level,
+      label: `${n.kode ? n.kode + " — " : ""}${n.uraian ?? ""}`,
+    }));
     if (items.length === 0) return;
     setClip({ items });
     setCheckedIds(new Set());
   }
 
   // ── Kunci KRO (input paralel) ──────────────────────────────────────────────
-  const byId = React.useMemo(
-    () => new Map(rows.map((r) => [r.id, r])),
-    [rows],
-  );
   function kroAncestor(id: string | null | undefined): UsulanStruktur | null {
     let cur = id ? byId.get(id) ?? null : null;
     while (cur) {
@@ -929,12 +945,16 @@ export function PenganggaranClient({
           <span className="flex items-center gap-2">
             <Check className="size-4 text-primary" />
             <span>
-              <span className="font-medium">{checkedIds.size} item</span> dipilih untuk disalin.
+              <span className="font-medium">{checkedRoots.length} item</span> dipilih
+              {checkedIds.size !== checkedRoots.length && (
+                <span className="text-muted-foreground"> ({checkedIds.size} baris termasuk anak)</span>
+              )}
+              . Klik <strong>Salin</strong>, lalu pilih induk tujuan & klik <strong>Tempel</strong>.
             </span>
           </span>
           <span className="flex items-center gap-2">
             <Button onClick={copyChecked}>
-              <Copy className="size-4" /> Salin {checkedIds.size} item
+              <Copy className="size-4" /> Salin {checkedRoots.length} item
             </Button>
             <button
               className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
