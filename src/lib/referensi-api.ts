@@ -105,6 +105,30 @@ export async function deleteKomponen(id: string): Promise<void> {
 }
 
 /**
+ * Hapus SELURUH kode referensi (Program → Kegiatan → KRO → RO → Komponen →
+ * Sub Komponen). Berguna saat berpindah satker agar bisa impor template baru.
+ * Dihapus dari level terdalam ke terluar agar aman walau tanpa cascade.
+ * BA (master_ba) sengaja dipertahankan karena bersifat standar & dipakai ulang.
+ * Data usulan tidak ikut terhapus (referensi_id tanpa FK; program_id usulan
+ * hanya di-set null oleh aturan ON DELETE SET NULL).
+ */
+export async function deleteAllKode(): Promise<void> {
+  const ZERO = "00000000-0000-0000-0000-000000000000";
+  const tables = [
+    "master_sub_komponen",
+    "master_komponen",
+    "master_ro",
+    "master_kro",
+    "master_kegiatan",
+    "master_program",
+  ];
+  for (const t of tables) {
+    const { error } = await sb().from(t).delete().neq("id", ZERO);
+    if (error) throw refError(error);
+  }
+}
+
+/**
  * Bulk import: resolve kode induk → id, lalu upsert per baris valid.
  * Mengembalikan ringkasan { inserted, skipped, failed, errors }.
  */

@@ -9,6 +9,7 @@ import {
   listKodePaths,
   updateKomponen,
   deleteKomponen,
+  deleteAllKode,
   type KodeImportResult,
   type KodePathRow,
 } from "@/lib/referensi-api";
@@ -28,6 +29,24 @@ export function KodeManager() {
   const fileRef = React.useRef<HTMLInputElement | null>(null);
   const [edit, setEdit] = React.useState<KodePathRow | null>(null);
   const [rowBusy, setRowBusy] = React.useState(false);
+  const [confirmDelAll, setConfirmDelAll] = React.useState(false);
+  const [delAllText, setDelAllText] = React.useState("");
+  const [delAllBusy, setDelAllBusy] = React.useState(false);
+
+  async function onDeleteAll() {
+    setDelAllBusy(true);
+    try {
+      await deleteAllKode();
+      setConfirmDelAll(false);
+      setDelAllText("");
+      setResult(null);
+      await load();
+    } catch (e) {
+      alert("Gagal menghapus semua kode: " + (e as Error).message.replace("KODE_DUPLIKAT: ", ""));
+    } finally {
+      setDelAllBusy(false);
+    }
+  }
 
   async function onDelete(r: KodePathRow) {
     if (
@@ -135,6 +154,18 @@ export function KodeManager() {
           <Button variant="outline" onClick={downloadTemplate}>
             <Download className="size-4" /> Unduh Template
           </Button>
+          <Button
+            variant="destructive"
+            className="ml-auto"
+            onClick={() => {
+              setDelAllText("");
+              setConfirmDelAll(true);
+            }}
+            disabled={busy || rows.length === 0}
+            title="Hapus seluruh kode referensi (mis. saat pindah satker)"
+          >
+            <Trash2 className="size-4" /> Hapus Semua Kode
+          </Button>
         </div>
         <p className="text-xs text-muted-foreground">
           Satu file Excel berisi seluruh kode (BA → Program → Kegiatan → KRO → RO → Komponen).
@@ -235,6 +266,50 @@ export function KodeManager() {
         onSave={onSaveEdit}
         onClose={() => setEdit(null)}
       />
+
+      <Modal
+        open={confirmDelAll}
+        onClose={() => setConfirmDelAll(false)}
+        title="Hapus Semua Kode Referensi"
+        footer={<>
+          <Button variant="outline" onClick={() => setConfirmDelAll(false)}>Batal</Button>
+          <Button
+            variant="destructive"
+            disabled={delAllBusy || delAllText.trim().toUpperCase() !== "HAPUS SEMUA"}
+            onClick={onDeleteAll}
+          >
+            {delAllBusy ? "Menghapus…" : "Hapus Semua Kode"}
+          </Button>
+        </>}
+      >
+        <div className="space-y-3 text-sm">
+          <p className="flex items-start gap-2 text-destructive">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <span>
+              Tindakan ini menghapus <strong>seluruh</strong> kode referensi —
+              Program, Kegiatan, KRO, RO, Komponen, dan Sub Komponen
+              (saat ini <strong>{rows.length.toLocaleString("id-ID")}</strong> baris komponen).
+              Gunakan saat berpindah satker untuk memulai dari awal.
+            </span>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Data usulan/anggaran yang sudah ada <strong>tidak ikut terhapus</strong>.
+            Setelah ini Anda dapat mengimpor template kode satker yang baru.
+            Tindakan ini tidak dapat dibatalkan.
+          </p>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              Ketik <strong>HAPUS SEMUA</strong> untuk mengonfirmasi
+            </label>
+            <Input
+              value={delAllText}
+              onChange={(e) => setDelAllText(e.target.value)}
+              placeholder="HAPUS SEMUA"
+              autoFocus
+            />
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
