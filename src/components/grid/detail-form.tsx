@@ -3,7 +3,7 @@ import * as React from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Button, Input, Select } from '@/components/ui';
 import { fmtN, JENIS_BELANJA, type JenisBelanja } from '@/lib/constants';
-import { computeVolume, computeJumlah, effectiveVolume, type VolSegment } from '@/lib/detail-volume';
+import { computeVolume, computeJumlah, effectiveVolume, normalizeSegments, type VolSegment } from '@/lib/detail-volume';
 
 export interface DetailValues {
   id?: string;
@@ -12,10 +12,11 @@ export interface DetailValues {
   satuan: string;
   harga: number;
   jenis_belanja: JenisBelanja;
+  segments: { qty: number; sat: string }[] | null;
 }
 
 const EMPTY_SEG: VolSegment[] = [
-  { qty: '', sat: '' }, { qty: '', sat: '' }, { qty: '', sat: '' }, { qty: '', sat: '' },
+  { qty: '', sat: '' }, { qty: '', sat: '' }, { qty: '', sat: '' }, { qty: '', sat: '' }, { qty: '', sat: '' },
 ];
 
 export function DetailForm({
@@ -42,9 +43,18 @@ export function DetailForm({
     if (!open) return;
     setErr(null);
     if (initial?.id) {
-      // Edit: tampilkan sebagai mode manual (volume tersimpan langsung di Volkeg).
-      setSeg(EMPTY_SEG.map((s) => ({ ...s })));
-      setShowRincian(false);
+      // Edit: muat segmen tersimpan bila ada → mode rincian; selain itu manual.
+      const stored = initial.segments ?? null;
+      if (stored && stored.length > 0) {
+        const filled = EMPTY_SEG.map((s, i) =>
+          stored[i] ? { qty: stored[i].qty, sat: stored[i].sat } : { ...s },
+        );
+        setSeg(filled);
+        setShowRincian(true);
+      } else {
+        setSeg(EMPTY_SEG.map((s) => ({ ...s })));
+        setShowRincian(false);
+      }
       setManualVolume(initial.volume ?? 1);
       setUraian(initial.uraian ?? '');
       setHarga(initial.harga ?? 0);
@@ -93,7 +103,8 @@ export function DetailForm({
     if (harga <= 0) return setErr('Harga satuan harus lebih dari 0.');
     setBusy(true); setErr(null);
     try {
-      await onSubmit({ id: initial?.id, uraian: uraian.trim(), volume, satuan: satkeg.trim(), harga, jenis_belanja: jenis });
+      const segments = showRincian ? normalizeSegments(seg) : null;
+      await onSubmit({ id: initial?.id, uraian: uraian.trim(), volume, satuan: satkeg.trim(), harga, jenis_belanja: jenis, segments });
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
 
