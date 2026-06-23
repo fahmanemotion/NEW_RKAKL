@@ -365,6 +365,7 @@ export function PenganggaranClient({
     KOMPONEN: "SUB_KOMPONEN",
     SUB_KOMPONEN: "AKUN",
     AKUN: "DETAIL",
+    HEADER: "DETAIL", // detail bisa ditempel ke dalam header
   };
   // Boleh tempel bila baris terpilih adalah induk yang cocok untuk isi clipboard.
   const canPaste =

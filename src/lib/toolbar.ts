@@ -53,6 +53,7 @@ const PASTE_TARGET: Partial<Record<Level, Level>> = {
   KOMPONEN: 'SUB_KOMPONEN',
   SUB_KOMPONEN: 'AKUN',
   AKUN: 'DETAIL',
+  HEADER: 'DETAIL', // detail bisa ditempel ke dalam header
 };
 const PASTE_LABEL: Record<string, string> = {
   SUB_KOMPONEN: 'Tempel Sub Komponen',
@@ -108,9 +109,10 @@ export function toolbarActions(
   // 2) Tambah anak (level di bawahnya), bila ada.
   const child = CHILD[lv];
   if (child) out.push(addChild(child));
-  // 2b) Tombol HEADER: muncul saat Detail dipilih (bersama "Tambah Detail").
-  //     Membuat header pengelompok di bawah Akun yang sama.
-  if (lv === 'DETAIL') {
+  // 2b) Tombol HEADER: muncul saat Detail ATAU Akun dipilih.
+  //     - Pada Akun: buat header lebih dulu sebelum mengisi detail.
+  //     - Pada Detail: tambah header pengelompok di bawah akun yang sama.
+  if (lv === 'DETAIL' || lv === 'AKUN') {
     out.push({ key: 'add-header', label: 'Header', kind: 'header' });
   }
   // 3) Edit.

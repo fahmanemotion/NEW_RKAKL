@@ -10,7 +10,10 @@ ok(lbl('KRO')==='Tambah KRO,Tambah RO,Hapus','KRO -> Tambah KRO + Tambah RO + Ha
 ok(lbl('RO')==='Tambah RO,Tambah Komponen,Hapus','RO -> Tambah RO + Tambah Komponen + Hapus');
 ok(lbl('KOMPONEN')==='Tambah Komponen,Tambah Sub Komponen,Hapus','Komponen -> Tambah Komponen + Tambah Sub Komponen + Hapus');
 ok(lbl('SUB_KOMPONEN')==='Tambah Sub Komponen,Tambah Akun,Edit,Salin,Hapus','Sub Komponen -> +Sub +Akun +Edit +Salin +Hapus');
-ok(lbl('AKUN')==='Tambah Akun,Tambah Detail,Edit,Salin,Hapus','Akun -> +Akun +Detail +Edit +Salin +Hapus');
+ok(lbl('AKUN')==='Tambah Akun,Tambah Detail,Header,Edit,Salin,Hapus','Akun -> +Akun +Detail +Header +Edit +Salin +Hapus');
+ok(toolbarActions('AKUN').some(a=>a.kind==='header'),'Akun punya tombol Header (buat header dulu sebelum detail)');
+ok(toolbarActions('HEADER',new Set(['DETAIL'])).some(a=>a.kind==='paste'),'clip Detail + pilih Header -> Tempel Detail (paste ke header)');
+ok(toolbarActions('HEADER',new Set(['DETAIL'])).find(a=>a.kind==='paste').label==='Tempel Detail','label Tempel Detail di header');
 ok(lbl('DETAIL')==='Tambah Detail,Header,Edit,Salin,Hapus','Detail -> Tambah Detail + Header + Edit + Salin + Hapus');
 ok(toolbarActions('DETAIL').some(a=>a.kind==='header'),'Detail punya tombol Header (kind header)');
 ok(lbl('HEADER')==='Tambah Header,Tambah Detail,Edit,Hapus','Header -> Tambah Header + Tambah Detail + Edit + Hapus');
