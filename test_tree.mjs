@@ -35,9 +35,9 @@ ok(gridRows.some((r) => r.type === 'INFO' && /Lokasi/.test(r.uraian)), 'baris in
 ok(gridRows.some((r) => r.type === 'INFO' && /Jumlah Komponen Utama/.test(r.uraian) && r.jumlah === 740000), 'baris Jumlah Komponen Utama membawa total RO');
 ok(gridRows.some((r) => r.type === 'INFO' && /KPPN/.test(r.uraian)), 'baris KPPN di bawah Akun');
 
-// 3) Penomoran detail + nilai
+// 3) Format detail (awalan "- ") + nilai
 const dets = gridRows.filter((r) => r.type === 'DETAIL');
-ok(dets.length === 2 && /^00\.00\. 1 -/.test(dets[0].uraian) && /^00\.00\. 2 -/.test(dets[1].uraian), 'detail bernomor 00.00. n');
+ok(dets.length === 2 && /^- /.test(dets[0].uraian) && /^- /.test(dets[1].uraian), 'detail diawali "- "');
 ok(dets[0].jumlah === 240000 && dets[1].jumlah === 500000, 'jumlah detail = vol*harga');
 
 // 4) Depth berjenjang

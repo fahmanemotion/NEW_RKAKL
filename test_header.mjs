@@ -21,6 +21,8 @@ const g = (id)=>gridRows.find(r=>r.id===id);
 ok(g("akun").jumlah===350,"Akun = Σ(header + detail lepas) = 350");
 ok(g("hdr").jumlah===300,"Header = Σ detail di bawahnya = 300");
 ok(g("hdr").type==="HEADER","baris header bertipe HEADER");
+ok(g("hdr").uraian.startsWith(">> "),"header diawali '>> '");
+ok(g("d1").uraian.startsWith("- "),"detail diawali '- '");
 ok(g("hdr").depth===7 && g("d1").depth===8 && g("d3").depth===7,"indentasi: detail di header lebih dalam dari detail lepas");
 ok(total===350,"total root mencakup nilai header");
 // hanya header (tanpa detail lepas) → akun = nilai header

@@ -135,8 +135,10 @@ export function flattenForGrid(
       kode: n.kode || "",
       uraian:
         n.level === "DETAIL"
-          ? `00.00. ${(detailIndex || 0) + 1} -${n.uraian || ""}`
-          : n.uraian || "",
+          ? `- ${n.uraian || ""}`
+          : n.level === "HEADER"
+            ? `>> ${n.uraian || ""}`
+            : n.uraian || "",
       volume:
         n.level === "DETAIL" || n.level === "KRO" || n.level === "RO"
           ? n.volume
