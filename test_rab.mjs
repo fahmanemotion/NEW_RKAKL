@@ -80,28 +80,25 @@ console.log("rabFileCode / safeFileName:");
   ok(safeFileName("") === "RAB", "kosong → RAB");
 }
 
-// Kolom Rincian Perhitungan (C..J) sesuai contoh CONTOH_BENAR
+// Kolom Rincian Perhitungan (C..P, 14 sel) — 5 pasang vol/sat dipisah "x"
 import { rincianCells } from "./src/lib/rab-data.ts";
-console.log("rincianCells (C D E F G H I J):");
+console.log("rincianCells (C..P, 5 pasang):");
 {
-  // 1 segmen: "9 paket" → C=9, D=paket, sisanya null
+  const J = (a) => JSON.stringify(a);
   const a = rincianCells([{ qty: 9, sat: "paket" }], 9, "Paket");
-  ok(JSON.stringify(a) === JSON.stringify([9, "paket", null, null, null, null, null, null]),
-     "1 segmen → C,D terisi; E..J null");
-  // 3 segmen: 15 org x 1 hari x 9 keg
-  const b = rincianCells([{ qty: 15, sat: "org" }, { qty: 1, sat: "hari" }, { qty: 9, sat: "keg" }], 135, "Org");
-  ok(JSON.stringify(b) === JSON.stringify([15, "org", "x", 1, "hari", "x", 9, "keg"]),
-     "3 segmen → pasangan vol/sat + 'x' di E & H");
-  // 2 segmen: 5 rnkp x 1 dok
-  const c = rincianCells([{ qty: 5, sat: "rnkp" }, { qty: 1, sat: "dok" }], 5, "Dok");
-  ok(JSON.stringify(c) === JSON.stringify([5, "rnkp", "x", 1, "dok", null, null, null]),
-     "2 segmen → 'x' di E, H tetap null");
-  // tanpa segmen tapi ada vol → pakai vol/satuan
-  const d = rincianCells(null, 10, "buah");
-  ok(d[0] === 10 && d[1] === "buah", "fallback vol/satuan saat segmen kosong");
-  // lebih dari 3 segmen → dipotong 3
-  const e = rincianCells([{qty:1,sat:"a"},{qty:2,sat:"b"},{qty:3,sat:"c"},{qty:4,sat:"d"}], 24, "a");
-  ok(e[6] === 3 && e[7] === "c" && !e.includes(4), "maksimal 3 pasang (segmen ke-4 diabaikan)");
+  ok(a.length === 14, "menghasilkan 14 kolom (C..P)");
+  ok(J(a) === J([9, "paket", null, null, null, null, null, null, null, null, null, null, null, null]),
+     "1 segmen → C,D terisi; sisanya null");
+  const b = rincianCells([{ qty: 72, sat: "org" }, { qty: 2, sat: "keg" }, { qty: 2, sat: "paket" }], 288, "Org");
+  ok(J(b) === J([72, "org", "x", 2, "keg", "x", 2, "paket", null, null, null, null, null, null]),
+     "3 segmen → 'x' di E & H");
+  const e = rincianCells([{qty:1,sat:"a"},{qty:2,sat:"b"},{qty:3,sat:"c"},{qty:4,sat:"d"},{qty:5,sat:"e"}], 120, "a");
+  ok(J(e) === J([1,"a","x",2,"b","x",3,"c","x",4,"d","x",5,"e"]),
+     "5 segmen → 5 pasang penuh + 'x' di E,H,K,N");
+  const f = rincianCells([{qty:1,sat:"a"},{qty:2,sat:"b"},{qty:3,sat:"c"},{qty:4,sat:"d"},{qty:5,sat:"e"},{qty:6,sat:"f"}], 720, "a");
+  ok(f[12] === 5 && f[13] === "e" && !f.includes(6), "maksimal 5 pasang (segmen ke-6 diabaikan)");
+  const g = rincianCells(null, 10, "buah");
+  ok(g[0] === 10 && g[1] === "buah", "fallback vol/satuan saat segmen kosong");
 }
 
 console.log("\nHasil: " + pass + " lulus, " + fail + " gagal");

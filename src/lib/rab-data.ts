@@ -180,9 +180,9 @@ export function buildRabPerSubKomponen(rows: KKRow[]): RabUnit[] {
 }
 
 /**
- * Nilai 8 kolom Rincian Perhitungan (C..J) untuk satu detail:
- * [C qty1, D sat1, E "x", F qty2, G sat2, H "x", I qty3, J sat3].
- * Maks 3 pasang (qty, satuan) dipisah "x"; sisanya null.
+ * Nilai 14 kolom Rincian Perhitungan (C..P) untuk satu detail:
+ * [C v1, D s1, E "x", F v2, G s2, H "x", I v3, J s3, K "x", L v4, M s4, N "x", O v5, P s5].
+ * Maks 5 pasang (qty, satuan) dipisah "x"; sisanya null.
  */
 export function rincianCells(
   segments: { qty: number; sat: string }[] | null,
@@ -195,18 +195,20 @@ export function rincianCells(
       : vol != null
         ? [{ qty: vol, sat: satuan ?? "" }]
         : []
-  ).slice(0, 3);
-  const cells: (string | number | null)[] = new Array(8).fill(null); // C D E F G H I J
+  ).slice(0, 5);
+  const cells: (string | number | null)[] = new Array(14).fill(null); // C..P
   const pair: [number, number][] = [
-    [0, 1],
-    [3, 4],
-    [6, 7],
+    [0, 1], // C,D
+    [3, 4], // F,G
+    [6, 7], // I,J
+    [9, 10], // L,M
+    [12, 13], // O,P
   ];
+  const xPos = [2, 5, 8, 11]; // E,H,K,N
   segs.forEach((s, idx) => {
     cells[pair[idx][0]] = s.qty;
     cells[pair[idx][1]] = s.sat;
-    if (idx === 1) cells[2] = "x"; // E
-    if (idx === 2) cells[5] = "x"; // H
+    if (idx > 0) cells[xPos[idx - 1]] = "x";
   });
   return cells;
 }
