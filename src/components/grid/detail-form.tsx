@@ -128,23 +128,46 @@ export function DetailForm({
           </div>
         )}
 
-        {/* Rincian volume bertingkat — hanya tampil setelah Enter di Uraian */}
-        {showRincian && (
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Rincian Volume (Volkeg terkunci = hasil kali)</label>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {seg.map((s, i) => (
-                <React.Fragment key={i}>
-                  {i > 0 && <span className="px-0.5 text-muted-foreground">×</span>}
-                  <Input className="w-16 text-right" type="number" min={0} placeholder="0"
-                    value={s.qty === 0 ? '' : String(s.qty)} onChange={(e) => setSegAt(i, { qty: e.target.value })} />
-                  <Input className="w-24" placeholder="satuan"
-                    value={s.sat} onChange={(e) => setSegAt(i, { sat: e.target.value })} />
-                </React.Fragment>
-              ))}
+        {/* Rincian volume (kiri, 2 baris: 1-2-3 atas, 4-5 bawah) + Jenis Belanja (kanan, compact) */}
+        <div className="flex flex-wrap items-start gap-4">
+          {showRincian && (
+            <div className="min-w-0 flex-1 basis-72">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                Rincian Volume (Volkeg terkunci = hasil kali)
+              </label>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[0, 1, 2].map((i) => (
+                  <React.Fragment key={i}>
+                    {i > 0 && <span className="px-0.5 text-muted-foreground">×</span>}
+                    <Input className="w-16 text-right" type="number" min={0} placeholder="0"
+                      value={seg[i].qty === 0 ? '' : String(seg[i].qty)}
+                      onChange={(e) => setSegAt(i, { qty: e.target.value })} />
+                    <Input className="w-24" placeholder="satuan"
+                      value={seg[i].sat} onChange={(e) => setSegAt(i, { sat: e.target.value })} />
+                  </React.Fragment>
+                ))}
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {[3, 4].map((i) => (
+                  <React.Fragment key={i}>
+                    <span className="px-0.5 text-muted-foreground">×</span>
+                    <Input className="w-16 text-right" type="number" min={0} placeholder="0"
+                      value={seg[i].qty === 0 ? '' : String(seg[i].qty)}
+                      onChange={(e) => setSegAt(i, { qty: e.target.value })} />
+                    <Input className="w-24" placeholder="satuan"
+                      value={seg[i].sat} onChange={(e) => setSegAt(i, { sat: e.target.value })} />
+                  </React.Fragment>
+                ))}
+              </div>
             </div>
+          )}
+          <div className="ml-auto w-44 shrink-0">
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Jenis Belanja</label>
+            <Select value={jenis} onChange={(e) => setJenis(e.target.value as JenisBelanja)} className="w-full">
+              {JENIS_BELANJA.map((j) => <option key={j.value} value={j.value}>{j.label}</option>)}
+            </Select>
           </div>
-        )}
+        </div>
 
         {/* Uraian — tekan Enter untuk membuka/menutup rincian volume */}
         <div>
@@ -156,14 +179,6 @@ export function DetailForm({
               ? 'Tekan Enter lagi di Uraian untuk kembali ke input Volkeg manual.'
               : 'Tekan Enter di Uraian untuk mengisi rincian volume (Volkeg dihitung otomatis).'}
           </p>
-        </div>
-
-        {/* Jenis belanja menggantikan Sumber Dana */}
-        <div>
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">Jenis Belanja</label>
-          <Select value={jenis} onChange={(e) => setJenis(e.target.value as JenisBelanja)}>
-            {JENIS_BELANJA.map((j) => <option key={j.value} value={j.value}>{j.label}</option>)}
-          </Select>
         </div>
 
         {/* Volkeg / Satkeg / Harga / Jumlah */}
