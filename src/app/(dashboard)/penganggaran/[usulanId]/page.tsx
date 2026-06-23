@@ -8,6 +8,7 @@ import {
   PenganggaranClient,
   type UsulanHeader,
 } from "@/components/grid/penganggaran-client";
+import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
 
 export default async function Page({
   params,
@@ -102,19 +103,23 @@ export default async function Page({
   const me = { id: cu?.id ?? "", nama: cu?.nama ?? null };
 
   return (
-    <div className="space-y-4">
-      <Link
-        href="/penganggaran"
-        className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:border-primary/50 hover:bg-primary/20"
-      >
-        <ArrowLeft className="size-4" /> Kembali ke daftar usulan
-      </Link>
-      <div>
-        <h1 className="text-xl font-bold">Penganggaran — RUH Belanja</h1>
-        <p className="text-sm text-muted-foreground">
-          Penyusunan usulan hierarkis ala SAKTI. TA {header.tahun_anggaran} ·{" "}
-          {header.satker}
-        </p>
+    <div className="space-y-2">
+      {/* Satu baris: tombol kembali (kiri) + judul RUH Belanja & tahap pagu (kanan, di bawah toggle tema) */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Link
+          href="/penganggaran"
+          className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:border-primary/50 hover:bg-primary/20"
+        >
+          <ArrowLeft className="size-4" /> Kembali ke daftar usulan
+        </Link>
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-bold leading-none">RUH Belanja</h1>
+          <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground">
+            {header.tahap_pagu
+              ? (TAHAP_LABEL[header.tahap_pagu as TahapPagu] ?? header.tahap_pagu)
+              : "—"}
+          </span>
+        </div>
       </div>
       <PenganggaranClient header={header} initialRows={rows} me={me} />
     </div>

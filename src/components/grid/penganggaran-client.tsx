@@ -205,8 +205,6 @@ export function PenganggaranClient({
   // KRO yang dicentang. Kosong = tampilkan semua.
   const [visibleKros, setVisibleKros] = React.useState<Set<string>>(new Set());
   const [kroModalOpen, setKroModalOpen] = React.useState(false);
-  // Header ringkas: detail satker/kementerian disembunyikan agar hemat ruang.
-  const [showInfo, setShowInfo] = React.useState(false);
 
   // Komponen yang sedang di-expand (klik 2x). Saat KRO difilter, tampilan
   // menciut sampai level Komponen; expand untuk melihat sub/akun/detail.
@@ -863,43 +861,6 @@ export function PenganggaranClient({
 
   return (
     <div className="space-y-2">
-      {/* Header ringkas (klik "Detail" untuk info lengkap) */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border bg-card px-3 py-1.5 text-sm">
-        <span className="font-semibold">{header.satker}</span>
-        <span className="text-muted-foreground">·</span>
-        <span>TA {header.tahun_anggaran}</span>
-        <span className="text-muted-foreground">·</span>
-        <span>
-          {header.tahap_pagu
-            ? (TAHAP_LABEL[header.tahap_pagu as TahapPagu] ?? header.tahap_pagu)
-            : "—"}
-        </span>
-        <span
-          className={cn(
-            "ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-            isFinal
-              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-              : "bg-muted text-foreground",
-          )}
-        >
-          {isFinal ? "Final" : status}
-        </span>
-        <button
-          className="ml-auto text-xs text-primary hover:underline"
-          onClick={() => setShowInfo((v) => !v)}
-        >
-          {showInfo ? "Sembunyikan" : "Detail"}
-        </button>
-        {showInfo && (
-          <div className="mt-1 grid w-full gap-x-6 gap-y-1 border-t border-border pt-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="BA" value={`${header.ba}`} />
-            <Field label="Kementerian" value={header.kementerian} />
-            <Field label="Unit Eselon I" value={header.unit} />
-            <Field label="Satker" value={header.satker} />
-          </div>
-        )}
-      </div>
-
       {/* Mulai cepat: Salin Anggaran dari usulan lain (Draft & kosong) */}
       {isEmptyDraft && copySources.length > 0 && (
         <Card className="border-primary/30 bg-primary/5 p-4">
