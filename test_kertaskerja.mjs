@@ -122,5 +122,26 @@ console.log("Urutan Komponen hirarkis by kode:");
   ok(JSON.stringify(komp) === JSON.stringify(["051", "052", "053", "601"]), "Komponen terurut 051,052,053,601 (walau diinput acak)");
 }
 
+// ── HEADER diawali ">> " pada output kertas kerja ───────────────────────────
+console.log("Header '>>':");
+{
+  const rows = [
+    { id: "p", parent_id: null, level: "PROGRAM", kode: "022.12.DL", uraian: "Prog", urutan: 0, jumlah: 0 },
+    { id: "k", parent_id: "p", level: "KEGIATAN", kode: "3996", uraian: "Keg", urutan: 0, jumlah: 0 },
+    { id: "kr", parent_id: "k", level: "KRO", kode: "3996.AEC", uraian: "KRO", urutan: 0, jumlah: 0 },
+    { id: "ro", parent_id: "kr", level: "RO", kode: "3996.AE002", uraian: "RO", urutan: 0, jumlah: 0 },
+    { id: "ko", parent_id: "ro", level: "KOMPONEN", kode: "051", uraian: "Komp", urutan: 0, jumlah: 0 },
+    { id: "s", parent_id: "ko", level: "SUB_KOMPONEN", kode: "A", uraian: "Sub", urutan: 0, jumlah: 0 },
+    { id: "ak", parent_id: "s", level: "AKUN", kode: "525112", uraian: "Belanja", urutan: 0, jumlah: 0 },
+    { id: "h", parent_id: "ak", level: "HEADER", kode: "", uraian: "Kegiatan Satu atap", urutan: 0, jumlah: 0 },
+    { id: "d", parent_id: "h", level: "DETAIL", kode: "", uraian: "Konsumsi", urutan: 0, jumlah: 100 },
+  ];
+  const kk = buildKertasKerja(rows);
+  const h = kk.rows.find((r) => r.id === "h");
+  const d = kk.rows.find((r) => r.id === "d");
+  ok(h.uraian === ">> Kegiatan Satu atap", "HEADER diawali '>> '");
+  ok(d.uraian === "Konsumsi", "DETAIL tetap apa adanya (prefix '- ' ditambah saat render)");
+}
+
 console.log("\nHasil: " + pass + " lulus, " + fail + " gagal");
 if (fail > 0) process.exit(1);

@@ -216,7 +216,7 @@ export function buildKertasKerja(rows: UsulanStruktur[]): {
       level: n.level,
       depth: DEPTH[n.level] ?? 0,
       kode: n.kode || "",
-      uraian: n.uraian || "",
+      uraian: n.level === "HEADER" ? `>> ${n.uraian || ""}` : n.uraian || "",
       vol:
         isDetail || n.level === "KRO" || n.level === "RO" ? n.volume : null,
       satuan:
