@@ -128,10 +128,10 @@ export function DetailForm({
           </div>
         )}
 
-        {/* Rincian volume (kiri, 2 baris: 1-2-3 atas, 4-5 bawah) + Jenis Belanja (kanan, compact) */}
-        <div className="flex flex-wrap items-start gap-4">
+        {/* Rincian volume (kiri, span 3 kolom) + Jenis Belanja (kolom ke-4, sejajar Jumlah) */}
+        <div className="grid grid-cols-2 items-end gap-3 sm:grid-cols-4">
           {showRincian && (
-            <div className="min-w-0 flex-1 basis-72">
+            <div className="col-span-2 sm:col-span-3">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">
                 Rincian Volume (Volkeg terkunci = hasil kali)
               </label>
@@ -161,7 +161,7 @@ export function DetailForm({
               </div>
             </div>
           )}
-          <div className="ml-auto w-44 shrink-0">
+          <div className="sm:col-start-4">
             <label className="mb-1 block text-xs font-medium text-muted-foreground">Jenis Belanja</label>
             <Select value={jenis} onChange={(e) => setJenis(e.target.value as JenisBelanja)} className="w-full">
               {JENIS_BELANJA.map((j) => <option key={j.value} value={j.value}>{j.label}</option>)}
