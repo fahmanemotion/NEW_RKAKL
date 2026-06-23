@@ -246,27 +246,34 @@ export async function importKodeGabungan(raw: unknown[][]): Promise<KodeImportRe
   await upsertLevel("master_ba", p.ba.map((b) => ({ kode_ba: b.kode, nama_ba: b.nama })), "kode_ba");
   const baMap = await buildMap("master_ba", "kode_ba");
 
-  // Program (induk: BA)
+  // Program (kode_program UNIK GLOBAL agar tidak terduplikat lintas BA).
+  // Dedup payload by kode lebih dulu, lalu upsert onConflict kode_program.
+  const progSeen = new Set<string>();
   const progRows = p.program
     .map((x) => {
       const baId = baMap.get(x.ba);
-      return baId ? { ba_id: baId, kode_program: x.kode, nama_program: x.nama } : null;
+      if (!baId) return null;
+      const key = x.kode.trim();
+      if (progSeen.has(key)) return null;
+      progSeen.add(key);
+      return { ba_id: baId, kode_program: x.kode, nama_program: x.nama };
     })
     .filter(Boolean) as Record<string, unknown>[];
-  await upsertLevel("master_program", progRows, "ba_id,kode_program");
-  const progMap = await buildMap("master_program", "kode_program", "ba_id");
+  await upsertLevel("master_program", progRows, "kode_program");
+  // Peta GLOBAL kode_program → id (induk BA tidak lagi jadi kunci).
+  const progMap = await buildMap("master_program", "kode_program");
 
-  // Kegiatan (induk: Program)
+  // Kegiatan (induk: Program — dicari global by kode program)
   const kegRows = p.kegiatan
     .map((x) => {
-      const pid = progMap.get(`${baMap.get(x.ba)}::${x.program}`);
+      const pid = progMap.get(x.program);
       return pid ? { program_id: pid, kode_kegiatan: x.kode, nama_kegiatan: x.nama } : null;
     })
     .filter(Boolean) as Record<string, unknown>[];
   await upsertLevel("master_kegiatan", kegRows, "program_id,kode_kegiatan");
   const kegMap = await buildMap("master_kegiatan", "kode_kegiatan", "program_id");
 
-  const progIdOf = (ba: string, program: string) => progMap.get(`${baMap.get(ba)}::${program}`);
+  const progIdOf = (_ba: string, program: string) => progMap.get(program);
   const kegIdOf = (ba: string, program: string, keg: string) =>
     kegMap.get(`${progIdOf(ba, program)}::${keg}`);
 

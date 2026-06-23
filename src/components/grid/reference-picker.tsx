@@ -35,7 +35,20 @@ export function ReferencePicker({ open, title, query, extraHead, okGreen, onPick
     let active = true;
     setLoading(true); setErr(null);
     searchReference(query, term, page, PER)
-      .then((r) => { if (active) { setRows(r.rows); setTotal(r.total); } })
+      .then((r) => {
+        if (!active) return;
+        // Dedup defensif berdasarkan kode (mencegah baris ganda tampil bila
+        // masih ada sisa duplikat di data master).
+        const seen = new Set<string>();
+        const uniq = r.rows.filter((row) => {
+          const k = (row.kode || "").trim();
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
+        setRows(uniq);
+        setTotal(r.total);
+      })
       .catch((e) => active && setErr(e.message))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
