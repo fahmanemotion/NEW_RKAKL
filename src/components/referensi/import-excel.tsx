@@ -1,7 +1,7 @@
 'use client';
 import * as React from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { Upload, CheckCircle2, AlertTriangle, Loader2, Download } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import { Button, Select } from '@/components/ui';
 import { mapImportRows, type MasterDef, type ParsedRow } from '@/lib/referensi';
@@ -78,6 +78,56 @@ export function ImportExcel({ open, def, onClose, onDone }: Props) {
   const validCount = rows.filter((r) => r.valid).length;
   const invalidCount = rows.length - validCount;
 
+  /** Buat & unduh file Excel template sesuai format master (untuk akun: kode, uraian, kategori, sumber dana). */
+  function downloadTemplate() {
+    const cols = def.importCols;
+
+    // Baris contoh — khusus akun diberi contoh nyata, master lain memakai placeholder.
+    let examples: string[][];
+    if (def.table === 'master_akun') {
+      examples = [
+        ['521211', 'Belanja Bahan', 'Belanja Barang', 'RM'],
+        ['524111', 'Belanja Perjalanan Dinas Biasa', 'Belanja Barang', 'RM'],
+        ['511111', 'Belanja Gaji Pokok PNS', 'Belanja Pegawai', 'RM'],
+      ];
+    } else {
+      examples = [
+        cols.map((c, i) => {
+          if (def.parent && i === 0) return 'KODE_INDUK';
+          if (c === def.kodeCol) return 'KODE';
+          if (c === def.namaCol) return `Uraian ${def.label}`;
+          const ef = def.extraFields?.find((f) => f.key === c);
+          return ef?.options?.length ? ef.options[0].value : '';
+        }),
+      ];
+    }
+
+    // Sheet data: baris 1 = header (akan dilewati saat import), berikutnya = contoh.
+    const ws = XLSX.utils.aoa_to_sheet([cols, ...examples]);
+    ws['!cols'] = cols.map((c) => ({ wch: c === def.namaCol ? 42 : 18 }));
+
+    // Sheet petunjuk: penjelasan tiap kolom + nilai yang diizinkan.
+    const guide: string[][] = [['Kolom', 'Wajib', 'Keterangan / Nilai yang diizinkan']];
+    cols.forEach((c, i) => {
+      if (def.parent && i === 0) { guide.push([c, 'Ya', `Kode induk ${def.parent.label} (harus sudah ada di master)`]); return; }
+      if (c === def.kodeCol) { guide.push([c, 'Ya', 'Kode akun, contoh: 521211']); return; }
+      if (c === def.namaCol) { guide.push([c, 'Ya', 'Uraian / nama akun, contoh: Belanja Bahan']); return; }
+      const ef = def.extraFields?.find((f) => f.key === c);
+      const wajib = ef?.required ? 'Ya' : 'Tidak';
+      const ket = ef?.options?.length ? 'Pilih salah satu: ' + ef.options.map((o) => o.value).join(', ') : '';
+      guide.push([c, wajib, ket]);
+    });
+    guide.push(['']);
+    guide.push(['Catatan', '', 'Baris pertama (header) otomatis dilewati saat import. Isi data mulai baris ke-2. Urutan kolom harus sesuai header.']);
+    const wsG = XLSX.utils.aoa_to_sheet(guide);
+    wsG['!cols'] = [{ wch: 18 }, { wch: 8 }, { wch: 64 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, def.label.slice(0, 28));
+    XLSX.utils.book_append_sheet(wb, wsG, 'Petunjuk');
+    XLSX.writeFile(wb, `Template_Import_${def.label.replace(/\s+/g, '_')}.xlsx`);
+  }
+
   // Urutan kolom Excel yang diharapkan (untuk petunjuk)
   const expected = def.importCols.join('  |  ');
 
@@ -102,10 +152,18 @@ export function ImportExcel({ open, def, onClose, onDone }: Props) {
           <div className="rounded-md border border-dashed border-border p-8 text-center">
             <Upload className="mx-auto mb-2 size-7 text-muted-foreground" />
             <p className="mb-3 text-sm text-muted-foreground">Pilih file Excel (.xlsx / .xls) atau CSV</p>
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-              <Upload className="size-4" /> Pilih File
-              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onFile} />
-            </label>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                <Upload className="size-4" /> Pilih File
+                <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onFile} />
+              </label>
+              <Button variant="outline" onClick={downloadTemplate}>
+                <Download className="size-4" /> Unduh Template
+              </Button>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Belum punya format? Unduh template Excel-nya, isi datanya, lalu unggah di sini.
+            </p>
           </div>
           <div className="rounded-md bg-muted p-3 text-xs">
             <p className="font-medium">Urutan kolom yang diharapkan (baris pertama boleh header, akan dilewati):</p>
