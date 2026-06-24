@@ -26,12 +26,16 @@ export async function middleware(req: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() memverifikasi JWT secara LOKAL (kunci asimetris + JWKS ter-cache)
+  // tanpa round-trip ke server Auth pada tiap request — jauh lebih cepat dari
+  // getUser(), dan tetap me-refresh token (menulis cookie via setAll) bila hampir
+  // kedaluwarsa. Bila proyek memakai kunci simetris, otomatis fallback via jaringan.
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims as { sub?: string } | undefined;
+  const isAuthed = !!claims?.sub;
   const isPublic = PUBLIC.some((p) => req.nextUrl.pathname.startsWith(p));
 
-  if (!user && !isPublic) {
+  if (!isAuthed && !isPublic) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
