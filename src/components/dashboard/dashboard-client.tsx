@@ -134,6 +134,7 @@ export function DashboardClient({
   const [fProg, setFProg] = React.useState(ALL);
   const [fKro, setFKro] = React.useState(ALL);
   const [fRo, setFRo] = React.useState(ALL);
+  const [fKomponen, setFKomponen] = React.useState(ALL);
   const [fAkun, setFAkun] = React.useState(ALL);
   const [fSumber, setFSumber] = React.useState(ALL);
   const [fKategori, setFKategori] = React.useState(ALL);
@@ -144,6 +145,7 @@ export function DashboardClient({
     setFProg(ALL);
     setFKro(ALL);
     setFRo(ALL);
+    setFKomponen(ALL);
     setFAkun(ALL);
     setFSumber(ALL);
     setFKategori(ALL);
@@ -160,6 +162,7 @@ export function DashboardClient({
       if (fProg !== ALL && r.progKode !== fProg) return false;
       if (fKro !== ALL && r.kroKode !== fKro) return false;
       if (fRo !== ALL && r.roKode !== fRo) return false;
+      if (fKomponen !== ALL && r.komponenKode !== fKomponen) return false;
       if (fAkun !== ALL && r.akunKode !== fAkun) return false;
       if (fSumber !== ALL && !r.sumberSet.includes(fSumber)) return false;
       if (fKategori !== ALL && !r.kategoriSet.includes(fKategori)) return false;
@@ -176,7 +179,7 @@ export function DashboardClient({
       }
       return true;
     });
-  }, [akunRows, fProg, fKro, fRo, fAkun, fSumber, fKategori, q]);
+  }, [akunRows, fProg, fKro, fRo, fKomponen, fAkun, fSumber, fKategori, q]);
 
   const sum = React.useMemo(() => summarize(filtered), [filtered]);
 
@@ -325,6 +328,12 @@ export function DashboardClient({
                 value={fRo}
                 onChange={setFRo}
                 options={opt(labels.RO)}
+              />
+              <FilterSelect
+                label="Komponen"
+                value={fKomponen}
+                onChange={setFKomponen}
+                options={opt(labels.KOMPONEN)}
               />
               <FilterSelect
                 label="Akun"

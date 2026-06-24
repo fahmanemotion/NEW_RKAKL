@@ -26,6 +26,7 @@ export interface DashAkunRow {
   kegKode: string;
   kroKode: string;
   roKode: string;
+  komponenKode: string;
   pagu: number;
   jenisBelanja: string; // PEGAWAI / BARANG / MODAL / LAINNYA (dari prefiks kode akun)
   sumberSet: string[]; // mis. ['RM'] atau ['RM','BLU']
@@ -76,6 +77,7 @@ export function levelLabelMaps(rows: UsulanStruktur[]) {
     KEGIATAN: make("KEGIATAN"),
     KRO: make("KRO"),
     RO: make("RO"),
+    KOMPONEN: make("KOMPONEN"),
     AKUN: make("AKUN"),
   };
 }
@@ -152,6 +154,7 @@ export function buildDashboardRows(rows: UsulanStruktur[]): DashAkunRow[] {
       const kegKode = ancestorKode(a, "KEGIATAN");
       const kroKode = ancestorKode(a, "KRO");
       const roKode = ancestorKode(a, "RO");
+      const komponenKode = ancestorKode(a, "KOMPONEN");
       const kode = [progKode, kegKode, kroKode, roKode, a.kode ?? ""]
         .filter(Boolean)
         .join(".");
@@ -166,6 +169,7 @@ export function buildDashboardRows(rows: UsulanStruktur[]): DashAkunRow[] {
         kegKode,
         kroKode,
         roKode,
+        komponenKode,
         pagu,
         jenisBelanja: jenisBelanjaFromKode(a.kode),
         sumberSet,

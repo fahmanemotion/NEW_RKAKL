@@ -34,5 +34,16 @@ const rows2 = [
 const d2 = buildDashboardRows(rows2);
 ok(d2[0].details.length === 1 && d2[0].kategoriSet.includes('OPS'), 'detail langsung (tanpa header) tetap terbaca');
 
+// Rantai RO → KOMPONEN → SUB_KOMPONEN → AKUN: komponenKode harus terisi (untuk filter Komponen).
+const rows3 = [
+  { id: 'ro1', parent_id: null,  level: 'RO',           kode: '5241.BMA.001', uraian: 'RO', jumlah: 0, urutan: 1 },
+  { id: 'k1',  parent_id: 'ro1', level: 'KOMPONEN',     kode: '051',          uraian: 'Komponen A', jumlah: 0, urutan: 1 },
+  { id: 's1',  parent_id: 'k1',  level: 'SUB_KOMPONEN', kode: 'A',            uraian: 'Sub', jumlah: 0, urutan: 1 },
+  { id: 'ak1', parent_id: 's1',  level: 'AKUN',         kode: '521211',       uraian: 'Belanja Bahan', jumlah: 80, urutan: 1 },
+  { id: 'de1', parent_id: 'ak1', level: 'DETAIL',       kode: '',             uraian: 'ATK', jumlah: 80, urutan: 1, jenis_belanja: 'OPS', sumber_dana: 'RM' },
+];
+const d3 = buildDashboardRows(rows3);
+ok(d3[0].komponenKode === '051', 'komponenKode terisi dari leluhur KOMPONEN (untuk filter Komponen)');
+
 console.log(`\nDashboard: ${pass} lulus, ${fail} gagal`);
 process.exit(fail ? 1 : 0);
