@@ -5,6 +5,7 @@ import { ReferensiTabs } from '@/components/referensi/tabs';
 import { MasterManager } from '@/components/referensi/master-manager';
 import { KodeManager } from '@/components/referensi/kode-manager';
 import { PenandatanganManager } from '@/components/referensi/penandatangan-manager';
+import { TempatTanggalManager } from '@/components/referensi/tempat-tanggal-manager';
 
 export default async function Page({ params }: { params: Promise<{ master: string }> }) {
   await requireUser();
@@ -22,6 +23,22 @@ export default async function Page({ params }: { params: Promise<{ master: strin
         </div>
         <ReferensiTabs />
         <KodeManager />
+      </div>
+    );
+  }
+
+  // Menu "Tempat & Tgl" = pengaturan tempat (kota) & tanggal yang dicetak di RAB.
+  if (master === 'tempat-tanggal') {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-xl font-bold">Referensi Tempat &amp; Tanggal</h1>
+          <p className="text-sm text-muted-foreground">
+            Atur tempat (kota) &amp; tanggal yang dicetak pada laporan RAB.
+          </p>
+        </div>
+        <ReferensiTabs />
+        <TempatTanggalManager />
       </div>
     );
   }

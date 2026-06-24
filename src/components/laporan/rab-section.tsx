@@ -30,6 +30,7 @@ interface Signers {
   kiri: Signer;
   kanan: Signer;
   kota: string;
+  tanggal?: Date; // bila kosong → pakai hari ini
 }
 const DEFAULT_SIGNERS: Signers = {
   kiri: {
@@ -185,6 +186,28 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
   const [people, setPeople] = React.useState<PersonRow[]>([]);
   const [kiriId, setKiriId] = React.useState("");
   const [kananId, setKananId] = React.useState("");
+  // Pengaturan tempat & tanggal RAB (dari menu Referensi → Tempat & Tgl)
+  const [kotaRab, setKotaRab] = React.useState(DEFAULT_SIGNERS.kota);
+  const [tglRab, setTglRab] = React.useState<string>(""); // ISO yyyy-mm-dd, "" = hari ini
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const sb = createClient();
+        const { data } = await sb
+          .from("pengaturan_rab")
+          .select("kota, tanggal")
+          .eq("id", 1)
+          .maybeSingle();
+        if (!alive || !data) return;
+        if (data.kota) setKotaRab(data.kota);
+        setTglRab(data.tanggal ?? "");
+      } catch {
+        /* pakai default */
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
   React.useEffect(() => {
     let alive = true;
     (async () => {
@@ -222,7 +245,8 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
   const signers: Signers = {
     kiri: kiriP ? toSigner(kiriP) : DEFAULT_SIGNERS.kiri,
     kanan: kananP ? toSigner(kananP) : DEFAULT_SIGNERS.kanan,
-    kota: DEFAULT_SIGNERS.kota,
+    kota: kotaRab,
+    tanggal: tglRab ? new Date(tglRab + "T00:00:00") : undefined,
   };
 
   return (
@@ -452,7 +476,7 @@ function buildRabSheet(unit: RabUnit, ctx: Ctx, signers: Signers): XLSX.WorkShee
   const RIN = [C, D, E, F, G, H, I, J, K, L, Mm, Nn, O, P]; // 14 kolom rincian
   const aoa: (string | number | null)[][] = [];
   const er = () => new Array(NC).fill(null);
-  const now = new Date();
+  const now = signers.tanggal ?? new Date();
   const tgl = `${signers.kota}, ${now.getDate()} ${BULAN[now.getMonth()]} ${now.getFullYear()}`;
 
   let r = er(); r[A] = "RINCIAN ANGGARAN BELANJA"; aoa.push(r);
@@ -736,7 +760,7 @@ function esc(s: unknown): string {
 }
 
 function printRab(unit: RabUnit, ctx: Ctx, signers: Signers) {
-  const now = new Date();
+  const now = signers.tanggal ?? new Date();
   const tgl = `${signers.kota}, ${now.getDate()} ${BULAN[now.getMonth()]} ${now.getFullYear()}`;
   const ctxRow = (kode: string, ur: string, ind: number, b: boolean) =>
     `<tr style="${b ? "font-weight:bold" : ""}"><td class="mono">${esc(kode)}</td><td style="padding-left:${ind * 14}px">${esc(ur)}</td><td colspan="4"></td><td class="r">${fmtN(unit.total)}</td></tr>`;

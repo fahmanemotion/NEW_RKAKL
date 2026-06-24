@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 const TABS: { key: string; label: string }[] = [
   { key: 'kode', label: 'KODE' },
   { key: 'akun', label: 'Akun' },
+  { key: 'tempat-tanggal', label: 'Tempat & Tgl' },
   { key: 'penandatangan', label: 'Penandatanganan' },
 ];
 
