@@ -392,6 +392,25 @@ export function PenganggaranClient({
     setClip({ items });
   }
 
+  // ESC membatalkan proses salin: kosongkan clipboard & pilihan centang,
+  // sehingga user bisa membatalkan ketika salah memilih item yang akan disalin.
+  // Tidak aktif saat ada modal terbuka agar ESC tetap menutup modal lebih dulu.
+  React.useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      if (picker || subkompParent || headerModal || detail || kroModalOpen) return;
+      const tag = (document.activeElement?.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return;
+      if (clip || checkedIds.size > 0) {
+        e.preventDefault();
+        setClip(null);
+        setCheckedIds(new Set());
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [clip, checkedIds, picker, subkompParent, headerModal, detail, kroModalOpen]);
+
   // ── Kunci KRO (input paralel) ──────────────────────────────────────────────
   function kroAncestor(id: string | null | undefined): UsulanStruktur | null {
     let cur = id ? byId.get(id) ?? null : null;
@@ -885,7 +904,7 @@ export function PenganggaranClient({
                     value={copySourceId}
                     onChange={(e) => setCopySourceId(e.target.value)}
                     disabled={copying}
-                    className="min-w-[280px]"
+                    className="w-full sm:w-auto sm:min-w-[280px]"
                   >
                     <option value="">— Pilih usulan sumber —</option>
                     {copySources.map((s) => (
@@ -917,7 +936,7 @@ export function PenganggaranClient({
       )}
 
       {/* Toolbar ringkas (sticky) + pagu + simpan + finalisasi */}
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md border border-border bg-background/95 px-2 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+      <div className="sticky top-14 z-20 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md border border-border bg-background/95 px-2 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/75">
         <div className="flex flex-wrap items-center gap-1">
           {actions
             .filter((a) => a.kind !== "copy" && a.kind !== "paste")
@@ -984,10 +1003,10 @@ export function PenganggaranClient({
           {clip && (
             <button
               className="h-8 rounded px-2 text-xs text-muted-foreground hover:bg-accent"
-              title="Batalkan salinan"
-              onClick={() => setClip(null)}
+              title="Batalkan salinan & hapus centang (atau tekan Esc)"
+              onClick={() => { setClip(null); setCheckedIds(new Set()); }}
             >
-              Batal
+              Batal (Esc)
             </button>
           )}
 
