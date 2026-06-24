@@ -65,7 +65,7 @@ Select.displayName = 'Select';
 
 /* ── Card ───────────────────────────────────────────────────────────────── */
 export function Card({ className, ...p }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('rounded-lg border border-border bg-card text-card-foreground shadow-sm', className)} {...p} />;
+  return <div className={cn('rounded-lg border border-border bg-card text-card-foreground card-elevated', className)} {...p} />;
 }
 
 /* ── Badge ──────────────────────────────────────────────────────────────── */

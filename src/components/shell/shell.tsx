@@ -28,12 +28,12 @@ export function Shell({ user, children }: { user: CurrentUser; children: React.R
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 w-64 -translate-x-full bg-sidebar text-sidebar-foreground transition-transform lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 w-64 -translate-x-full app-sidebar bg-sidebar text-sidebar-foreground transition-transform lg:translate-x-0',
           open && 'translate-x-0',
         )}
       >
         <div className="flex h-14 items-center gap-2.5 border-b border-white/10 px-5">
-          <div className="grid size-8 place-items-center rounded-lg bg-sidebar-accent text-white">
+          <div className="grid size-8 place-items-center rounded-lg bg-gradient-to-br from-sidebar-accent to-primary text-white shadow-md shadow-black/20">
             <Building2 className="size-5" />
           </div>
           <span className="text-base font-bold tracking-wide">SIPPT</span>
@@ -50,7 +50,7 @@ export function Shell({ user, children }: { user: CurrentUser; children: React.R
                 onClick={() => setOpen(false)}
                 className={cn(
                   'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                  active ? 'bg-sidebar-accent text-white' : 'text-sidebar-foreground/80 hover:bg-white/10',
+                  active ? 'nav-active' : 'text-sidebar-foreground/80 hover:bg-white/10 hover:text-white',
                 )}
               >
                 <Icon className="size-4" /> {it.label}
@@ -68,7 +68,7 @@ export function Shell({ user, children }: { user: CurrentUser; children: React.R
 
       {/* Konten */}
       <div className="flex flex-1 flex-col lg:pl-64">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-card/80 px-4 backdrop-blur">
+        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-card/70 px-4 shadow-sm backdrop-blur-md">
           <button className="lg:hidden" onClick={() => setOpen(true)}><Menu className="size-5" /></button>
           <div className="hidden text-sm text-muted-foreground sm:block">
             {user.satker_nama ?? 'Satker'}

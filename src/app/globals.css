@@ -5,52 +5,58 @@
 /* SIPPT — palet dominan biru (gaya SAKTI), light & dark. HSL agar mudah ditematik. */
 @layer base {
   :root {
-    --background: 210 40% 98%;
-    --foreground: 222 47% 15%;
+    --background: 208 40% 98%;
+    --foreground: 217 45% 13%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 15%;
-    --primary: 214 90% 42%;          /* biru SAKTI */
+    --card-foreground: 217 45% 13%;
+    --primary: 214 92% 42%;          /* ocean blue */
     --primary-foreground: 0 0% 100%;
-    --secondary: 214 32% 95%;
-    --secondary-foreground: 222 47% 20%;
-    --muted: 214 30% 94%;
+    --secondary: 210 38% 96%;
+    --secondary-foreground: 217 40% 22%;
+    --muted: 210 34% 95%;
     --muted-foreground: 215 16% 47%;
-    --accent: 214 95% 93%;
-    --accent-foreground: 214 90% 30%;
+    --accent: 206 94% 94%;
+    --accent-foreground: 214 88% 33%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 214 25% 88%;
-    --input: 214 25% 86%;
-    --ring: 214 90% 50%;
-    --sidebar: 215 60% 17%;          /* navy sidebar */
-    --sidebar-foreground: 210 30% 90%;
-    --sidebar-accent: 214 90% 48%;
-    --radius: 0.5rem;
+    --border: 214 27% 90%;
+    --input: 214 27% 87%;
+    --ring: 205 92% 50%;
+    --sidebar: 217 52% 15%;          /* navy laut */
+    --sidebar-foreground: 208 28% 86%;
+    --sidebar-accent: 199 90% 50%;   /* aksen azure-teal */
+    --radius: 0.625rem;
   }
   .dark {
-    --background: 222 47% 9%;
+    --background: 220 45% 8%;
     --foreground: 210 30% 92%;
-    --card: 222 45% 12%;
+    --card: 219 42% 11%;
     --card-foreground: 210 30% 92%;
-    --primary: 214 90% 56%;
-    --primary-foreground: 222 47% 10%;
-    --secondary: 217 33% 18%;
+    --primary: 205 90% 56%;
+    --primary-foreground: 220 47% 9%;
+    --secondary: 217 33% 17%;
     --secondary-foreground: 210 30% 90%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 40% 22%;
-    --accent-foreground: 210 40% 92%;
-    --destructive: 0 63% 45%;
+    --muted: 217 33% 16%;
+    --muted-foreground: 215 20% 66%;
+    --accent: 215 40% 21%;
+    --accent-foreground: 205 90% 80%;
+    --destructive: 0 63% 46%;
     --destructive-foreground: 0 0% 100%;
-    --border: 217 33% 22%;
-    --input: 217 33% 24%;
-    --ring: 214 90% 56%;
-    --sidebar: 222 47% 11%;
-    --sidebar-foreground: 210 30% 85%;
-    --sidebar-accent: 214 90% 50%;
+    --border: 217 33% 20%;
+    --input: 217 33% 23%;
+    --ring: 205 90% 56%;
+    --sidebar: 221 47% 9%;
+    --sidebar-foreground: 208 28% 82%;
+    --sidebar-accent: 199 90% 52%;
   }
   * { @apply border-border; }
-  body { @apply bg-background text-foreground; }
+  body {
+    @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(1100px 560px at 100% -8%, hsl(var(--primary) / 0.05), transparent 60%),
+      radial-gradient(820px 480px at -8% 108%, hsl(199 90% 50% / 0.045), transparent 55%);
+    background-attachment: fixed;
+  }
 }
 
 /* SAKTI tree-grid */
@@ -77,3 +83,44 @@
 .saktigrid tr.row-program td { @apply bg-amber-50 dark:bg-amber-950/30 font-bold; }
 .saktigrid tr.row-program td.ur, .saktigrid tr.row-program td.code-cell { @apply underline; }
 .saktigrid tr.row-kegiatan td.ur, .saktigrid tr.row-kegiatan td.code-cell { @apply underline; }
+
+/* ── Sentuhan modern: sidebar, nav aktif, kartu, scrollbar ───────── */
+@layer components {
+  /* Sidebar bergradien navy dengan kedalaman halus (light & dark) */
+  .app-sidebar {
+    background-image: linear-gradient(
+      180deg,
+      color-mix(in srgb, hsl(var(--sidebar)) 100%, white 5%) 0%,
+      hsl(var(--sidebar)) 38%,
+      color-mix(in srgb, hsl(var(--sidebar)) 100%, black 22%) 100%
+    );
+    box-shadow: inset -1px 0 0 hsl(0 0% 100% / 0.04);
+  }
+  /* Item nav aktif: latar lembut + pita aksen kiri + teks putih */
+  .nav-active {
+    background-color: hsl(0 0% 100% / 0.10);
+    color: #fff;
+    box-shadow: inset 3px 0 0 hsl(var(--sidebar-accent));
+  }
+  /* Kartu sedikit lebih berdimensi */
+  .card-elevated {
+    box-shadow:
+      0 1px 2px hsl(217 45% 13% / 0.04),
+      0 4px 16px -8px hsl(217 45% 13% / 0.10);
+  }
+}
+
+/* Scrollbar modern, tipis */
+* { scrollbar-width: thin; scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.32);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+  background-clip: content-box;
+}
