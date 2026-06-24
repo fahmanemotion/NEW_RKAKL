@@ -18,6 +18,12 @@ type FormValues = z.infer<typeof schema>;
 export default function LoginPage() {
   const router = useRouter();
   const [err, setErr] = React.useState<string | null>(null);
+  const [timedOut, setTimedOut] = React.useState(false);
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('timeout') === '1') {
+      setTimedOut(true);
+    }
+  }, []);
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
   });
@@ -27,6 +33,7 @@ export default function LoginPage() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword(values);
     if (error) { setErr(error.message); return; }
+    try { localStorage.setItem('sippt:last_active', String(Date.now())); } catch { /* abaikan */ }
     router.replace('/dashboard');
     router.refresh();
   }
@@ -45,6 +52,12 @@ export default function LoginPage() {
         </div>
         <ThemeToggle />
       </div>
+
+      {timedOut && (
+        <p className="mb-4 rounded-md border border-amber-400/50 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
+          Sesi berakhir karena tidak ada aktivitas selama 5 menit. Silakan masuk kembali untuk keamanan.
+        </p>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
