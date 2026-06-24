@@ -161,7 +161,7 @@ export function DetailForm({
               </div>
             </div>
           )}
-          <div className="sm:col-start-4">
+          <div className="col-span-2 sm:col-span-1 sm:col-start-4">
             <label className="mb-1 block text-xs font-medium text-muted-foreground">Jenis Belanja</label>
             <Select value={jenis} onChange={(e) => setJenis(e.target.value as JenisBelanja)} className="w-full">
               {JENIS_BELANJA.map((j) => <option key={j.value} value={j.value}>{j.label}</option>)}

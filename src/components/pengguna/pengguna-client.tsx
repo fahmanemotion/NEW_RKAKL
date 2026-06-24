@@ -590,7 +590,7 @@ function UserFormDialog({
         <Field label="Nama Lengkap">
           <Input value={nama} onChange={(e) => setNama(e.target.value)} />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="NIP">
             <Input value={nip} onChange={(e) => setNip(e.target.value)} />
           </Field>
@@ -601,7 +601,7 @@ function UserFormDialog({
             />
           </Field>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Peran (Otoritas)">
             <Select
               value={roleId}
