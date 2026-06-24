@@ -107,9 +107,18 @@ export function buildDashboardRows(rows: UsulanStruktur[]): DashAkunRow[] {
   rows
     .filter((r) => r.level === "AKUN")
     .forEach((a) => {
-      const details = (childrenOf.get(a.id) ?? []).filter(
-        (c) => c.level === "DETAIL",
-      );
+      // Kumpulkan SEMUA DETAIL keturunan akun, termasuk yang bersarang di
+      // bawah HEADER (HEADER berada di antara AKUN dan DETAIL). Tanpa ini,
+      // detail di bawah header tak terambil → expand & kategori jadi kosong.
+      const collectDetails = (parentId: string): UsulanStruktur[] => {
+        const acc: UsulanStruktur[] = [];
+        for (const c of childrenOf.get(parentId) ?? []) {
+          if (c.level === "DETAIL") acc.push(c);
+          else if (c.level === "HEADER") acc.push(...collectDetails(c.id));
+        }
+        return acc;
+      };
+      const details = collectDetails(a.id);
       const detailRows: DashDetailRow[] = details
         .slice()
         .sort((x, y) => x.urutan - y.urutan)
