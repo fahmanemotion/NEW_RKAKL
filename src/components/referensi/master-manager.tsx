@@ -1,9 +1,10 @@
 'use client';
 import * as React from 'react';
-import { Plus, Pencil, Trash2, Upload, Search, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, Search, Loader2, Download } from 'lucide-react';
 import { Button, Card, Input } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { MASTERS, type MasterKey } from '@/lib/referensi';
+import { downloadMasterTemplate } from '@/lib/template-excel';
 import { listMaster, createMaster, updateMaster, deleteMaster, type RefRecord } from '@/lib/referensi-api';
 import { MasterForm, type MasterFormValues } from './master-form';
 import { ImportExcel } from './import-excel';
@@ -59,6 +60,7 @@ export function MasterManager({ masterKey }: { masterKey: MasterKey }) {
             onKeyDown={(e) => e.key === 'Enter' && (setTerm(q), setPage(1))} />
         </div>
         <Button variant="outline" onClick={() => { setTerm(q); setPage(1); }}>Cari</Button>
+        <Button variant="outline" onClick={() => downloadMasterTemplate(def)} title={`Unduh template Excel untuk import ${def.label}`}><Download className="size-4" /> Unduh Template</Button>
         <Button variant="secondary" onClick={() => setImporting(true)}><Upload className="size-4" /> Import Excel</Button>
         <Button onClick={() => setForm({})}><Plus className="size-4" /> Tambah {def.label}</Button>
       </div>
