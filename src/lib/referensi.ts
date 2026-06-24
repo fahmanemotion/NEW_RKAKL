@@ -58,7 +58,7 @@ export const MASTERS: Record<string, MasterDef> = {
     table: 'master_akun', label: 'Akun', kodeCol: 'kode_akun', namaCol: 'nama_akun',
     extraFields: [
       { key: 'kategori_belanja', label: 'Kategori Belanja', type: 'select', required: true, options: [
-        'Belanja Pegawai', 'Belanja Barang', 'Belanja Modal', 'Belanja Operasional', 'Belanja Non Operasional',
+        'Belanja Pegawai', 'Belanja Barang', 'Belanja Modal',
       ].map((v) => ({ value: v, label: v })) },
       { key: 'sumber_dana', label: 'Sumber Dana', type: 'select', options: ['RM', 'BLU', 'SBSN'].map((v) => ({ value: v, label: v })) },
     ],

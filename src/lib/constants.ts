@@ -50,7 +50,6 @@ export const STATUS_COLOR: Record<Status, string> = {
 
 export const KATEGORI_BELANJA = [
   'Belanja Pegawai', 'Belanja Barang', 'Belanja Modal',
-  'Belanja Operasional', 'Belanja Non Operasional',
 ] as const;
 export type KategoriBelanja = (typeof KATEGORI_BELANJA)[number];
 

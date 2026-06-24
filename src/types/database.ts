@@ -4,8 +4,7 @@
 export type Level = 'PROGRAM' | 'KEGIATAN' | 'KRO' | 'RO' | 'KOMPONEN' | 'SUB_KOMPONEN' | 'AKUN' | 'DETAIL';
 export type StatusUsulan = 'Draft' | 'Diajukan' | 'Direview' | 'Disetujui' | 'Final';
 export type KategoriBelanja =
-  | 'Belanja Pegawai' | 'Belanja Barang' | 'Belanja Modal'
-  | 'Belanja Operasional' | 'Belanja Non Operasional';
+  | 'Belanja Pegawai' | 'Belanja Barang' | 'Belanja Modal';
 
 export interface MasterRef { id: string; kode: string; nama: string }
 
@@ -41,6 +40,9 @@ export interface UsulanStruktur {
   jenis_belanja: string | null;
   volume_rincian: VolRincianSegmen[] | null;
   urutan: number;
+  dikerjakan_oleh: string | null;
+  dikerjakan_oleh_nama: string | null;
+  dikerjakan_pada: string | null;
   created_at: string;
   updated_at: string;
 }
