@@ -1,12 +1,11 @@
 'use client';
 import * as React from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, CheckCircle2, AlertTriangle, Loader2, Download } from 'lucide-react';
+import { Upload, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import { Button, Select } from '@/components/ui';
 import { mapImportRows, type MasterDef, type ParsedRow } from '@/lib/referensi';
 import { bulkImport } from '@/lib/referensi-api';
-import { downloadMasterTemplate } from '@/lib/template-excel';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -103,18 +102,10 @@ export function ImportExcel({ open, def, onClose, onDone }: Props) {
           <div className="rounded-md border border-dashed border-border p-8 text-center">
             <Upload className="mx-auto mb-2 size-7 text-muted-foreground" />
             <p className="mb-3 text-sm text-muted-foreground">Pilih file Excel (.xlsx / .xls) atau CSV</p>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-                <Upload className="size-4" /> Pilih File
-                <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onFile} />
-              </label>
-              <Button variant="outline" onClick={() => downloadMasterTemplate(def)}>
-                <Download className="size-4" /> Unduh Template
-              </Button>
-            </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              Belum punya format? Unduh template Excel-nya, isi datanya, lalu unggah di sini.
-            </p>
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+              <Upload className="size-4" /> Pilih File
+              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onFile} />
+            </label>
           </div>
           <div className="rounded-md bg-muted p-3 text-xs">
             <p className="font-medium">Urutan kolom yang diharapkan (baris pertama boleh header, akan dilewati):</p>
