@@ -701,6 +701,26 @@ export function PenganggaranClient({
     await refresh();
   }
 
+  // Tambah komponen MANUAL (tanpa referensi) — untuk RO yang komponennya belum
+  // ada di referensi. Memakai induk (RO) dari picker yang sedang terbuka.
+  async function onManualKomponen(v: { kode: string; uraian: string }) {
+    if (!picker) return;
+    try {
+      await addNode({
+        usulan_id: header.id,
+        parent_id: picker.parentStrukturId,
+        level: "KOMPONEN",
+        kode: v.kode,
+        uraian: v.uraian,
+      });
+    } catch (e) {
+      alert((e as Error).message);
+      return;
+    }
+    setPicker(null);
+    await refresh();
+  }
+
   async function onSubmitSubkomp(v: { kode: string; uraian: string }) {
     if (!subkompParent) return;
     if (subkompParent.editId) {
@@ -1167,6 +1187,11 @@ export function PenganggaranClient({
           okGreen={picker.okGreen}
           onPick={onPickRef}
           onClose={() => setPicker(null)}
+          onManual={
+            picker.level === "KOMPONEN"
+              ? (v) => onManualKomponen(v)
+              : undefined
+          }
         />
       )}
       <SubKomponenForm

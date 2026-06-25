@@ -14,11 +14,14 @@ interface Props {
   okGreen?: boolean;       // tombol "Oke" hijau (gaya Pilih KRO)
   onPick: (row: RefRow) => void;
   onClose: () => void;
+  // Bila diberikan, tampilkan opsi INPUT MANUAL (kode + uraian) untuk menambah
+  // entri yang belum ada di referensi — mis. komponen RO yang belum terdaftar.
+  onManual?: (v: { kode: string; uraian: string }) => void;
 }
 
 const PER = 50;
 
-export function ReferencePicker({ open, title, query, extraHead, okGreen, onPick, onClose }: Props) {
+export function ReferencePicker({ open, title, query, extraHead, okGreen, onPick, onClose, onManual }: Props) {
   const [q, setQ] = React.useState('');
   const [term, setTerm] = React.useState('');
   const [page, setPage] = React.useState(1);
@@ -27,8 +30,16 @@ export function ReferencePicker({ open, title, query, extraHead, okGreen, onPick
   const [sel, setSel] = React.useState<RefRow | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
+  const [manualOpen, setManualOpen] = React.useState(false);
+  const [mKode, setMKode] = React.useState('');
+  const [mUraian, setMUraian] = React.useState('');
 
-  React.useEffect(() => { if (open) { setQ(''); setTerm(''); setPage(1); setSel(null); } }, [open, query.table]);
+  React.useEffect(() => {
+    if (open) {
+      setQ(''); setTerm(''); setPage(1); setSel(null);
+      setManualOpen(false); setMKode(''); setMUraian('');
+    }
+  }, [open, query.table]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -57,6 +68,11 @@ export function ReferencePicker({ open, title, query, extraHead, okGreen, onPick
   }, [open, query, term, page]);
 
   const pages = Math.max(1, Math.ceil(total / PER));
+
+  // Bila referensi kosong & input manual tersedia, buka panel manual otomatis.
+  React.useEffect(() => {
+    if (onManual && !loading && !err && rows.length === 0) setManualOpen(true);
+  }, [onManual, loading, err, rows.length]);
 
   return (
     <Modal
@@ -130,6 +146,50 @@ export function ReferencePicker({ open, title, query, extraHead, okGreen, onPick
         <PagerBtn onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page === pages}>›</PagerBtn>
         <PagerBtn onClick={() => setPage(pages)} disabled={page === pages}>»</PagerBtn>
       </div>
+
+      {onManual && (
+        <div className="mt-3 rounded-md border border-dashed border-border p-3">
+          {!manualOpen ? (
+            <button
+              type="button"
+              onClick={() => setManualOpen(true)}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              + Input manual (untuk kode yang belum ada di referensi)
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Tambah entri yang belum terdaftar di referensi. Isi kode &amp; uraian, lalu Tambah.
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  className="sm:w-36"
+                  placeholder="Kode (mis. 002)"
+                  value={mKode}
+                  onChange={(e) => setMKode(e.target.value)}
+                />
+                <Input
+                  className="flex-1"
+                  placeholder="Uraian"
+                  value={mUraian}
+                  onChange={(e) => setMUraian(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && mKode.trim() && mUraian.trim())
+                      onManual({ kode: mKode.trim(), uraian: mUraian.trim() });
+                  }}
+                />
+                <Button
+                  disabled={!mKode.trim() || !mUraian.trim()}
+                  onClick={() => onManual({ kode: mKode.trim(), uraian: mUraian.trim() })}
+                >
+                  Tambah
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </Modal>
   );
 }
