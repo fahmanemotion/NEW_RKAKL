@@ -233,6 +233,10 @@ async function upsertLevel(
 export interface KodeImportResult {
   counts: { ba: number; program: number; kegiatan: number; kro: number; ro: number; komponen: number };
   totalRows: number;
+  // Baris yang TIDAK bisa dikaitkan ke induknya (jalur kode tak ditemukan) —
+  // sebelumnya dibuang diam-diam. Dilaporkan agar bisa diperbaiki di sumbernya.
+  dropped: { ro: number; komponen: number };
+  droppedSamples: { ro: string[]; komponen: string[] };
 }
 
 /**
@@ -290,10 +294,12 @@ export async function importKodeGabungan(raw: unknown[][]): Promise<KodeImportRe
     kroMap.get(`${kegIdOf(ba, program, keg)}::${kro}`);
 
   // RO (induk: KRO)
+  const droppedRo: string[] = [];
   const roRows = p.ro
     .map((x) => {
       const krid = kroIdOf(x.ba, x.program, x.kegiatan, x.kro);
-      return krid ? { kro_id: krid, kode_ro: x.kode, nama_ro: x.nama } : null;
+      if (!krid) { droppedRo.push(`${x.kro}.${x.kode} — ${x.nama}`); return null; }
+      return { kro_id: krid, kode_ro: x.kode, nama_ro: x.nama };
     })
     .filter(Boolean) as Record<string, unknown>[];
   await upsertLevel("master_ro", roRows, "kro_id,kode_ro");
@@ -302,10 +308,12 @@ export async function importKodeGabungan(raw: unknown[][]): Promise<KodeImportRe
     roMap.get(`${kroIdOf(ba, program, keg, kro)}::${ro}`);
 
   // Komponen (induk: RO)
+  const droppedKomp: string[] = [];
   const kompRows = p.komponen
     .map((x) => {
       const roid = roIdOf(x.ba, x.program, x.kegiatan, x.kro, x.ro);
-      return roid ? { ro_id: roid, kode_komponen: x.kode, nama_komponen: x.nama } : null;
+      if (!roid) { droppedKomp.push(`${x.kro}.${x.ro}.${x.kode} — ${x.nama}`); return null; }
+      return { ro_id: roid, kode_komponen: x.kode, nama_komponen: x.nama };
     })
     .filter(Boolean) as Record<string, unknown>[];
   await upsertLevel("master_komponen", kompRows, "ro_id,kode_komponen");
@@ -316,6 +324,8 @@ export async function importKodeGabungan(raw: unknown[][]): Promise<KodeImportRe
       kro: kroRows.length, ro: roRows.length, komponen: kompRows.length,
     },
     totalRows: p.dataRows,
+    dropped: { ro: droppedRo.length, komponen: droppedKomp.length },
+    droppedSamples: { ro: droppedRo.slice(0, 8), komponen: droppedKomp.slice(0, 8) },
   };
 }
 

@@ -183,6 +183,18 @@ export function KodeManager() {
                 BA {result.counts.ba} · Program {result.counts.program} · Kegiatan {result.counts.kegiatan} ·
                 KRO {result.counts.kro} · RO {result.counts.ro} · Komponen {result.counts.komponen}
               </p>
+              {(result.dropped.komponen > 0 || result.dropped.ro > 0) && (
+                <div className="mt-2 rounded border border-amber-400/60 bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
+                  <p className="font-medium">
+                    ⚠ {result.dropped.komponen} komponen{result.dropped.ro > 0 ? ` & ${result.dropped.ro} RO` : ""} tidak terkait karena induknya (RO/KRO) tidak ditemukan pada data — periksa kode jalurnya di sheet, lalu impor ulang.
+                  </p>
+                  {result.droppedSamples.komponen.length > 0 && (
+                    <p className="mt-1 break-words text-amber-700/90 dark:text-amber-300/80">
+                      Contoh (KRO.RO.Komponen): {result.droppedSamples.komponen.join(" · ")}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
