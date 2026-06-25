@@ -7,6 +7,9 @@ export interface RefQuery {
   namaCol: string;
   parentCol?: string;
   parentId?: string;
+  // Bila diisi, filter memakai IN (parentCol, parentIds) — dipakai komponen agar
+  // bisa membaca dari beberapa master_ro yang cocok jalur kode (RO generik).
+  parentIds?: string[];
   extraCol?: string;
 }
 

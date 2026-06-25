@@ -349,7 +349,9 @@ export async function searchReference(
       `id, ${cfg.kodeCol}, ${cfg.namaCol}${cfg.extraCol ? `, ${cfg.extraCol}` : ""}`,
       { count: "exact" },
     );
-  if (cfg.parentCol && cfg.parentId)
+  if (cfg.parentCol && cfg.parentIds && cfg.parentIds.length)
+    query = query.in(cfg.parentCol, cfg.parentIds);
+  else if (cfg.parentCol && cfg.parentId)
     query = query.eq(cfg.parentCol, cfg.parentId);
   if (q.trim())
     query = query.or(`${cfg.kodeCol}.ilike.%${q}%,${cfg.namaCol}.ilike.%${q}%`);
@@ -367,4 +369,56 @@ export async function searchReference(
     extra: cfg.extraCol ? (r[cfg.extraCol] as string) : undefined,
   }));
   return { rows, total: count ?? 0 };
+}
+
+/**
+ * Kumpulkan id master_ro yang cocok dengan JALUR KODE (kegiatan → KRO → RO),
+ * digabung dengan referensi_id node RO (bila ada).
+ *
+ * Tujuannya membuat pembacaan komponen TAHAN terhadap referensi_id yang basi
+ * atau keliru: RO generik seperti "994" (Layanan Perkantoran) muncul di banyak
+ * KRO/Kegiatan, sehingga referensi_id node bisa menunjuk master_ro lama/lain.
+ * Dengan menelusuri kode kegiatan+KRO+RO, komponen tetap terbaca dari referensi
+ * TANPA melebar ke kegiatan lain (kode kegiatan unik → presisi).
+ *
+ * `kegKode`/`kroKode`/`roKode` = KODE PENDEK (segmen terakhir), mis. "4627"/"EBA"/"994".
+ */
+export async function resolveKomponenRoIds(
+  kegKode: string | null,
+  kroKode: string | null,
+  roKode: string | null,
+  fallbackRoId?: string | null,
+): Promise<string[]> {
+  const ids = new Set<string>();
+  if (fallbackRoId) ids.add(fallbackRoId);
+  if (!roKode) return [...ids];
+
+  let kroIds: string[] | null = null;
+  if (kroKode) {
+    const { data: kros } = await sb()
+      .from("master_kro")
+      .select("id, kegiatan_id")
+      .eq("kode_kro", kroKode);
+    let list = (kros ?? []) as { id: string; kegiatan_id: string }[];
+    // Sempitkan ke kegiatan yang cocok (presisi). Bila tak ada yang cocok,
+    // pertahankan daftar luas sebagai fallback.
+    if (kegKode && list.length) {
+      const { data: kegs } = await sb()
+        .from("master_kegiatan")
+        .select("id")
+        .eq("kode_kegiatan", kegKode);
+      const kegIds = new Set(((kegs ?? []) as { id: string }[]).map((k) => k.id));
+      if (kegIds.size) {
+        const scoped = list.filter((k) => kegIds.has(k.kegiatan_id));
+        if (scoped.length) list = scoped;
+      }
+    }
+    kroIds = list.map((k) => k.id);
+  }
+
+  let q = sb().from("master_ro").select("id").eq("kode_ro", roKode);
+  if (kroIds && kroIds.length) q = q.in("kro_id", kroIds);
+  const { data: ros } = await q;
+  for (const r of (ros ?? []) as { id: string }[]) ids.add(r.id);
+  return [...ids];
 }

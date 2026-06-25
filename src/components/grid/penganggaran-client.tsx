@@ -34,6 +34,7 @@ import {
   fetchStruktur,
   refQueryFor,
   getAkunMeta,
+  resolveKomponenRoIds,
   setUsulanStatus,
 } from "@/lib/penganggaran-api";
 import type { UsulanStruktur } from "@/types/database";
@@ -632,6 +633,24 @@ export function PenganggaranClient({
 
     const q = refQueryFor(level, parentRef);
     if (!q) return;
+    if (level === "KOMPONEN") {
+      // Baca komponen dari REFERENSI via jalur kode (kode_kro + kode_ro), bukan
+      // hanya referensi_id node yang bisa basi/keliru. RO generik seperti 994
+      // (Layanan Perkantoran) tetap terbaca komponennya dari referensi.
+      const lastSeg = (k?: string | null) => (k ?? "").split(".").pop() || "";
+      const roNode = byId.get(parentId);
+      if (roNode?.level === "RO") {
+        const kroNode = roNode.parent_id ? byId.get(roNode.parent_id) : undefined;
+        const kegNode = kroNode?.parent_id ? byId.get(kroNode.parent_id) : undefined;
+        const roIds = await resolveKomponenRoIds(
+          lastSeg(kegNode?.kode) || null,
+          lastSeg(kroNode?.kode) || null,
+          lastSeg(roNode.kode) || null,
+          parentRef,
+        );
+        if (roIds.length) q.parentIds = roIds;
+      }
+    }
     setPicker({
       level,
       query: q,
@@ -694,26 +713,6 @@ export function PenganggaranClient({
       });
     } catch (e) {
       // Mis. duplikat — beri tahu & biarkan picker tetap terbuka.
-      alert((e as Error).message);
-      return;
-    }
-    setPicker(null);
-    await refresh();
-  }
-
-  // Tambah komponen MANUAL (tanpa referensi) — untuk RO yang komponennya belum
-  // ada di referensi. Memakai induk (RO) dari picker yang sedang terbuka.
-  async function onManualKomponen(v: { kode: string; uraian: string }) {
-    if (!picker) return;
-    try {
-      await addNode({
-        usulan_id: header.id,
-        parent_id: picker.parentStrukturId,
-        level: "KOMPONEN",
-        kode: v.kode,
-        uraian: v.uraian,
-      });
-    } catch (e) {
       alert((e as Error).message);
       return;
     }
@@ -1187,11 +1186,6 @@ export function PenganggaranClient({
           okGreen={picker.okGreen}
           onPick={onPickRef}
           onClose={() => setPicker(null)}
-          onManual={
-            picker.level === "KOMPONEN"
-              ? (v) => onManualKomponen(v)
-              : undefined
-          }
         />
       )}
       <SubKomponenForm
