@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
-import XLSX from "xlsx-js-style";
+import type XLSXTypes from "xlsx-js-style";
+import { loadXLSXStyle } from "@/lib/xlsx-lazy";
 import { Printer, Download, Layers, ChevronsUpDown, Check, Search } from "lucide-react";
 import { Card, Select, Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -325,7 +326,7 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
           <Button size="sm" variant="outline" onClick={() => printRab(unit, ctx, signers)}>
             <Printer className="size-4" /> Cetak
           </Button>
-          <Button size="sm" variant="outline" onClick={() => downloadOne(unit, ctx, signers)}>
+          <Button size="sm" variant="outline" onClick={async () => { const XLSX = await loadXLSXStyle(); downloadOne(XLSX, unit, ctx, signers); }}>
             <Download className="size-4" /> Unduh ini
           </Button>
           <Button
@@ -334,7 +335,8 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
             onClick={async () => {
               setZipping(true);
               try {
-                await downloadAll(filteredUnits, ctx, signers, mode);
+                const XLSX = await loadXLSXStyle();
+                await downloadAll(XLSX, filteredUnits, ctx, signers, mode);
               } finally {
                 setZipping(false);
               }
@@ -465,7 +467,7 @@ type Emit = {
   vol: number | null; satuan: string | null; harga: number | null; jumlah: number;
 };
 
-function buildRabSheet(unit: RabUnit, ctx: Ctx, signers: Signers): XLSX.WorkSheet {
+function buildRabSheet(XLSX: XLSXTypes, unit: RabUnit, ctx: Ctx, signers: Signers): XLSXTypes.WorkSheet {
   // Kolom 0-based A..T (20). "Rincian Perhitungan" dipecah C..P: 5 pasang
   // (qty, satuan) dipisah "x" → C,D|E|F,G|H|I,J|K|L,M|N|O,P.
   const A = 0, B = 1;
@@ -715,7 +717,7 @@ function safeSheetName(s: string): string {
   return (s || "RAB").replace(/[\\/?*[\]:]/g, " ").slice(0, 31).trim() || "RAB";
 }
 
-function downloadWorkbook(wb: XLSX.WorkBook, filename: string) {
+function downloadWorkbook(XLSX: XLSXTypes, wb: XLSXTypes.WorkBook, filename: string) {
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
   const blob = new Blob([buf], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -726,14 +728,14 @@ function downloadWorkbook(wb: XLSX.WorkBook, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-function downloadOne(unit: RabUnit, ctx: Ctx, signers: Signers) {
+function downloadOne(XLSX: XLSXTypes, unit: RabUnit, ctx: Ctx, signers: Signers) {
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, buildRabSheet(unit, ctx, signers), safeSheetName(unit.sheetName));
+  XLSX.utils.book_append_sheet(wb, buildRabSheet(XLSX, unit, ctx, signers), safeSheetName(unit.sheetName));
   // Nama file = kode RAB (mis. 3996.AEC.002.051.A.xlsx) agar langsung dikenali.
-  downloadWorkbook(wb, `${safeFileName(rabFileCode(unit))}.xlsx`);
+  downloadWorkbook(XLSX, wb, `${safeFileName(rabFileCode(unit))}.xlsx`);
 }
 
-async function downloadAll(units: RabUnit[], ctx: Ctx, signers: Signers, _mode: Mode) {
+async function downloadAll(XLSX: XLSXTypes, units: RabUnit[], ctx: Ctx, signers: Signers, _mode: Mode) {
   // Tanpa dependensi tambahan: unduh SATU file .xlsx per unit secara berurutan,
   // masing-masing dinamai dengan kodenya (mis. 3996.AEC.002.051.A.xlsx) sehingga
   // mudah dikenali tanpa membuka satu per satu. Browser akan meminta izin
@@ -746,8 +748,8 @@ async function downloadAll(units: RabUnit[], ctx: Ctx, signers: Signers, _mode: 
     while (used.has(name)) name = `${base}_${i++}.xlsx`;
     used.add(name);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, buildRabSheet(u, ctx, signers), safeSheetName(u.sheetName));
-    downloadWorkbook(wb, name);
+    XLSX.utils.book_append_sheet(wb, buildRabSheet(XLSX, u, ctx, signers), safeSheetName(u.sheetName));
+    downloadWorkbook(XLSX, wb, name);
     // Jeda kecil agar unduhan beruntun tidak diblokir/ditimpa browser.
     await new Promise((res) => setTimeout(res, 300));
   }

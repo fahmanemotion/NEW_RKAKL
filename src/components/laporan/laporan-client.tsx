@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
-import XLSX from "xlsx-js-style";
+import type XLSXTypes from "xlsx-js-style";
+import { loadXLSXStyle } from "@/lib/xlsx-lazy";
 import { Loader2, Inbox, Printer, Download } from "lucide-react";
 import { Card, Select, Button, Badge } from "@/components/ui";
 import { createClient } from "@/lib/supabase";
@@ -131,9 +132,10 @@ export function LaporanClient({
     setTimeout(() => w.print(), 300);
   }
 
-  function downloadExcel() {
+  async function downloadExcel() {
     if (!usulan) return;
-    const wb = buildRekapWorkbook({
+    const XLSX = await loadXLSXStyle();
+    const wb = buildRekapWorkbook(XLSX, {
       satker: usulan.satkerNama,
       tahapLabel,
       tahun: usulan.tahun,
@@ -523,7 +525,7 @@ function buildPrintHtml(d: ReportData): string {
 
 /* ── Unduh Excel (rekap) ─────────────────────────────────────────────────── */
 
-function buildRekapWorkbook(d: ReportData) {
+function buildRekapWorkbook(XLSX: XLSXTypes, d: ReportData) {
   const NUMFMT = "#,##0";
   const fTitle = { font: { bold: true, sz: 13 } };
   const fBold = { font: { bold: true } };

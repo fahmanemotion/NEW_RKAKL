@@ -1,6 +1,7 @@
 'use client';
 import * as React from 'react';
-import * as XLSX from 'xlsx';
+import type * as XLSXTypes from 'xlsx';
+import { loadXLSXPlain } from '@/lib/xlsx-lazy';
 import { Upload, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import { Button, Select } from '@/components/ui';
@@ -23,7 +24,7 @@ export function ImportExcel({ open, def, onClose, onDone }: Props) {
   const [fileName, setFileName] = React.useState('');
   const [sheetNames, setSheetNames] = React.useState<string[]>([]);
   const [activeSheet, setActiveSheet] = React.useState('');
-  const wbRef = React.useRef<XLSX.WorkBook | null>(null);
+  const wbRef = React.useRef<XLSXTypes.WorkBook | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<{ inserted: number; skipped: number; failed: number; errors: string[] } | null>(null);
 
@@ -31,9 +32,10 @@ export function ImportExcel({ open, def, onClose, onDone }: Props) {
     if (open) { setPhase('pick'); setRows([]); setFileName(''); setSheetNames([]); setActiveSheet(''); wbRef.current = null; setErr(null); setResult(null); }
   }, [open, def.table]);
 
-  function parseSheet(name: string) {
+  async function parseSheet(name: string) {
     const wb = wbRef.current;
     if (!wb) return;
+    const XLSX = await loadXLSXPlain();
     const ws = wb.Sheets[name];
     const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false, defval: '' });
     const { rows: parsed } = mapImportRows(def, raw as unknown[][]);
@@ -49,6 +51,7 @@ export function ImportExcel({ open, def, onClose, onDone }: Props) {
     setFileName(file.name); setErr(null);
     try {
       const buf = await file.arrayBuffer();
+      const XLSX = await loadXLSXPlain();
       const wb = XLSX.read(buf, { type: 'array' });
       wbRef.current = wb;
       setSheetNames(wb.SheetNames);
@@ -56,7 +59,7 @@ export function ImportExcel({ open, def, onClose, onDone }: Props) {
       const match = wb.SheetNames.find((n) => n.toLowerCase() === def.label.toLowerCase())
         ?? wb.SheetNames.find((n) => n.toLowerCase().includes(def.label.toLowerCase()))
         ?? wb.SheetNames[0];
-      parseSheet(match);
+      await parseSheet(match);
     } catch (e) {
       setErr('Gagal membaca file: ' + (e as Error).message);
     }

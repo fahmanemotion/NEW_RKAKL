@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import * as XLSX from "xlsx";
+import { loadXLSXPlain } from "@/lib/xlsx-lazy";
 import { Upload, Loader2, CheckCircle2, AlertTriangle, FileSpreadsheet } from "lucide-react";
 import { Card, Button, Select } from "@/components/ui";
 import { fmtN } from "@/lib/constants";
@@ -39,6 +39,7 @@ export function KertasKerjaImport({ usulanList }: { usulanList: ImportUsulan[] }
     setParsed(null);
     try {
       const buf = await file.arrayBuffer();
+      const XLSX = await loadXLSXPlain();
       const wb = XLSX.read(buf, { type: "array" });
       const sheet = wb.Sheets["DETAIL"] ?? wb.Sheets[wb.SheetNames[0]];
       const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, blankrows: false, defval: "" });

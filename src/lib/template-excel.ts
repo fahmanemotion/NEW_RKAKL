@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import { loadXLSXPlain } from './xlsx-lazy';
 import type { MasterDef } from './referensi';
 
 /**
@@ -7,7 +7,8 @@ import type { MasterDef } from './referensi';
  * plus sheet "Petunjuk" berisi nilai yang diizinkan untuk kolom pilihan.
  * Dipakai di toolbar halaman master maupun di dalam modal Import Excel.
  */
-export function downloadMasterTemplate(def: MasterDef) {
+export async function downloadMasterTemplate(def: MasterDef) {
+  const XLSX = await loadXLSXPlain();
   const cols = def.importCols;
 
   // Baris contoh — khusus akun diberi contoh nyata, master lain memakai placeholder.

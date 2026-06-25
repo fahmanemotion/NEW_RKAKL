@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import * as XLSX from "xlsx";
+import { loadXLSXPlain } from "@/lib/xlsx-lazy";
 import { Upload, Download, Search, Loader2, CheckCircle2, AlertTriangle, Pencil, Trash2 } from "lucide-react";
 import { Button, Input, Card } from "@/components/ui";
 import { Modal } from "@/components/ui/modal";
@@ -108,6 +108,7 @@ export function KodeManager() {
     setResult(null);
     try {
       const buf = await file.arrayBuffer();
+      const XLSX = await loadXLSXPlain();
       const wb = XLSX.read(buf, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false, defval: "" });
@@ -121,7 +122,8 @@ export function KodeManager() {
     }
   }
 
-  function downloadTemplate() {
+  async function downloadTemplate() {
+    const XLSX = await loadXLSXPlain();
     const ws = XLSX.utils.aoa_to_sheet([
       HEADERS,
       ["22", "KEMENTERIAN PERHUBUNGAN", "12.DL", "Program Pendidikan dan Pelatihan", "1975",

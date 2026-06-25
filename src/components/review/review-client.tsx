@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
-import XLSX from "xlsx-js-style";
+import type XLSXTypes from "xlsx-js-style";
+import { loadXLSXStyle } from "@/lib/xlsx-lazy";
 import { Loader2, Inbox, Download } from "lucide-react";
 import { Card, Select, Button, Badge } from "@/components/ui";
 import { createClient } from "@/lib/supabase";
@@ -80,11 +81,12 @@ export function ReviewClient({ usulanList }: { usulanList: ReviewUsulan[] }) {
 
   const kk = React.useMemo(() => buildKertasKerja(rows), [rows]);
 
-  function download() {
+  async function download() {
     if (!usulan) return;
+    const XLSX = await loadXLSXStyle();
     const tahapLabel = TAHAP_LABEL[usulan.tahap as TahapPagu] ?? usulan.tahap;
     const unitKode = unitKodeFromRows(kk.rows);
-    const wb = buildWorkbook(kk.rows, kk.total, kk.totalJumlah, {
+    const wb = buildWorkbook(XLSX, kk.rows, kk.total, kk.totalJumlah, {
       tahun: usulan.tahun,
       tahapLabel,
       satkerNama: usulan.satkerNama,
@@ -373,6 +375,7 @@ const THIN = { style: "thin", color: { rgb: "9CA3AF" } };
 const ALL_BORDERS = { top: THIN, bottom: THIN, left: THIN, right: THIN };
 
 function buildWorkbook(
+  XLSX: XLSXTypes,
   kkRows: KKRow[],
   total: KKBuckets,
   totalJumlah: number,
