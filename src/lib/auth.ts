@@ -16,27 +16,19 @@ export interface CurrentUser {
 /**
  * Ambil user + profil + role (Server Component / Server Action).
  *
- * Performa:
- *  - getClaims() memverifikasi JWT secara LOKAL (kunci asimetris + JWKS ter-cache)
- *    sehingga TIDAK ada round-trip jaringan ke server Auth pada tiap halaman —
- *    jauh lebih cepat daripada getUser(). (Bila proyek memakai kunci simetris,
- *    getClaims otomatis fallback memverifikasi via jaringan, tanpa regresi.)
- *  - Dibungkus React cache(): bila layout + page (+ action) memanggilnya dalam
- *    satu request render, kerjanya hanya dilakukan SEKALI.
- *
- * Catatan keamanan: getClaims memverifikasi tanda tangan & kedaluwarsa token,
- * aman untuk otorisasi halaman. (Pencabutan sesi sisi-server baru terdeteksi
- * saat token kedaluwarsa, ≤ 1 jam — dimitigasi auto-logout idle 5 menit.)
+ * Memakai getUser() — memvalidasi sesi ke server Auth Supabase. Refresh token
+ * yang andal ditangani middleware (satu-satunya tempat cookie bisa ditulis),
+ * sehingga halaman tinggal membaca sesi yang sudah segar tanpa balapan refresh.
+ * Dibungkus React cache(): bila layout + page (+ action) memanggilnya dalam satu
+ * request render, kerjanya hanya SEKALI.
  */
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const supabase = await createServerSupabase();
 
-  const { data: claimsData } = await supabase.auth.getClaims();
-  const claims = (claimsData?.claims ?? null) as
-    | { sub?: string; email?: string }
-    | null;
-  const userId = claims?.sub;
-  if (!userId) return null;
+  const { data: userData, error } = await supabase.auth.getUser();
+  const authUser = userData?.user;
+  if (error || !authUser) return null;
+  const userId = authUser.id;
 
   const { data: profile } = await supabase
     .from('user_profiles')
@@ -46,8 +38,8 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 
   return {
     id: userId,
-    email: claims?.email ?? null,
-    nama: (profile?.nama as string) ?? claims?.email ?? null,
+    email: authUser.email ?? null,
+    nama: (profile?.nama as string) ?? authUser.email ?? null,
     jabatan: (profile?.jabatan as string) ?? null,
     satker_id: (profile?.satker_id as string) ?? null,
     satker_nama: (profile?.master_satker as { nama_satker?: string } | null)?.nama_satker ?? null,
