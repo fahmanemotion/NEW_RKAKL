@@ -155,6 +155,37 @@ export function DashboardClient({
   const opt = (m: Map<string, string>) =>
     Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 
+  // Opsi filter BERTINGKAT (cascading): setiap filter anak hanya menampilkan
+  // nilai yang masih relevan dengan pilihan induknya. Memilih Program otomatis
+  // mempersempit KRO → RO → Komponen → Akun mengikuti data terpilih.
+  const cascade = React.useMemo(() => {
+    const kroM = new Map<string, string>();
+    const roM = new Map<string, string>();
+    const kompM = new Map<string, string>();
+    const akunM = new Map<string, string>();
+    for (const r of akunRows) {
+      const okProg = fProg === ALL || r.progKode === fProg;
+      if (okProg && r.kroKode)
+        kroM.set(r.kroKode, labels.KRO.get(r.kroKode) ?? r.kroKode);
+      const okKro = okProg && (fKro === ALL || r.kroKode === fKro);
+      if (okKro && r.roKode)
+        roM.set(r.roKode, labels.RO.get(r.roKode) ?? r.roKode);
+      const okRo = okKro && (fRo === ALL || r.roKode === fRo);
+      if (okRo && r.komponenKode)
+        kompM.set(r.komponenKode, labels.KOMPONEN.get(r.komponenKode) ?? r.komponenKode);
+      const okKomp = okRo && (fKomponen === ALL || r.komponenKode === fKomponen);
+      if (okKomp && r.akunKode)
+        akunM.set(r.akunKode, labels.AKUN.get(r.akunKode) ?? r.akunKode);
+    }
+    return { kroM, roM, kompM, akunM };
+  }, [akunRows, labels, fProg, fKro, fRo, fKomponen]);
+
+  // Saat induk berubah, kosongkan pilihan anak agar tidak ada filter "yatim".
+  const onProg = (v: string) => { setFProg(v); setFKro(ALL); setFRo(ALL); setFKomponen(ALL); setFAkun(ALL); };
+  const onKro = (v: string) => { setFKro(v); setFRo(ALL); setFKomponen(ALL); setFAkun(ALL); };
+  const onRo = (v: string) => { setFRo(v); setFKomponen(ALL); setFAkun(ALL); };
+  const onKomponen = (v: string) => { setFKomponen(v); setFAkun(ALL); };
+
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     const needleDigits = needle.replace(/[^0-9]/g, "");
@@ -314,32 +345,32 @@ export function DashboardClient({
               <FilterSelect
                 label="Program"
                 value={fProg}
-                onChange={setFProg}
+                onChange={onProg}
                 options={opt(labels.PROGRAM)}
               />
               <FilterSelect
                 label="KRO"
                 value={fKro}
-                onChange={setFKro}
-                options={opt(labels.KRO)}
+                onChange={onKro}
+                options={opt(cascade.kroM)}
               />
               <FilterSelect
                 label="RO"
                 value={fRo}
-                onChange={setFRo}
-                options={opt(labels.RO)}
+                onChange={onRo}
+                options={opt(cascade.roM)}
               />
               <FilterSelect
                 label="Komponen"
                 value={fKomponen}
-                onChange={setFKomponen}
-                options={opt(labels.KOMPONEN)}
+                onChange={onKomponen}
+                options={opt(cascade.kompM)}
               />
               <FilterSelect
                 label="Akun"
                 value={fAkun}
                 onChange={setFAkun}
-                options={opt(labels.AKUN)}
+                options={opt(cascade.akunM)}
               />
               <FilterSelect
                 label="Sumber"
