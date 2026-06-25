@@ -7,6 +7,22 @@ type CookieToSet = { name: string; value: string; options?: CookieOptions };
 const PUBLIC = ["/login", "/auth"];
 
 export async function middleware(req: NextRequest) {
+  // PENTING: jangan menyentuh sesi pada request PREFETCH (Next.js mem-prefetch
+  // semua <Link> di sidebar). Prefetch yang memanggil getUser() bisa MEROTASI
+  // refresh-token (RT0→RT1) dan menulis cookie baru pada respons prefetch —
+  // namun browser TIDAK menerapkan Set-Cookie dari prefetch, sehingga browser
+  // tetap memegang RT0 yang kini invalid. Saat user benar-benar mengklik link,
+  // request asli mengirim RT0 → "Already Used" → refresh gagal → logout.
+  // Untuk prefetch cukup teruskan tanpa refresh; auth tetap dipaksakan pada
+  // navigasi asli (middleware + requireUser di halaman).
+  const isPrefetch =
+    req.headers.get("next-router-prefetch") === "1" ||
+    req.headers.get("purpose") === "prefetch" ||
+    (req.headers.get("sec-purpose") ?? "").includes("prefetch");
+  if (isPrefetch) {
+    return NextResponse.next({ request: req });
+  }
+
   let res = NextResponse.next({ request: req });
 
   const supabase = createServerClient(
