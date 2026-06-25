@@ -16,7 +16,7 @@ interface Props {
   onClose: () => void;
 }
 
-const PER = 10;
+const PER = 50;
 
 export function ReferencePicker({ open, title, query, extraHead, okGreen, onPick, onClose }: Props) {
   const [q, setQ] = React.useState('');
@@ -37,11 +37,13 @@ export function ReferencePicker({ open, title, query, extraHead, okGreen, onPick
     searchReference(query, term, page, PER)
       .then((r) => {
         if (!active) return;
-        // Dedup defensif berdasarkan kode (mencegah baris ganda tampil bila
-        // masih ada sisa duplikat di data master).
+        // Dedup defensif: gabungkan HANYA baris yang benar-benar identik
+        // (kode DAN nama sama) — sisa duplikat data master. Jangan dedup by
+        // kode saja, karena komponen berbeda yang kebetulan berkode sama akan
+        // ikut terbuang sehingga "tidak muncul".
         const seen = new Set<string>();
         const uniq = r.rows.filter((row) => {
-          const k = (row.kode || "").trim();
+          const k = `${(row.kode || "").trim()}|${(row.nama || "").trim()}`.toLowerCase();
           if (seen.has(k)) return false;
           seen.add(k);
           return true;
