@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Loader2,
   Inbox,
+  AlertTriangle,
   Wallet,
   Building2,
   Briefcase,
@@ -104,6 +105,7 @@ export function DashboardClient({
   // ── Muat struktur usulan terpilih ───────────────────────────────────────
   const [rows, setRows] = React.useState<UsulanStruktur[]>([]);
   const [loading, setLoading] = React.useState(false);
+  const [loadErr, setLoadErr] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!usulan) {
@@ -112,14 +114,21 @@ export function DashboardClient({
     }
     let alive = true;
     setLoading(true);
+    setLoadErr(null);
     fetchAllStruktur(createClient(), usulan.id)
       .then((data) => {
         if (!alive) return;
         setRows(data as UsulanStruktur[]);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((e) => {
         if (!alive) return;
+        console.error("Gagal memuat struktur usulan:", e);
+        setRows([]);
+        setLoadErr(
+          (e as { message?: string })?.message ??
+            "Gagal memuat data usulan. Coba muat ulang halaman.",
+        );
         setLoading(false);
       });
     return () => {
@@ -152,8 +161,8 @@ export function DashboardClient({
     setQ("");
   }, [usulan]);
 
-  const opt = (m: Map<string, string>) =>
-    Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  const opt = (m: Map<string, string> | undefined) =>
+    m ? Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0])) : [];
 
   // Opsi filter BERTINGKAT (cascading): setiap filter anak hanya menampilkan
   // nilai yang masih relevan dengan pilihan induknya. Memilih Program otomatis
@@ -166,16 +175,16 @@ export function DashboardClient({
     for (const r of akunRows) {
       const okProg = fProg === ALL || r.progKode === fProg;
       if (okProg && r.kroKode)
-        kroM.set(r.kroKode, labels.KRO.get(r.kroKode) ?? r.kroKode);
+        kroM.set(r.kroKode, labels.KRO?.get(r.kroKode) ?? r.kroKode);
       const okKro = okProg && (fKro === ALL || r.kroKode === fKro);
       if (okKro && r.roKode)
-        roM.set(r.roKode, labels.RO.get(r.roKode) ?? r.roKode);
+        roM.set(r.roKode, labels.RO?.get(r.roKode) ?? r.roKode);
       const okRo = okKro && (fRo === ALL || r.roKode === fRo);
       if (okRo && r.komponenKode)
-        kompM.set(r.komponenKode, labels.KOMPONEN.get(r.komponenKode) ?? r.komponenKode);
+        kompM.set(r.komponenKode, labels.KOMPONEN?.get(r.komponenKode) ?? r.komponenKode);
       const okKomp = okRo && (fKomponen === ALL || r.komponenKode === fKomponen);
       if (okKomp && r.akunKode)
-        akunM.set(r.akunKode, labels.AKUN.get(r.akunKode) ?? r.akunKode);
+        akunM.set(r.akunKode, labels.AKUN?.get(r.akunKode) ?? r.akunKode);
     }
     return { kroM, roM, kompM, akunM };
   }, [akunRows, labels, fProg, fKro, fRo, fKomponen]);
@@ -424,6 +433,26 @@ export function DashboardClient({
                         <Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" />
                       </td>
                     </tr>
+                  ) : loadErr ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-3 py-12 text-center text-sm text-destructive"
+                      >
+                        <AlertTriangle className="mx-auto mb-2 size-6" />
+                        {loadErr}
+                      </td>
+                    </tr>
+                  ) : !usulan ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-3 py-12 text-center text-muted-foreground"
+                      >
+                        <Inbox className="mx-auto mb-2 size-6" />
+                        Pilih Tahun &amp; Tahap Pagu untuk menampilkan usulan.
+                      </td>
+                    </tr>
                   ) : filtered.length === 0 ? (
                     <tr>
                       <td
@@ -431,7 +460,9 @@ export function DashboardClient({
                         className="px-3 py-12 text-center text-muted-foreground"
                       >
                         <Inbox className="mx-auto mb-2 size-6" />
-                        Tidak ada data ditemukan
+                        {akunRows.length === 0
+                          ? "Usulan ini belum memiliki data anggaran."
+                          : "Tidak ada data yang cocok dengan filter."}
                       </td>
                     </tr>
                   ) : (
