@@ -9,6 +9,7 @@ import {
   ShieldCheck, BarChart3, FileSpreadsheet, Waves,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
+import { registerActiveSession } from '@/lib/session';
 import { Button, Input } from '@/components/ui';
 import { ThemeToggle } from '@/components/theme';
 
@@ -22,10 +23,16 @@ export default function LoginPage() {
   const router = useRouter();
   const [err, setErr] = React.useState<string | null>(null);
   const [timedOut, setTimedOut] = React.useState(false);
+  const [superseded, setSuperseded] = React.useState(false);
   const [showPw, setShowPw] = React.useState(false);
   React.useEffect(() => {
-    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('timeout') === '1') {
-      setTimedOut(true);
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('timeout') === '1') setTimedOut(true);
+    if (params.get('reason') === 'superseded') {
+      setSuperseded(true);
+      // Bersihkan sesi basi perangkat ini agar login berikutnya bersih.
+      createClient().auth.signOut().catch(() => { /* abaikan */ });
     }
   }, []);
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
@@ -35,8 +42,17 @@ export default function LoginPage() {
   async function onSubmit(values: FormValues) {
     setErr(null);
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword(values);
+    const { data, error } = await supabase.auth.signInWithPassword(values);
     if (error) { setErr(error.message); return; }
+    // Daftarkan sesi ini sebagai SATU-SATUNYA sesi aktif (menendang sesi device
+    // lama). Kegagalan pendaftaran tidak boleh memblokir login.
+    try {
+      await registerActiveSession(supabase, {
+        userId: data.user!.id,
+        accessToken: data.session?.access_token ?? null,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+      });
+    } catch { /* abaikan */ }
     try { localStorage.setItem('sippt:last_active', String(Date.now())); } catch { /* abaikan */ }
     router.replace('/dashboard');
     router.refresh();
@@ -137,6 +153,12 @@ export default function LoginPage() {
           {timedOut && (
             <p className="mt-5 rounded-lg border border-amber-400/50 bg-amber-50 px-3 py-2.5 text-xs text-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
               Sesi berakhir karena tidak ada aktivitas selama 5 menit. Silakan masuk kembali untuk keamanan.
+            </p>
+          )}
+
+          {superseded && (
+            <p className="mt-5 rounded-lg border border-sky-400/50 bg-sky-50 px-3 py-2.5 text-xs text-sky-800 dark:bg-sky-950/20 dark:text-sky-300">
+              Sesi Anda diakhiri karena akun ini masuk di perangkat atau peramban lain. Satu akun hanya dapat aktif pada satu sesi. Silakan masuk kembali untuk melanjutkan di perangkat ini.
             </p>
           )}
 

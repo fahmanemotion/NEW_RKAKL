@@ -1,6 +1,8 @@
-// SIPPT — middleware: refresh sesi Supabase pada tiap request & lindungi rute.
+// SIPPT — middleware: refresh sesi Supabase pada tiap request, lindungi rute,
+// dan tegakkan SATU-SESI-AKTIF (single-session) di lapisan aplikasi.
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { checkActiveSession } from "@/lib/session";
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
@@ -43,19 +45,46 @@ export async function middleware(req: NextRequest) {
   );
 
   // getUser() memvalidasi sesi ke server Auth Supabase DAN me-refresh token
-  // (menulis cookie baru via setAll) bila perlu — ini pola SSR resmi Supabase
-  // dan satu-satunya titik yang BISA menulis cookie refresh. Lebih andal dari
-  // getClaims() (verifikasi lokal): menghindari logout acak akibat gagal ambil
-  // JWKS atau balapan refresh-token antar-klien pada halaman dengan fetch paralel.
-  const { data } = await supabase.auth.getUser();
-  const isAuthed = !!data?.user;
+  // (menulis cookie baru via setAll) bila perlu — pola SSR resmi Supabase dan
+  // satu-satunya titik yang BISA menulis cookie refresh.
+  const { data, error } = await supabase.auth.getUser();
+  const user = data?.user ?? null;
+  const isAuthed = !!user;
   const isPublic = PUBLIC.some((p) => req.nextUrl.pathname.startsWith(p));
 
-  if (!isAuthed && !isPublic) {
+  // Kegagalan VERIFIKASI yang bersifat sementara (jaringan/Auth server) JANGAN
+  // diperlakukan sebagai logout. Hanya "benar-benar tidak ada sesi" yang ditendang.
+  // requireUser() di halaman menjadi gerbang kedua bila ini lolos keliru.
+  const transient =
+    !!error &&
+    (error.name === "AuthRetryableFetchError" ||
+      (typeof error.status === "number" && error.status >= 500));
+
+  if (!isAuthed) {
+    if (isPublic || transient) return res; // jangan redirect saat publik / error sesaat
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
+
+  // ── Single-session (READ-ONLY) — hanya pada rute terlindungi ──────────────
+  if (!isPublic) {
+    // access-token (lokal, tanpa network) → klaim session_id stabil.
+    const { data: sess } = await supabase.auth.getSession();
+    const verdict = await checkActiveSession(supabase, {
+      userId: user!.id,
+      accessToken: sess.session?.access_token ?? null,
+    });
+    if (verdict === "superseded") {
+      // Sesi ini sudah digantikan login di perangkat lain → akhiri sesi ini.
+      const url = req.nextUrl.clone();
+      url.pathname = "/login";
+      url.search = "?reason=superseded";
+      return NextResponse.redirect(url);
+    }
+    // 'ok' atau 'unknown' (fail-open) → lanjut.
+  }
+
   return res;
 }
 
