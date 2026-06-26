@@ -23,10 +23,21 @@ export interface DashAkunRow {
   akunUraian: string;
   context: string; // baris kecil: prog • keg • kro • ro
   progKode: string;
+  progUraian: string;
   kegKode: string;
   kroKode: string;
   roKode: string;
   komponenKode: string;
+  // Kunci UNIK per posisi hierarki = path kode master (Program|KRO|RO|Komponen).
+  // Mencegah opsi filter tertukar saat kode anak SAMA di bawah induk BERBEDA
+  // (mis. RO "001" pada dua KRO). Label diambil dari uraian node itu sendiri
+  // (salinan dari master Referensi), bukan peta kode global yang bertabrakan.
+  kroKey: string;
+  roKey: string;
+  komponenKey: string;
+  kroLabel: string;
+  roLabel: string;
+  komponenLabel: string;
   pagu: number;
   jenisBelanja: string; // PEGAWAI / BARANG / MODAL / LAINNYA (dari prefiks kode akun)
   sumberSet: string[]; // mis. ['RM'] atau ['RM','BLU']
@@ -95,14 +106,18 @@ export function buildDashboardRows(rows: UsulanStruktur[]): DashAkunRow[] {
     else childrenOf.set(key, [r]);
   });
 
-  // Telusuri ke atas mencari kode leluhur pada level tertentu.
-  const ancestorKode = (node: UsulanStruktur, level: string): string => {
+  // Telusuri ke atas mencari NODE leluhur pada level tertentu (untuk ambil
+  // kode sekaligus uraian asli node tsb).
+  const ancestorNode = (
+    node: UsulanStruktur,
+    level: string,
+  ): UsulanStruktur | undefined => {
     let cur: UsulanStruktur | undefined = node;
     while (cur) {
-      if (cur.level === level) return cur.kode ?? "";
+      if (cur.level === level) return cur;
       cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
     }
-    return "";
+    return undefined;
   };
 
   const out: DashAkunRow[] = [];
@@ -150,11 +165,24 @@ export function buildDashboardRows(rows: UsulanStruktur[]): DashAkunRow[] {
         new Set(detailRows.map((d) => d.kategori).filter((x) => x && x !== "-")),
       );
 
-      const progKode = ancestorKode(a, "PROGRAM");
-      const kegKode = ancestorKode(a, "KEGIATAN");
-      const kroKode = ancestorKode(a, "KRO");
-      const roKode = ancestorKode(a, "RO");
-      const komponenKode = ancestorKode(a, "KOMPONEN");
+      const progN = ancestorNode(a, "PROGRAM");
+      const kegN = ancestorNode(a, "KEGIATAN");
+      const kroN = ancestorNode(a, "KRO");
+      const roN = ancestorNode(a, "RO");
+      const kompN = ancestorNode(a, "KOMPONEN");
+      const progKode = progN?.kode ?? "";
+      const kegKode = kegN?.kode ?? "";
+      const kroKode = kroN?.kode ?? "";
+      const roKode = roN?.kode ?? "";
+      const komponenKode = kompN?.kode ?? "";
+      // Kunci unik = path kode master induk→anak. Pemisah "|" tak muncul pada
+      // kode, sehingga dua anak berkode sama di induk berbeda → kunci berbeda.
+      const SEP = "|";
+      const kroKey = [progKode, kegKode, kroKode].filter(Boolean).join(SEP);
+      const roKey = [progKode, kegKode, kroKode, roKode].filter(Boolean).join(SEP);
+      const komponenKey = [progKode, kegKode, kroKode, roKode, komponenKode]
+        .filter(Boolean)
+        .join(SEP);
       const kode = [progKode, kegKode, kroKode, roKode, a.kode ?? ""]
         .filter(Boolean)
         .join(".");
@@ -166,10 +194,17 @@ export function buildDashboardRows(rows: UsulanStruktur[]): DashAkunRow[] {
         akunUraian: a.uraian ?? "",
         context: [progKode, kegKode, kroKode, roKode].filter(Boolean).join(" • "),
         progKode,
+        progUraian: progN?.uraian ?? "",
         kegKode,
         kroKode,
         roKode,
         komponenKode,
+        kroKey,
+        roKey,
+        komponenKey,
+        kroLabel: kroN?.uraian ?? "",
+        roLabel: roN?.uraian ?? "",
+        komponenLabel: kompN?.uraian ?? "",
         pagu,
         jenisBelanja: jenisBelanjaFromKode(a.kode),
         sumberSet,

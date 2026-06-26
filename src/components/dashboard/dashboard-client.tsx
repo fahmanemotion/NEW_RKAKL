@@ -21,7 +21,6 @@ import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
 import type { UsulanStruktur } from "@/types/database";
 import {
   buildDashboardRows,
-  levelLabelMaps,
   summarize,
   type DashAkunRow,
 } from "@/lib/dashboard-data";
@@ -137,7 +136,6 @@ export function DashboardClient({
   }, [usulan]);
 
   const akunRows = React.useMemo(() => buildDashboardRows(rows), [rows]);
-  const labels = React.useMemo(() => levelLabelMaps(rows), [rows]);
 
   // ── Filter ──────────────────────────────────────────────────────────────
   const [fProg, setFProg] = React.useState(ALL);
@@ -168,26 +166,30 @@ export function DashboardClient({
   // nilai yang masih relevan dengan pilihan induknya. Memilih Program otomatis
   // mempersempit KRO → RO → Komponen → Akun mengikuti data terpilih.
   const cascade = React.useMemo(() => {
+    const progM = new Map<string, string>();
     const kroM = new Map<string, string>();
     const roM = new Map<string, string>();
     const kompM = new Map<string, string>();
     const akunM = new Map<string, string>();
+    const lbl = (kode: string, uraian: string) =>
+      uraian ? `${kode} — ${uraian}` : kode;
     for (const r of akunRows) {
+      // Program selalu tampil penuh (level teratas, tak perlu di-scope).
+      if (r.progKode) progM.set(r.progKode, lbl(r.progKode, r.progUraian));
       const okProg = fProg === ALL || r.progKode === fProg;
-      if (okProg && r.kroKode)
-        kroM.set(r.kroKode, labels.KRO?.get(r.kroKode) ?? r.kroKode);
-      const okKro = okProg && (fKro === ALL || r.kroKode === fKro);
-      if (okKro && r.roKode)
-        roM.set(r.roKode, labels.RO?.get(r.roKode) ?? r.roKode);
-      const okRo = okKro && (fRo === ALL || r.roKode === fRo);
-      if (okRo && r.komponenKode)
-        kompM.set(r.komponenKode, labels.KOMPONEN?.get(r.komponenKode) ?? r.komponenKode);
-      const okKomp = okRo && (fKomponen === ALL || r.komponenKode === fKomponen);
-      if (okKomp && r.akunKode)
-        akunM.set(r.akunKode, labels.AKUN?.get(r.akunKode) ?? r.akunKode);
+      // KRO/RO/Komponen: KUNCI = path master unik; LABEL = uraian node itu
+      // sendiri. Anak hanya muncul bila induk terpilih cocok (cascading).
+      if (okProg && r.kroKey) kroM.set(r.kroKey, lbl(r.kroKode, r.kroLabel));
+      const okKro = okProg && (fKro === ALL || r.kroKey === fKro);
+      if (okKro && r.roKey) roM.set(r.roKey, lbl(r.roKode, r.roLabel));
+      const okRo = okKro && (fRo === ALL || r.roKey === fRo);
+      if (okRo && r.komponenKey)
+        kompM.set(r.komponenKey, lbl(r.komponenKode, r.komponenLabel));
+      const okKomp = okRo && (fKomponen === ALL || r.komponenKey === fKomponen);
+      if (okKomp && r.akunKode) akunM.set(r.akunKode, lbl(r.akunKode, r.akunUraian));
     }
-    return { kroM, roM, kompM, akunM };
-  }, [akunRows, labels, fProg, fKro, fRo, fKomponen]);
+    return { progM, kroM, roM, kompM, akunM };
+  }, [akunRows, fProg, fKro, fRo, fKomponen]);
 
   // Saat induk berubah, kosongkan pilihan anak agar tidak ada filter "yatim".
   const onProg = (v: string) => { setFProg(v); setFKro(ALL); setFRo(ALL); setFKomponen(ALL); setFAkun(ALL); };
@@ -200,9 +202,9 @@ export function DashboardClient({
     const needleDigits = needle.replace(/[^0-9]/g, "");
     return akunRows.filter((r) => {
       if (fProg !== ALL && r.progKode !== fProg) return false;
-      if (fKro !== ALL && r.kroKode !== fKro) return false;
-      if (fRo !== ALL && r.roKode !== fRo) return false;
-      if (fKomponen !== ALL && r.komponenKode !== fKomponen) return false;
+      if (fKro !== ALL && r.kroKey !== fKro) return false;
+      if (fRo !== ALL && r.roKey !== fRo) return false;
+      if (fKomponen !== ALL && r.komponenKey !== fKomponen) return false;
       if (fAkun !== ALL && r.akunKode !== fAkun) return false;
       if (fSumber !== ALL && !r.sumberSet.includes(fSumber)) return false;
       if (fKategori !== ALL && !r.kategoriSet.includes(fKategori)) return false;
@@ -355,7 +357,7 @@ export function DashboardClient({
                 label="Program"
                 value={fProg}
                 onChange={onProg}
-                options={opt(labels.PROGRAM)}
+                options={opt(cascade.progM)}
               />
               <FilterSelect
                 label="KRO"
@@ -641,12 +643,7 @@ function FilterSelect({
         <option value={ALL}>Semua</option>
         {options.map(([val, lbl]) => (
           <option key={val} value={val}>
-            {label === "Program" ||
-            label === "KRO" ||
-            label === "RO" ||
-            label === "Akun"
-              ? `${val}${lbl ? " — " + lbl : ""}`
-              : lbl}
+            {lbl}
           </option>
         ))}
       </Select>
