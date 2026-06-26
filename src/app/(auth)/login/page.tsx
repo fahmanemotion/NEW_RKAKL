@@ -1,6 +1,5 @@
 'use client';
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -20,7 +19,6 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export default function LoginPage() {
-  const router = useRouter();
   const [err, setErr] = React.useState<string | null>(null);
   const [timedOut, setTimedOut] = React.useState(false);
   const [superseded, setSuperseded] = React.useState(false);
@@ -54,8 +52,12 @@ export default function LoginPage() {
       });
     } catch { /* abaikan */ }
     try { localStorage.setItem('sippt:last_active', String(Date.now())); } catch { /* abaikan */ }
-    router.replace('/dashboard');
-    router.refresh();
+    // Navigasi KERAS (full reload), bukan router.replace + router.refresh.
+    // Ini menjamin permintaan /dashboard berikutnya membawa cookie sesi yang
+    // SUDAH tertulis, sehingga requireUser() di server tidak salah mengira belum
+    // login dan tidak melakukan redirect('/login') tepat setelah masuk (akar
+    // logout "saat pindah modul cepat setelah login").
+    window.location.assign('/dashboard');
   }
 
   return (
