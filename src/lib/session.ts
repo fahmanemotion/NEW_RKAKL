@@ -76,3 +76,29 @@ export async function checkActiveSession(
   if (!data) return 'ok'; // belum terdaftar → biarkan (akan terdaftar saat login berikutnya)
   return (data as { session_id: string }).session_id === sid ? 'ok' : 'superseded';
 }
+
+export interface SessionCheck {
+  verdict: SessionVerdict;
+  found: boolean;                 // sesi ditemukan di DB?
+  sidReq: string | null;          // session_id pada request
+  dbSessionId: string | null;     // session_id aktif di DB (penindih bila superseded)
+}
+
+/** Versi diperkaya dari checkActiveSession untuk keperluan LOGGING. Tetap
+ *  READ-ONLY (satu SELECT). Tidak mengubah perilaku checkActiveSession. */
+export async function checkActiveSessionDetailed(
+  sb: SupabaseClient,
+  opts: { userId: string; accessToken?: string | null },
+): Promise<SessionCheck> {
+  const sid = sessionIdFromAccessToken(opts.accessToken);
+  if (!sid) return { verdict: 'unknown', found: false, sidReq: null, dbSessionId: null };
+  const { data, error } = await sb
+    .from('user_sessions')
+    .select('session_id')
+    .eq('user_id', opts.userId)
+    .maybeSingle();
+  if (error) return { verdict: 'unknown', found: false, sidReq: sid, dbSessionId: null };
+  if (!data) return { verdict: 'ok', found: false, sidReq: sid, dbSessionId: null };
+  const dbSid = (data as { session_id: string }).session_id;
+  return { verdict: dbSid === sid ? 'ok' : 'superseded', found: true, sidReq: sid, dbSessionId: dbSid };
+}
