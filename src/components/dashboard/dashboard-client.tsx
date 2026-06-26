@@ -344,11 +344,28 @@ export function DashboardClient({
 
           {/* Daftar Usulan Kegiatan */}
           <Card className="overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
               <h2 className="text-base font-semibold">Daftar Usulan Kegiatan</h2>
-              <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                {filtered.length} akun
-              </span>
+              {filtered.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  {sum.rm > 0 && (
+                    <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1">
+                      <span className="font-medium text-muted-foreground">RM</span>
+                      <span className="font-mono font-semibold tabular-nums">{fmtN(sum.rm)}</span>
+                    </span>
+                  )}
+                  {sum.blu > 0 && (
+                    <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1">
+                      <span className="font-medium text-muted-foreground">BLU</span>
+                      <span className="font-mono font-semibold tabular-nums">{fmtN(sum.blu)}</span>
+                    </span>
+                  )}
+                  <span className="inline-flex items-center gap-2 rounded-md bg-primary/10 px-3 py-1 ring-1 ring-primary/20">
+                    <span className="font-semibold text-primary">Total</span>
+                    <span className="font-mono text-sm font-bold tabular-nums text-primary">{fmtN(sum.total)}</span>
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Filter strip */}
@@ -570,19 +587,6 @@ export function DashboardClient({
                     })
                   )}
                 </tbody>
-                {filtered.length > 0 && (
-                  <tfoot>
-                    <tr className="border-t-2 border-border bg-muted/40 font-semibold">
-                      <td className="px-3 py-2.5" colSpan={4}>
-                        Total ({filtered.length} akun) · RM {fmtN(sum.rm)} · BLU{" "}
-                        {fmtN(sum.blu)}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-mono tabular-nums">
-                        {fmtN(sum.total)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                )}
               </table>
             </div>
           </Card>
