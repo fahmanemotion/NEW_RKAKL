@@ -1,7 +1,7 @@
-'use client';
-import * as React from 'react';
-import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase';
+"use client";
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase";
 
 /**
  * Keamanan sesi: bila pengguna meninggalkan situs atau tidak ada aktivitas
@@ -15,8 +15,8 @@ import { createClient } from '@/lib/supabase';
  *    awal akan mengeluarkan pengguna bila sudah lewat 5 menit sejak aktivitas
  *    terakhir.
  */
-const IDLE_MS = 5 * 60 * 1000; // 5 menit
-const KEY = 'sippt:last_active';
+const IDLE_MS = 10 * 60 * 1000; // 10 menit
+const KEY = "sippt:last_active";
 
 export function IdleLogout() {
   const router = useRouter();
@@ -33,21 +33,36 @@ export function IdleLogout() {
       }
     };
     const mark = () => {
-      try { localStorage.setItem(KEY, String(now())); } catch { /* abaikan */ }
+      try {
+        localStorage.setItem(KEY, String(now()));
+      } catch {
+        /* abaikan */
+      }
     };
 
     async function logout() {
       if (loggingOut.current) return;
       loggingOut.current = true;
-      try { await createClient().auth.signOut(); } catch { /* abaikan */ }
-      try { localStorage.removeItem(KEY); } catch { /* abaikan */ }
-      router.replace('/login?timeout=1');
+      try {
+        await createClient().auth.signOut();
+      } catch {
+        /* abaikan */
+      }
+      try {
+        localStorage.removeItem(KEY);
+      } catch {
+        /* abaikan */
+      }
+      router.replace("/login?timeout=1");
       router.refresh();
     }
 
     function check() {
       const last = read();
-      if (!Number.isFinite(last)) { mark(); return; }
+      if (!Number.isFinite(last)) {
+        mark();
+        return;
+      }
       if (now() - last > IDLE_MS) logout();
     }
 
@@ -63,21 +78,33 @@ export function IdleLogout() {
     let lastWrite = 0;
     const onActivity = () => {
       const t = now();
-      if (t - lastWrite > 10_000) { lastWrite = t; mark(); }
+      if (t - lastWrite > 10_000) {
+        lastWrite = t;
+        mark();
+      }
     };
     const events: (keyof WindowEventMap)[] = [
-      'mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click',
+      "mousemove",
+      "mousedown",
+      "keydown",
+      "scroll",
+      "touchstart",
+      "click",
     ];
-    events.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
+    events.forEach((e) =>
+      window.addEventListener(e, onActivity, { passive: true }),
+    );
 
-    const onVisible = () => { if (document.visibilityState === 'visible') check(); };
-    document.addEventListener('visibilitychange', onVisible);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") check();
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     const iv = window.setInterval(check, 20_000); // cek tiap 20 detik
 
     return () => {
       events.forEach((e) => window.removeEventListener(e, onActivity));
-      document.removeEventListener('visibilitychange', onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
       window.clearInterval(iv);
     };
   }, [router]);
