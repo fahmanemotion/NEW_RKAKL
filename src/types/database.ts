@@ -1,7 +1,7 @@
 // SIPPT — tipe database (ringkas; di proyek nyata di-generate via
 // `supabase gen types typescript --local > src/types/database.ts`).
 
-export type Level = 'PROGRAM' | 'KEGIATAN' | 'KRO' | 'RO' | 'KOMPONEN' | 'SUB_KOMPONEN' | 'AKUN' | 'DETAIL';
+export type Level = 'PROGRAM' | 'KEGIATAN' | 'KRO' | 'RO' | 'KOMPONEN' | 'SUB_KOMPONEN' | 'AKUN' | 'HEADER' | 'DETAIL';
 export type StatusUsulan = 'Draft' | 'Diajukan' | 'Direview' | 'Disetujui' | 'Final';
 export type KategoriBelanja =
   | 'Belanja Pegawai' | 'Belanja Barang' | 'Belanja Modal';
