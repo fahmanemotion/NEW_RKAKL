@@ -102,15 +102,17 @@ export function ImportExcel({ open, def, onClose, onDone }: Props) {
     >
       {phase === 'pick' && (
         <div className="space-y-4">
-          <div className="rounded-md border border-dashed border-border p-8 text-center">
-            <Upload className="mx-auto mb-2 size-7 text-muted-foreground" />
+          <div className="rounded-xl border-2 border-dashed border-border p-8 text-center transition-colors hover:border-primary/40">
+            <span className="mx-auto mb-3 grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
+              <Upload className="size-6" />
+            </span>
             <p className="mb-3 text-sm text-muted-foreground">Pilih file Excel (.xlsx / .xls) atau CSV</p>
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
               <Upload className="size-4" /> Pilih File
               <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onFile} />
             </label>
           </div>
-          <div className="rounded-md bg-muted p-3 text-xs">
+          <div className="rounded-lg border border-border bg-muted/50 p-3 text-xs">
             <p className="font-medium">Urutan kolom yang diharapkan (baris pertama boleh header, akan dilewati):</p>
             <p className="mt-1 font-mono text-muted-foreground">{expected}</p>
             {def.parent && <p className="mt-1 text-muted-foreground">Kolom pertama = <strong>kode {def.parent.label}</strong> (induk) yang harus sudah ada di master.</p>}
@@ -131,19 +133,19 @@ export function ImportExcel({ open, def, onClose, onDone }: Props) {
                 </Select>
               </label>
             )}
-            <span className="inline-flex items-center gap-1 text-emerald-600"><CheckCircle2 className="size-4" /> {validCount} valid</span>
-            {invalidCount > 0 && <span className="inline-flex items-center gap-1 text-amber-600"><AlertTriangle className="size-4" /> {invalidCount} dilewati</span>}
+            <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="size-4" /> {validCount} valid</span>
+            {invalidCount > 0 && <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400"><AlertTriangle className="size-4" /> {invalidCount} dilewati</span>}
           </div>
-          <div className="max-h-[46vh] overflow-auto rounded-md border border-border">
+          <div className="max-h-[46vh] overflow-auto rounded-lg border border-border">
             <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-muted">
-                <tr>
-                  <th className="px-2 py-1.5 text-left">#</th>
-                  {def.parent && <th className="px-2 py-1.5 text-left">Induk ({def.parent.label})</th>}
-                  <th className="px-2 py-1.5 text-left">Kode</th>
-                  <th className="px-2 py-1.5 text-left">Nama</th>
-                  {def.extraFields?.map((f) => <th key={f.key} className="px-2 py-1.5 text-left">{f.label}</th>)}
-                  <th className="px-2 py-1.5 text-left">Status</th>
+              <thead>
+                <tr className="border-b border-border bg-muted text-left text-muted-foreground [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-muted">
+                  <th className="px-2 py-1.5 font-semibold">#</th>
+                  {def.parent && <th className="px-2 py-1.5 font-semibold">Induk ({def.parent.label})</th>}
+                  <th className="px-2 py-1.5 font-semibold">Kode</th>
+                  <th className="px-2 py-1.5 font-semibold">Nama</th>
+                  {def.extraFields?.map((f) => <th key={f.key} className="px-2 py-1.5 font-semibold">{f.label}</th>)}
+                  <th className="px-2 py-1.5 font-semibold">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -154,7 +156,7 @@ export function ImportExcel({ open, def, onClose, onDone }: Props) {
                     <td className="px-2 py-1 font-mono">{r.values[def.kodeCol]}</td>
                     <td className="px-2 py-1">{r.values[def.namaCol]}</td>
                     {def.extraFields?.map((f) => <td key={f.key} className="px-2 py-1">{r.values[f.key]}</td>)}
-                    <td className="px-2 py-1">{r.valid ? <span className="text-emerald-600">OK</span> : <span className="text-amber-600">{r.error}</span>}</td>
+                    <td className="px-2 py-1">{r.valid ? <span className="text-emerald-600 dark:text-emerald-400">OK</span> : <span className="text-amber-600 dark:text-amber-400">{r.error}</span>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -170,14 +172,14 @@ export function ImportExcel({ open, def, onClose, onDone }: Props) {
 
       {phase === 'done' && result && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2 text-emerald-600"><CheckCircle2 className="size-5" /> Import selesai.</div>
+          <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="size-5" /> Import selesai.</div>
           <ul className="text-sm">
             <li><strong>{result.inserted}</strong> baris ditambahkan (duplikat diabaikan otomatis).</li>
             {result.skipped > 0 && <li>{result.skipped} baris dilewati (tidak valid).</li>}
-            {result.failed > 0 && <li className="text-amber-600">{result.failed} baris gagal.</li>}
+            {result.failed > 0 && <li className="text-amber-600 dark:text-amber-400">{result.failed} baris gagal.</li>}
           </ul>
           {result.errors.length > 0 && (
-            <div className="max-h-40 overflow-auto rounded-md bg-muted p-2 text-xs text-muted-foreground">
+            <div className="max-h-40 overflow-auto rounded-lg border border-border bg-muted/50 p-2 text-xs text-muted-foreground">
               {result.errors.slice(0, 50).map((e, i) => <div key={i}>• {e}</div>)}
             </div>
           )}
