@@ -82,6 +82,14 @@ export function DetailForm({
     setSeg((s) => s.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
   }
 
+  // Tampilkan angka dengan pemisah ribuan (id-ID); kosong saat 0/empty.
+  const grp = (v: number | string) => {
+    const n = Number(String(v).replace(/\D/g, ''));
+    return n > 0 ? n.toLocaleString('id-ID') : '';
+  };
+  // Ambil digit saja dari input ber-titik.
+  const onlyDigits = (s: string) => s.replace(/\D/g, '');
+
   // Enter di Uraian → buka/tutup rincian. Saat membuka, isi segmen pertama dari
   // Volkeg manual agar nilai berlanjut; saat menutup, Volkeg = hasil kali rincian.
   function toggleRincian() {
@@ -180,8 +188,8 @@ export function DetailForm({
             {showRincian ? (
               <Input value={fmtN(volume)} readOnly className="bg-muted text-right" title="Terkunci — dihitung dari rincian" />
             ) : (
-              <Input type="number" min={0} className="text-right" placeholder="0"
-                value={manualVolume === 0 ? '' : String(manualVolume)} onChange={(e) => setManualVolume(e.target.value)} />
+              <Input inputMode="numeric" className="text-right" placeholder="0"
+                value={grp(manualVolume)} onChange={(e) => setManualVolume(onlyDigits(e.target.value))} />
             )}
           </div>
           <div>
@@ -190,7 +198,7 @@ export function DetailForm({
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">Harga Satuan</label>
-            <Input type="number" min={0} value={harga || ''} onChange={(e) => setHarga(+e.target.value)} className="text-right" />
+            <Input inputMode="numeric" value={grp(harga)} onChange={(e) => setHarga(Number(onlyDigits(e.target.value)) || 0)} className="text-right" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">Jumlah</label>
