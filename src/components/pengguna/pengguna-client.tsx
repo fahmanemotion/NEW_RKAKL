@@ -10,6 +10,9 @@ import {
   ShieldCheck,
   Users,
   Inbox,
+  UserCog,
+  UserCheck,
+  Crown,
 } from "lucide-react";
 import { Card, Button, Input, Select, Badge } from "@/components/ui";
 import { Modal } from "@/components/ui/modal";
@@ -46,11 +49,42 @@ interface CurrentUser {
 }
 
 const ROLE_COLOR: Record<string, string> = {
-  Administrator: "bg-blue-100 text-blue-800",
-  Operator: "bg-emerald-100 text-emerald-800",
-  Reviewer: "bg-amber-100 text-amber-800",
-  Pimpinan: "bg-violet-100 text-violet-800",
+  Administrator: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  Operator: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  Reviewer: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  Pimpinan: "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300",
 };
+
+type Tint = { bg: string; fg: string };
+const TINTS: Record<string, Tint> = {
+  slate: { bg: "bg-slate-100 dark:bg-slate-800", fg: "text-slate-600 dark:text-slate-300" },
+  blue: { bg: "bg-blue-100 dark:bg-blue-900/40", fg: "text-blue-600 dark:text-blue-300" },
+  emerald: { bg: "bg-emerald-100 dark:bg-emerald-900/40", fg: "text-emerald-600 dark:text-emerald-300" },
+  amber: { bg: "bg-amber-100 dark:bg-amber-900/40", fg: "text-amber-600 dark:text-amber-300" },
+  violet: { bg: "bg-violet-100 dark:bg-violet-900/40", fg: "text-violet-600 dark:text-violet-300" },
+};
+
+function StatTile({
+  icon: Icon,
+  tint,
+  label,
+  value,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  tint: Tint;
+  label: string;
+  value: number;
+}) {
+  return (
+    <Card className="p-4 transition-shadow hover:shadow-md">
+      <span className={`grid size-9 place-items-center rounded-xl ${tint.bg} ${tint.fg}`}>
+        <Icon className="size-4" />
+      </span>
+      <p className="mt-3 truncate text-[13px] text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-xl font-bold tabular-nums">{value}</p>
+    </Card>
+  );
+}
 
 export function PenggunaClient({
   isAdmin,
@@ -73,6 +107,13 @@ export function PenggunaClient({
     () => filterUsers(users, q, roleFilter),
     [users, q, roleFilter],
   );
+
+  // Jumlah pengguna per peran untuk kartu ringkasan.
+  const roleCounts = React.useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const u of users) m[u.roleName] = (m[u.roleName] ?? 0) + 1;
+    return m;
+  }, [users]);
 
   const refresh = React.useCallback(async () => {
     setRefreshing(true);
@@ -102,12 +143,25 @@ export function PenggunaClient({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold">Manajemen Pengguna</h1>
-        <p className="text-sm text-muted-foreground">
-          Kelola akun yang dapat mengakses aplikasi beserta peran (otoritas)
-          masing-masing.
-        </p>
+      {/* ── Header hero ─────────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl border border-border card-elevated bg-gradient-to-br from-[hsl(214_92%_46%)] via-[hsl(206_92%_40%)] to-[hsl(217_56%_24%)] text-white">
+        <div className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-white/10 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-24 left-1/3 size-72 rounded-full bg-sky-300/10 blur-3xl" />
+        <div className="relative flex items-start gap-3 p-5 sm:p-6">
+          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/15 text-white ring-1 ring-inset ring-white/20">
+            <Users className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+              Administrasi
+            </p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight">Manajemen Pengguna</h1>
+            <p className="mt-1 text-sm text-white/85">
+              Kelola akun yang dapat mengakses aplikasi beserta peran (otoritas)
+              masing-masing.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Akun Saya */}
@@ -138,6 +192,16 @@ export function PenggunaClient({
           </Button>
         </div>
       </Card>
+
+      {isAdmin && users.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <StatTile icon={Users} tint={TINTS.slate} label="Total Pengguna" value={users.length} />
+          <StatTile icon={ShieldCheck} tint={TINTS.blue} label="Administrator" value={roleCounts["Administrator"] ?? 0} />
+          <StatTile icon={UserCog} tint={TINTS.emerald} label="Operator" value={roleCounts["Operator"] ?? 0} />
+          <StatTile icon={UserCheck} tint={TINTS.amber} label="Reviewer" value={roleCounts["Reviewer"] ?? 0} />
+          <StatTile icon={Crown} tint={TINTS.violet} label="Pimpinan" value={roleCounts["Pimpinan"] ?? 0} />
+        </div>
+      )}
 
       {!isAdmin ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">
@@ -198,10 +262,10 @@ export function PenggunaClient({
           </div>
 
           {/* Tabel */}
-          <div className="overflow-x-auto">
+          <div className="max-h-[60vh] overflow-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b-2 border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-muted">
                   <th className="px-3 py-2.5 font-semibold">Nama / Email</th>
                   <th className="px-3 py-2.5 font-semibold">NIP / Jabatan</th>
                   <th className="px-3 py-2.5 font-semibold">Peran</th>
