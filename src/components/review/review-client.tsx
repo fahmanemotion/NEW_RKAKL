@@ -3,11 +3,11 @@ import * as React from "react";
 import type XLSXTypes from "xlsx-js-style";
 type XLSXModule = typeof import("xlsx-js-style");
 import { loadXLSXStyle } from "@/lib/xlsx-lazy";
-import { Loader2, Inbox, Download } from "lucide-react";
+import { Loader2, Inbox, Download, ClipboardCheck } from "lucide-react";
 import { Card, Select, Button, Badge } from "@/components/ui";
 import { createClient } from "@/lib/supabase";
 import { fetchAllStruktur } from "@/lib/fetch-struktur";
-import { fmtN } from "@/lib/constants";
+import { fmtN, fmtRp } from "@/lib/constants";
 import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
 import { STATUS_COLOR, type Status } from "@/lib/constants";
 import type { UsulanStruktur } from "@/types/database";
@@ -106,57 +106,69 @@ export function ReviewClient({ usulanList }: { usulanList: ReviewUsulan[] }) {
   }
 
   const noData = usulanList.length === 0;
+  const ready = !!usulan && kk.rows.length > 0;
 
   return (
     <div className="space-y-6">
-      {/* Header + pemilih (sama seperti dashboard) */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold">Review Kertas Kerja</h1>
-          <p className="text-sm text-muted-foreground">
-            Tinjau kertas kerja yang telah disusun, lalu unduh bila perlu.
-          </p>
-        </div>
-        <div className="flex items-end gap-2">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">
-              Tahun Anggaran
-            </label>
-            <Select
-              value={tahun ?? ""}
-              onChange={(e) => setTahun(Number(e.target.value))}
-              disabled={years.length === 0}
-              className="min-w-[120px]"
-            >
-              {years.length === 0 && <option value="">—</option>}
-              {years.map((y) => (
-                <option key={y} value={y}>
-                  TA {y}
-                </option>
-              ))}
-            </Select>
+      {/* ── Header hero ─────────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl border border-border card-elevated bg-gradient-to-br from-[hsl(214_92%_46%)] via-[hsl(206_92%_40%)] to-[hsl(217_56%_24%)] text-white">
+        <div className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-white/10 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-24 left-1/3 size-72 rounded-full bg-sky-300/10 blur-3xl" />
+        <div className="relative flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+              Kertas Kerja
+            </p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight">Review Kertas Kerja</h1>
+            <p className="mt-1 text-sm text-white/85">
+              Tinjau kertas kerja yang telah disusun, lalu unduh bila perlu.
+            </p>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">
-              Tahap Pagu
-            </label>
-            <Select
-              value={tahap ?? ""}
-              onChange={(e) => setTahap(e.target.value)}
-              disabled={tahapList.length === 0}
-              className="min-w-[190px]"
+          <div className="flex shrink-0 flex-wrap items-end gap-2.5">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-white/70">
+                Tahun Anggaran
+              </label>
+              <Select
+                value={tahun ?? ""}
+                onChange={(e) => setTahun(Number(e.target.value))}
+                disabled={years.length === 0}
+                className="min-w-[120px] border-white/25 bg-white/15 text-white shadow-none backdrop-blur [&>option]:text-foreground"
+              >
+                {years.length === 0 && <option value="">—</option>}
+                {years.map((y) => (
+                  <option key={y} value={y}>
+                    TA {y}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-white/70">
+                Tahap Pagu
+              </label>
+              <Select
+                value={tahap ?? ""}
+                onChange={(e) => setTahap(e.target.value)}
+                disabled={tahapList.length === 0}
+                className="min-w-[190px] border-white/25 bg-white/15 text-white shadow-none backdrop-blur [&>option]:text-foreground"
+              >
+                {tahapList.length === 0 && <option value="">—</option>}
+                {tahapList.map((u) => (
+                  <option key={u.id} value={u.tahap}>
+                    {TAHAP_LABEL[u.tahap as TahapPagu] ?? u.tahap} · {u.status}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <Button
+              onClick={download}
+              disabled={!ready}
+              className="bg-white text-[hsl(214_92%_40%)] hover:bg-white/90 disabled:bg-white/60 disabled:text-[hsl(214_30%_45%)]"
             >
-              {tahapList.length === 0 && <option value="">—</option>}
-              {tahapList.map((u) => (
-                <option key={u.id} value={u.tahap}>
-                  {TAHAP_LABEL[u.tahap as TahapPagu] ?? u.tahap} · {u.status}
-                </option>
-              ))}
-            </Select>
+              <Download className="size-4" /> Unduh Kertas Kerja
+            </Button>
           </div>
-          <Button onClick={download} disabled={!usulan || kk.rows.length === 0}>
-            <Download className="size-4" /> Unduh Kertas Kerja
-          </Button>
         </div>
       </div>
 
@@ -169,40 +181,57 @@ export function ReviewClient({ usulanList }: { usulanList: ReviewUsulan[] }) {
         </Card>
       ) : (
         <Card className="overflow-hidden">
-          {/* Kop kertas kerja */}
+          {/* Identitas kertas kerja */}
           {usulan && (
-            <div className="border-b border-border p-4 text-center">
-              <div className="text-sm font-bold uppercase">
-                Rincian Kertas Kerja Satker — {usulan.satkerNama}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                  <ClipboardCheck className="size-5" />
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-bold uppercase">
+                    Kertas Kerja — {usulan.satkerNama}
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                    <span>
+                      {TAHAP_LABEL[usulan.tahap as TahapPagu] ?? usulan.tahap} · T.A.{" "}
+                      {usulan.tahun}
+                    </span>
+                    <Badge
+                      className={`${STATUS_COLOR[usulan.status as Status] ?? "bg-slate-100 text-slate-700"}`}
+                    >
+                      {usulan.status}
+                    </Badge>
+                  </div>
+                </div>
               </div>
-              <div className="text-xs text-muted-foreground">
-                {TAHAP_LABEL[usulan.tahap as TahapPagu] ?? usulan.tahap} · T.A.{" "}
-                {usulan.tahun}
-                <Badge
-                  className={`ml-2 ${STATUS_COLOR[usulan.status as Status] ?? "bg-slate-100 text-slate-700"}`}
-                >
-                  {usulan.status}
-                </Badge>
-              </div>
+              {ready && (
+                <div className="text-right">
+                  <div className="text-xs text-muted-foreground">Total Pagu</div>
+                  <div className="text-lg font-bold tabular-nums text-amber-700 dark:text-amber-400">
+                    {fmtRp(kk.totalJumlah)}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          <div className="overflow-x-auto">
+          <div className="max-h-[68vh] overflow-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b-2 border-border bg-muted/40 text-left uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2 font-semibold">
+                <tr className="border-b border-border bg-muted text-left uppercase tracking-wide text-muted-foreground [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-muted">
+                  <th className="px-3 py-2.5 font-semibold">
                     Kode / Program / Kegiatan / KRO / RO / Komponen / SubKomp /
                     Detil
                   </th>
-                  <th className="px-3 py-2 text-right font-semibold">Volume</th>
-                  <th className="px-3 py-2 text-right font-semibold">
+                  <th className="px-3 py-2.5 text-right font-semibold">Volume</th>
+                  <th className="px-3 py-2.5 text-right font-semibold">
                     Harga Satuan
                   </th>
-                  <th className="px-3 py-2 text-right font-semibold">
+                  <th className="px-3 py-2.5 text-right font-semibold">
                     Jumlah Biaya
                   </th>
-                  <th className="px-3 py-2 text-center font-semibold">SD</th>
+                  <th className="px-3 py-2.5 text-center font-semibold">SD</th>
                 </tr>
               </thead>
               <tbody>
@@ -228,11 +257,11 @@ export function ReviewClient({ usulanList }: { usulanList: ReviewUsulan[] }) {
               </tbody>
               {kk.rows.length > 0 && (
                 <tfoot>
-                  <tr className="border-t-2 border-border bg-muted/40 font-bold">
-                    <td className="px-3 py-2">JUMLAH</td>
+                  <tr className="sticky bottom-0 z-10 border-t-2 border-border bg-muted font-bold [&>td]:bg-muted">
+                    <td className="px-3 py-2.5">JUMLAH</td>
                     <td></td>
                     <td></td>
-                    <td className="px-3 py-2 text-right font-mono tabular-nums">
+                    <td className="px-3 py-2.5 text-right font-mono tabular-nums">
                       {fmtN(kk.totalJumlah)}
                     </td>
                     <td></td>
@@ -252,8 +281,8 @@ function KKRowView({ r }: { r: KKRow }) {
   const isStruct =
     r.level !== "DETAIL" && r.level !== "AKUN" && r.level !== "SUB_KOMPONEN";
   return (
-    <tr className="border-b border-border last:border-0 hover:bg-accent/30">
-      <td className="px-3 py-1.5">
+    <tr className="border-b border-border transition-colors last:border-0 hover:bg-accent/40">
+      <td className="px-3 py-2">
         <div
           className={`${heavy ? "font-bold" : isStruct ? "font-medium" : ""}`}
           style={{ paddingLeft: r.depth * 12 }}
@@ -267,7 +296,7 @@ function KKRowView({ r }: { r: KKRow }) {
           {r.uraian}
         </div>
       </td>
-      <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums">
+      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
         {r.segments && r.segments.length > 1 ? (
           <div className="flex flex-col items-end">
             <span className="text-[11px] text-muted-foreground">
@@ -283,19 +312,19 @@ function KKRowView({ r }: { r: KKRow }) {
           ""
         )}
       </td>
-      <td className="px-3 py-1.5 text-right font-mono tabular-nums">
+      <td className="px-3 py-2 text-right font-mono tabular-nums">
         {r.harga != null && r.harga > 0 ? fmtN(r.harga) : ""}
       </td>
-      <td className="px-3 py-1.5 text-right font-mono tabular-nums">
+      <td className="px-3 py-2 text-right font-mono tabular-nums">
         {r.jumlah ? fmtN(r.jumlah) : ""}
       </td>
-      <td className="px-3 py-1.5 text-center">
+      <td className="px-3 py-2 text-center">
         {r.sumber && r.sumber !== "-" ? (
           <span
             className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
               r.sumber === "BLU"
-                ? "bg-violet-100 text-violet-700"
-                : "bg-blue-100 text-blue-700"
+                ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
             }`}
           >
             {r.sumber}
