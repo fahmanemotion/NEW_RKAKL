@@ -108,49 +108,63 @@ export function SatkerManager({ satkerId }: { satkerId: string | null }) {
 
   return (
     <div className="max-w-xl">
-      <Card className="space-y-4 p-5">
-        <div>
-          <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Building2 className="size-3.5" /> Nama Satker
-          </label>
-          <Input value={nama} onChange={(e) => { setNama(e.target.value); touch(); }} placeholder="mis. Politeknik Ilmu Pelayaran Makassar" />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Nama ini tampil di seluruh aplikasi (header, monitoring, review, laporan) dan pada RAB.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <Card className="overflow-hidden">
+        <div className="flex items-center gap-2.5 border-b border-border p-4">
+          <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
+            <Building2 className="size-4" />
+          </span>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Kode Satker</label>
-            <Input value={kode} onChange={(e) => { setKode(e.target.value); touch(); }} placeholder="mis. 287494" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">KPPN</label>
-            <Input value={kppn} onChange={(e) => { setKppn(e.target.value); touch(); }} placeholder="opsional" />
+            <h2 className="text-sm font-semibold">Identitas Satker</h2>
+            <p className="text-xs text-muted-foreground">
+              Berlaku di seluruh aplikasi &amp; laporan RAB setelah disimpan.
+            </p>
           </div>
         </div>
 
-        <div>
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">Lokus</label>
-          <Input value={lokus} onChange={(e) => { setLokus(e.target.value); touch(); }} placeholder="opsional" />
-        </div>
+        <div className="space-y-4 p-5">
+          <div>
+            <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Building2 className="size-3.5" /> Nama Satker
+            </label>
+            <Input value={nama} onChange={(e) => { setNama(e.target.value); touch(); }} placeholder="mis. Politeknik Ilmu Pelayaran Makassar" />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Nama ini tampil di seluruh aplikasi (header, monitoring, review, laporan) dan pada RAB.
+            </p>
+          </div>
 
-        <div className="rounded-md bg-muted px-3 py-2 text-sm">
-          <span className="text-xs text-muted-foreground">Pratinjau di RAB: </span>
-          <span className="font-medium">{(kode || "—") + " — " + (nama || "—")}</span>
-        </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Kode Satker</label>
+              <Input value={kode} onChange={(e) => { setKode(e.target.value); touch(); }} placeholder="mis. 287494" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">KPPN</label>
+              <Input value={kppn} onChange={(e) => { setKppn(e.target.value); touch(); }} placeholder="opsional" />
+            </div>
+          </div>
 
-        {err && <p className="text-sm text-destructive">{err}</p>}
-        {saved && (
-          <p className="flex items-center gap-1.5 text-sm text-emerald-600">
-            <CheckCircle2 className="size-4" /> Tersimpan. Nama satker diperbarui di seluruh aplikasi.
-          </p>
-        )}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Lokus</label>
+            <Input value={lokus} onChange={(e) => { setLokus(e.target.value); touch(); }} placeholder="opsional" />
+          </div>
 
-        <div className="flex justify-end">
-          <Button onClick={save} disabled={busy}>
-            {busy ? <><Loader2 className="size-4 animate-spin" /> Menyimpan…</> : <><Save className="size-4" /> Simpan</>}
-          </Button>
+          <div className="rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-sm">
+            <span className="text-xs text-muted-foreground">Pratinjau di RAB: </span>
+            <span className="font-medium">{(kode || "—") + " — " + (nama || "—")}</span>
+          </div>
+
+          {err && <p className="text-sm text-destructive">{err}</p>}
+          {saved && (
+            <p className="flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="size-4" /> Tersimpan. Nama satker diperbarui di seluruh aplikasi.
+            </p>
+          )}
+
+          <div className="flex justify-end">
+            <Button onClick={save} disabled={busy}>
+              {busy ? <><Loader2 className="size-4 animate-spin" /> Menyimpan…</> : <><Save className="size-4" /> Simpan</>}
+            </Button>
+          </div>
         </div>
       </Card>
     </div>

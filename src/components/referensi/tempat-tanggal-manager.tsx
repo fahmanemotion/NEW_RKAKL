@@ -78,49 +78,63 @@ export function TempatTanggalManager() {
 
   return (
     <div className="max-w-xl">
-      <Card className="space-y-4 p-5">
-        <div>
-          <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <MapPin className="size-3.5" /> Tempat (Kota)
-          </label>
-          <Input
-            value={kota}
-            onChange={(e) => { setKota(e.target.value); setSaved(false); }}
-            placeholder="mis. Makassar"
-          />
+      <Card className="overflow-hidden">
+        <div className="flex items-center gap-2.5 border-b border-border p-4">
+          <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
+            <Calendar className="size-4" />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold">Tempat &amp; Tanggal RAB</h2>
+            <p className="text-xs text-muted-foreground">
+              Dicetak pada bagian penutup laporan RAB.
+            </p>
+          </div>
         </div>
 
-        <div>
-          <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Calendar className="size-3.5" /> Tanggal
-          </label>
-          <Input
-            type="date"
-            value={tanggal}
-            onChange={(e) => { setTanggal(e.target.value); setSaved(false); }}
-            className="w-auto"
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Kosongkan untuk memakai tanggal hari ini secara otomatis saat RAB dibuat.
-          </p>
-        </div>
+        <div className="space-y-4 p-5">
+          <div>
+            <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <MapPin className="size-3.5" /> Tempat (Kota)
+            </label>
+            <Input
+              value={kota}
+              onChange={(e) => { setKota(e.target.value); setSaved(false); }}
+              placeholder="mis. Makassar"
+            />
+          </div>
 
-        <div className="rounded-md bg-muted px-3 py-2 text-sm">
-          <span className="text-xs text-muted-foreground">Pratinjau pada RAB: </span>
-          <span className="font-medium">{preview}</span>
-        </div>
+          <div>
+            <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Calendar className="size-3.5" /> Tanggal
+            </label>
+            <Input
+              type="date"
+              value={tanggal}
+              onChange={(e) => { setTanggal(e.target.value); setSaved(false); }}
+              className="w-auto"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Kosongkan untuk memakai tanggal hari ini secara otomatis saat RAB dibuat.
+            </p>
+          </div>
 
-        {err && <p className="text-sm text-destructive">{err}</p>}
-        {saved && (
-          <p className="flex items-center gap-1.5 text-sm text-emerald-600">
-            <CheckCircle2 className="size-4" /> Tersimpan. Akan dipakai pada RAB berikutnya.
-          </p>
-        )}
+          <div className="rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-sm">
+            <span className="text-xs text-muted-foreground">Pratinjau pada RAB: </span>
+            <span className="font-medium">{preview}</span>
+          </div>
 
-        <div className="flex justify-end">
-          <Button onClick={save} disabled={busy}>
-            {busy ? <><Loader2 className="size-4 animate-spin" /> Menyimpan…</> : <><Save className="size-4" /> Simpan</>}
-          </Button>
+          {err && <p className="text-sm text-destructive">{err}</p>}
+          {saved && (
+            <p className="flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="size-4" /> Tersimpan. Akan dipakai pada RAB berikutnya.
+            </p>
+          )}
+
+          <div className="flex justify-end">
+            <Button onClick={save} disabled={busy}>
+              {busy ? <><Loader2 className="size-4 animate-spin" /> Menyimpan…</> : <><Save className="size-4" /> Simpan</>}
+            </Button>
+          </div>
         </div>
       </Card>
     </div>

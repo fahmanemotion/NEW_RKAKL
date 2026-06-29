@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Stamp, Inbox } from "lucide-react";
 import { Button, Input, Card } from "@/components/ui";
 import { Modal } from "@/components/ui/modal";
 import { createClient } from "@/lib/supabase";
@@ -57,26 +57,38 @@ export function PenandatanganManager() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Daftar pejabat penanda tangan. Saat membuat laporan RAB, pilih siapa yang
-          bertanda tangan di sisi kiri & kanan.
-        </p>
-        <Button onClick={() => setForm({})}>
-          <Plus className="size-4" /> Tambah Penandatangan
-        </Button>
-      </div>
-
       <Card className="overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
+          <div className="flex items-center gap-2.5">
+            <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
+              <Stamp className="size-4" />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold">Daftar Penandatangan</h2>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
+                  {rows.length}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Pejabat yang dipilih saat membuat laporan RAB (sisi kiri &amp; kanan).
+              </p>
+            </div>
+          </div>
+          <Button onClick={() => setForm({})}>
+            <Plus className="size-4" /> Tambah Penandatangan
+          </Button>
+        </div>
+
         <div className="overflow-auto" style={{ maxHeight: "60vh" }}>
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-muted text-xs">
-              <tr>
-                <th className="px-3 py-2 text-left font-semibold">Nama</th>
-                <th className="px-3 py-2 text-left font-semibold">Jabatan</th>
-                <th className="px-3 py-2 text-left font-semibold">Pangkat/Golongan</th>
-                <th className="px-3 py-2 text-left font-semibold">NIP</th>
-                <th className="w-24 px-3 py-2 text-right font-semibold">Aksi</th>
+            <thead>
+              <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-muted">
+                <th className="px-3 py-2.5 font-semibold">Nama</th>
+                <th className="px-3 py-2.5 font-semibold">Jabatan</th>
+                <th className="px-3 py-2.5 font-semibold">Pangkat/Golongan</th>
+                <th className="px-3 py-2.5 font-semibold">NIP</th>
+                <th className="w-24 px-3 py-2.5 text-right font-semibold">Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -85,17 +97,17 @@ export function PenandatanganManager() {
               ) : err ? (
                 <tr><td colSpan={5} className="py-6 text-center text-destructive">{err}</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={5} className="py-10 text-center text-muted-foreground">Belum ada penandatangan. Klik <strong>Tambah Penandatangan</strong>.</td></tr>
+                <tr><td colSpan={5} className="py-10 text-center text-muted-foreground"><Inbox className="mx-auto mb-2 size-6" /> Belum ada penandatangan. Klik <strong>Tambah Penandatangan</strong>.</td></tr>
               ) : rows.map((r) => (
-                <tr key={r.id} className="border-t border-border hover:bg-accent/50">
-                  <td className="px-3 py-1.5 font-medium">{r.nama}</td>
-                  <td className="px-3 py-1.5">{r.jabatan ?? ""}</td>
-                  <td className="px-3 py-1.5">{r.pangkat_golongan ?? ""}</td>
-                  <td className="px-3 py-1.5 font-mono">{r.nip ?? ""}</td>
-                  <td className="px-3 py-1.5">
+                <tr key={r.id} className="border-b border-border transition-colors last:border-0 hover:bg-accent/40">
+                  <td className="px-3 py-2 font-medium">{r.nama}</td>
+                  <td className="px-3 py-2">{r.jabatan ?? ""}</td>
+                  <td className="px-3 py-2">{r.pangkat_golongan ?? ""}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{r.nip ?? ""}</td>
+                  <td className="px-3 py-2">
                     <div className="flex justify-end gap-1">
-                      <button className="rounded p-1.5 hover:bg-accent" title="Edit" onClick={() => setForm({ initial: r })}><Pencil className="size-4" /></button>
-                      <button className="rounded p-1.5 text-destructive hover:bg-destructive/10" title="Hapus" onClick={() => onDelete(r)}><Trash2 className="size-4" /></button>
+                      <button className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground" title="Edit" onClick={() => setForm({ initial: r })}><Pencil className="size-4" /></button>
+                      <button className="rounded-md p-1.5 text-destructive hover:bg-destructive/10" title="Hapus" onClick={() => onDelete(r)}><Trash2 className="size-4" /></button>
                     </div>
                   </td>
                 </tr>
