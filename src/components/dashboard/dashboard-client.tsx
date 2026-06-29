@@ -12,6 +12,8 @@ import {
   Users2,
   Package,
   Hammer,
+  RotateCcw,
+  Layers,
 } from "lucide-react";
 import { Card, Input, Select } from "@/components/ui";
 import { createClient } from "@/lib/supabase";
@@ -174,11 +176,8 @@ export function DashboardClient({
     const lbl = (kode: string, uraian: string) =>
       uraian ? `${kode} — ${uraian}` : kode;
     for (const r of akunRows) {
-      // Program selalu tampil penuh (level teratas, tak perlu di-scope).
       if (r.progKode) progM.set(r.progKode, lbl(r.progKode, r.progUraian));
       const okProg = fProg === ALL || r.progKode === fProg;
-      // KRO/RO/Komponen: KUNCI = path master unik; LABEL = uraian node itu
-      // sendiri. Anak hanya muncul bila induk terpilih cocok (cascading).
       if (okProg && r.kroKey) kroM.set(r.kroKey, lbl(r.kroKode, r.kroLabel));
       const okKro = okProg && (fKro === ALL || r.kroKey === fKro);
       if (okKro && r.roKey) roM.set(r.roKey, lbl(r.roKode, r.roLabel));
@@ -196,6 +195,15 @@ export function DashboardClient({
   const onKro = (v: string) => { setFKro(v); setFRo(ALL); setFKomponen(ALL); setFAkun(ALL); };
   const onRo = (v: string) => { setFRo(v); setFKomponen(ALL); setFAkun(ALL); };
   const onKomponen = (v: string) => { setFKomponen(v); setFAkun(ALL); };
+
+  // Status & aksi reset filter (UI).
+  const anyFilter =
+    fProg !== ALL || fKro !== ALL || fRo !== ALL || fKomponen !== ALL ||
+    fAkun !== ALL || fSumber !== ALL || fKategori !== ALL || q.trim() !== "";
+  const resetFilters = () => {
+    setFProg(ALL); setFKro(ALL); setFRo(ALL); setFKomponen(ALL);
+    setFAkun(ALL); setFSumber(ALL); setFKategori(ALL); setQ("");
+  };
 
   const filtered = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -235,53 +243,77 @@ export function DashboardClient({
     });
 
   const noUsulan = usulanList.length === 0;
+  const tahapLabel = tahap ? (TAHAP_LABEL[tahap as TahapPagu] ?? tahap) : "—";
+  const statusNow = usulan?.status ?? null;
 
   return (
     <div className="space-y-6">
-      {/* Header + pemilih Tahun & Tahap */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            {satkerNama} — ringkasan usulan anggaran.
-          </p>
-        </div>
-        <div className="flex items-end gap-2">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">
-              Tahun Anggaran
-            </label>
-            <Select
-              value={tahun ?? ""}
-              onChange={(e) => setTahun(Number(e.target.value))}
-              disabled={years.length === 0}
-              className="min-w-[120px]"
-            >
-              {years.length === 0 && <option value="">—</option>}
-              {years.map((y) => (
-                <option key={y} value={y}>
-                  TA {y}
-                </option>
-              ))}
-            </Select>
+      {/* ── Header hero ─────────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl border border-border card-elevated bg-gradient-to-br from-[hsl(214_92%_46%)] via-[hsl(206_92%_40%)] to-[hsl(217_56%_24%)] text-white">
+        <div className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-white/10 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-24 left-1/3 size-72 rounded-full bg-sky-300/10 blur-3xl" />
+        <div className="relative flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+              Ringkasan Anggaran
+            </p>
+            <h1 className="mt-1 truncate text-2xl font-bold tracking-tight">
+              {satkerNama}
+            </h1>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-white/85">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 font-medium ring-1 ring-inset ring-white/20">
+                TA {tahun ?? "—"}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 font-medium ring-1 ring-inset ring-white/20">
+                {tahapLabel}
+              </span>
+              {statusNow && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-0.5 ring-1 ring-inset ring-white/15">
+                  <span className="size-1.5 rounded-full bg-emerald-300" />
+                  {statusNow}
+                </span>
+              )}
+            </div>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">
-              Tahap Pagu
-            </label>
-            <Select
-              value={tahap ?? ""}
-              onChange={(e) => setTahap(e.target.value)}
-              disabled={tahapList.length === 0}
-              className="min-w-[190px]"
-            >
-              {tahapList.length === 0 && <option value="">—</option>}
-              {tahapList.map((u) => (
-                <option key={u.id} value={u.tahap}>
-                  {TAHAP_LABEL[u.tahap as TahapPagu] ?? u.tahap} · {u.status}
-                </option>
-              ))}
-            </Select>
+
+          {/* Pemilih Tahun & Tahap pada permukaan kaca */}
+          <div className="flex shrink-0 flex-wrap items-end gap-2.5">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-white/70">
+                Tahun Anggaran
+              </label>
+              <Select
+                value={tahun ?? ""}
+                onChange={(e) => setTahun(Number(e.target.value))}
+                disabled={years.length === 0}
+                className="min-w-[120px] border-white/25 bg-white/15 text-white shadow-none backdrop-blur placeholder:text-white/60 [&>option]:text-foreground"
+              >
+                {years.length === 0 && <option value="">—</option>}
+                {years.map((y) => (
+                  <option key={y} value={y}>
+                    TA {y}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-white/70">
+                Tahap Pagu
+              </label>
+              <Select
+                value={tahap ?? ""}
+                onChange={(e) => setTahap(e.target.value)}
+                disabled={tahapList.length === 0}
+                className="min-w-[190px] border-white/25 bg-white/15 text-white shadow-none backdrop-blur [&>option]:text-foreground"
+              >
+                {tahapList.length === 0 && <option value="">—</option>}
+                {tahapList.map((u) => (
+                  <option key={u.id} value={u.tahap}>
+                    {TAHAP_LABEL[u.tahap as TahapPagu] ?? u.tahap} · {u.status}
+                  </option>
+                ))}
+              </Select>
+            </div>
           </div>
         </div>
       </div>
@@ -296,56 +328,79 @@ export function DashboardClient({
         </Card>
       ) : (
         <>
-          {/* Ringkasan */}
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <SummaryCard
-              icon={Wallet}
-              color="text-blue-600"
-              label="Total Pagu Usulan"
-              value={sum.total}
-              sub={`${sum.akunCount} akun`}
-            />
-            <SummaryCard
-              icon={Building2}
-              color="text-teal-600"
-              label="Operasional (OPS)"
-              value={sum.ops}
-              sub={pctStr(sum.ops, sum.total)}
-            />
-            <SummaryCard
-              icon={Briefcase}
-              color="text-orange-600"
-              label="Non Operasional (NON)"
-              value={sum.non}
-              sub={pctStr(sum.non, sum.total)}
-            />
-            <SummaryCard
-              icon={Users2}
-              color="text-cyan-600"
-              label="Belanja Pegawai"
-              value={sum.pegawai}
-              sub={pctStr(sum.pegawai, sum.total)}
-            />
-            <SummaryCard
-              icon={Package}
-              color="text-emerald-600"
-              label="Belanja Barang"
-              value={sum.barang}
-              sub={pctStr(sum.barang, sum.total)}
-            />
-            <SummaryCard
-              icon={Hammer}
-              color="text-amber-600"
-              label="Belanja Modal"
-              value={sum.modal}
-              sub={pctStr(sum.modal, sum.total)}
-            />
+          {/* ── Ringkasan ──────────────────────────────────────────────── */}
+          <div className="space-y-4">
+            {/* Kartu utama: total + komposisi */}
+            <Card className="p-5 sm:p-6">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary">
+                      <Wallet className="size-4" />
+                    </span>
+                    Total Pagu Usulan
+                  </div>
+                  <p className="mt-3 text-3xl font-bold tabular-nums sm:text-4xl">
+                    {fmtRp(sum.total)}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {fmtN(sum.akunCount)} akun
+                    {anyFilter && " (sesuai filter)"}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {sum.rm > 0 && (
+                    <SourcePill label="RM" value={sum.rm} total={sum.total} cls="text-blue-600 dark:text-blue-300" />
+                  )}
+                  {sum.blu > 0 && (
+                    <SourcePill label="BLU" value={sum.blu} total={sum.total} cls="text-violet-600 dark:text-violet-300" />
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-5 sm:grid-cols-2">
+                <CompositionBar
+                  title="Kategori"
+                  total={sum.total}
+                  segments={[
+                    { label: "Operasional", value: sum.ops, cls: "bg-teal-500" },
+                    { label: "Non Operasional", value: sum.non, cls: "bg-orange-500" },
+                  ]}
+                />
+                <CompositionBar
+                  title="Jenis Belanja"
+                  total={sum.total}
+                  segments={[
+                    { label: "Pegawai", value: sum.pegawai, cls: "bg-cyan-500" },
+                    { label: "Barang", value: sum.barang, cls: "bg-emerald-500" },
+                    { label: "Modal", value: sum.modal, cls: "bg-amber-500" },
+                  ]}
+                />
+              </div>
+            </Card>
+
+            {/* Tile rincian */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+              <StatTile icon={Building2} tint={TINTS.teal} label="Operasional" value={sum.ops} total={sum.total} />
+              <StatTile icon={Briefcase} tint={TINTS.orange} label="Non Operasional" value={sum.non} total={sum.total} />
+              <StatTile icon={Users2} tint={TINTS.cyan} label="Belanja Pegawai" value={sum.pegawai} total={sum.total} />
+              <StatTile icon={Package} tint={TINTS.emerald} label="Belanja Barang" value={sum.barang} total={sum.total} />
+              <StatTile icon={Hammer} tint={TINTS.amber} label="Belanja Modal" value={sum.modal} total={sum.total} />
+            </div>
           </div>
 
-          {/* Daftar Usulan Kegiatan */}
+          {/* ── Daftar Usulan Kegiatan ─────────────────────────────────── */}
           <Card className="overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
-              <h2 className="text-base font-semibold">Daftar Usulan Kegiatan</h2>
+              <div className="flex items-center gap-2">
+                <span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary">
+                  <Layers className="size-4" />
+                </span>
+                <h2 className="text-base font-semibold">Daftar Usulan Kegiatan</h2>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
+                  {fmtN(filtered.length)}
+                </span>
+              </div>
               {filtered.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   {sum.rm > 0 && (
@@ -370,57 +425,34 @@ export function DashboardClient({
 
             {/* Filter strip */}
             <div className="flex flex-wrap items-end gap-2 border-b border-border bg-muted/40 p-3">
-              <FilterSelect
-                label="Program"
-                value={fProg}
-                onChange={onProg}
-                options={opt(cascade.progM)}
-              />
-              <FilterSelect
-                label="KRO"
-                value={fKro}
-                onChange={onKro}
-                options={opt(cascade.kroM)}
-              />
-              <FilterSelect
-                label="RO"
-                value={fRo}
-                onChange={onRo}
-                options={opt(cascade.roM)}
-              />
-              <FilterSelect
-                label="Komponen"
-                value={fKomponen}
-                onChange={onKomponen}
-                options={opt(cascade.kompM)}
-              />
-              <FilterSelect
-                label="Akun"
-                value={fAkun}
-                onChange={setFAkun}
-                options={opt(cascade.akunM)}
-              />
+              <FilterSelect label="Program" value={fProg} onChange={onProg} options={opt(cascade.progM)} />
+              <FilterSelect label="KRO" value={fKro} onChange={onKro} options={opt(cascade.kroM)} />
+              <FilterSelect label="RO" value={fRo} onChange={onRo} options={opt(cascade.roM)} />
+              <FilterSelect label="Komponen" value={fKomponen} onChange={onKomponen} options={opt(cascade.kompM)} />
+              <FilterSelect label="Akun" value={fAkun} onChange={setFAkun} options={opt(cascade.akunM)} />
               <FilterSelect
                 label="Sumber"
                 value={fSumber}
                 onChange={setFSumber}
-                options={[
-                  ["RM", "RM"],
-                  ["BLU", "BLU"],
-                  ["SBSN", "SBSN"],
-                ]}
+                options={[["RM", "RM"], ["BLU", "BLU"], ["SBSN", "SBSN"]]}
               />
               <FilterSelect
                 label="Kategori"
                 value={fKategori}
                 onChange={setFKategori}
-                options={[
-                  ["OPS", "Operasional"],
-                  ["NON", "Non Operasional"],
-                ]}
+                options={[["OPS", "Operasional"], ["NON", "Non Operasional"]]}
               />
               <div className="flex-1" />
-              <div className="flex h-9 min-w-[200px] items-center gap-2 rounded-md border border-input bg-card px-2.5">
+              {anyFilter && (
+                <button
+                  onClick={resetFilters}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-card px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                >
+                  <RotateCcw className="size-3.5" />
+                  Reset
+                </button>
+              )}
+              <div className="flex h-9 min-w-[200px] items-center gap-2 rounded-md border border-input bg-card px-2.5 focus-within:ring-2 focus-within:ring-ring">
                 <Search className="size-3.5 shrink-0 text-muted-foreground" />
                 <Input
                   value={q}
@@ -432,17 +464,15 @@ export function DashboardClient({
             </div>
 
             {/* Tabel */}
-            <div className="overflow-x-auto">
+            <div className="max-h-[62vh] overflow-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b-2 border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-muted">
                     <th className="px-3 py-2.5 font-semibold">Kode</th>
                     <th className="px-3 py-2.5 font-semibold">Uraian / Akun</th>
                     <th className="px-3 py-2.5 font-semibold">Sumber</th>
                     <th className="px-3 py-2.5 font-semibold">Kategori</th>
-                    <th className="px-3 py-2.5 text-right font-semibold">
-                      Pagu Usulan
-                    </th>
+                    <th className="px-3 py-2.5 text-right font-semibold">Pagu Usulan</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -454,30 +484,21 @@ export function DashboardClient({
                     </tr>
                   ) : loadErr ? (
                     <tr>
-                      <td
-                        colSpan={5}
-                        className="px-3 py-12 text-center text-sm text-destructive"
-                      >
+                      <td colSpan={5} className="px-3 py-12 text-center text-sm text-destructive">
                         <AlertTriangle className="mx-auto mb-2 size-6" />
                         {loadErr}
                       </td>
                     </tr>
                   ) : !usulan ? (
                     <tr>
-                      <td
-                        colSpan={5}
-                        className="px-3 py-12 text-center text-muted-foreground"
-                      >
+                      <td colSpan={5} className="px-3 py-12 text-center text-muted-foreground">
                         <Inbox className="mx-auto mb-2 size-6" />
                         Pilih Tahun &amp; Tahap Pagu untuk menampilkan usulan.
                       </td>
                     </tr>
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td
-                        colSpan={5}
-                        className="px-3 py-12 text-center text-muted-foreground"
-                      >
+                      <td colSpan={5} className="px-3 py-12 text-center text-muted-foreground">
                         <Inbox className="mx-auto mb-2 size-6" />
                         {akunRows.length === 0
                           ? "Usulan ini belum memiliki data anggaran."
@@ -500,9 +521,7 @@ export function DashboardClient({
                               <span className="inline-flex items-center gap-1">
                                 {hasDetails && (
                                   <ChevronRight
-                                    className={`size-3 transition-transform ${
-                                      open ? "rotate-90" : ""
-                                    }`}
+                                    className={`size-3 transition-transform ${open ? "rotate-90" : ""}`}
                                   />
                                 )}
                                 {r.kode || "—"}
@@ -513,17 +532,13 @@ export function DashboardClient({
                                 {r.akunKode} — {r.akunUraian}
                               </div>
                               {r.context && (
-                                <div className="text-[11px] text-muted-foreground">
-                                  {r.context}
-                                </div>
+                                <div className="text-[11px] text-muted-foreground">{r.context}</div>
                               )}
                             </td>
                             <td className="px-3 py-2.5 align-top">
                               <div className="flex flex-wrap gap-1">
                                 {r.sumberSet.length ? (
-                                  r.sumberSet.map((s) => (
-                                    <SumberChip key={s} s={s} />
-                                  ))
+                                  r.sumberSet.map((s) => <SumberChip key={s} s={s} />)
                                 ) : (
                                   <span className="text-muted-foreground">—</span>
                                 )}
@@ -532,9 +547,7 @@ export function DashboardClient({
                             <td className="px-3 py-2.5 align-top">
                               <div className="flex flex-wrap gap-1">
                                 {r.kategoriSet.length ? (
-                                  r.kategoriSet.map((k) => (
-                                    <KategoriChip key={k} k={k} />
-                                  ))
+                                  r.kategoriSet.map((k) => <KategoriChip key={k} k={k} />)
                                 ) : (
                                   <span className="text-muted-foreground">—</span>
                                 )}
@@ -546,36 +559,22 @@ export function DashboardClient({
                           </tr>
                           {open &&
                             r.details.map((d) => (
-                              <tr
-                                key={d.id}
-                                className="border-b border-border bg-muted/30 text-xs"
-                              >
+                              <tr key={d.id} className="border-b border-border bg-muted/30 text-xs">
                                 <td className="px-3 py-1.5"></td>
                                 <td className="px-3 py-1.5 pl-6 text-muted-foreground">
-                                  <span className="mr-1 text-muted-foreground/60">
-                                    ↳
-                                  </span>
+                                  <span className="mr-1 text-muted-foreground/60">↳</span>
                                   {d.uraian}
                                   {d.volume != null && (
                                     <span className="ml-1 text-muted-foreground/70">
-                                      ({fmtN(d.volume)} {d.satuan ?? ""} ×{" "}
-                                      {fmtN(d.harga)})
+                                      ({fmtN(d.volume)} {d.satuan ?? ""} × {fmtN(d.harga)})
                                     </span>
                                   )}
                                 </td>
                                 <td className="px-3 py-1.5">
-                                  {d.sumber !== "-" ? (
-                                    <SumberChip s={d.sumber} />
-                                  ) : (
-                                    "—"
-                                  )}
+                                  {d.sumber !== "-" ? <SumberChip s={d.sumber} /> : "—"}
                                 </td>
                                 <td className="px-3 py-1.5">
-                                  {d.kategori !== "-" ? (
-                                    <KategoriChip k={d.kategori} />
-                                  ) : (
-                                    "—"
-                                  )}
+                                  {d.kategori !== "-" ? <KategoriChip k={d.kategori} /> : "—"}
                                 </td>
                                 <td className="px-3 py-1.5 text-right font-mono tabular-nums text-muted-foreground">
                                   {fmtN(d.pagu)}
@@ -596,30 +595,117 @@ export function DashboardClient({
   );
 }
 
-function SummaryCard({
+/* ── Komponen presentasional ─────────────────────────────────────────────── */
+
+type Tint = { bg: string; fg: string; bar: string };
+const TINTS: Record<string, Tint> = {
+  teal: { bg: "bg-teal-100 dark:bg-teal-900/40", fg: "text-teal-600 dark:text-teal-300", bar: "bg-teal-500" },
+  orange: { bg: "bg-orange-100 dark:bg-orange-900/40", fg: "text-orange-600 dark:text-orange-300", bar: "bg-orange-500" },
+  cyan: { bg: "bg-cyan-100 dark:bg-cyan-900/40", fg: "text-cyan-600 dark:text-cyan-300", bar: "bg-cyan-500" },
+  emerald: { bg: "bg-emerald-100 dark:bg-emerald-900/40", fg: "text-emerald-600 dark:text-emerald-300", bar: "bg-emerald-500" },
+  amber: { bg: "bg-amber-100 dark:bg-amber-900/40", fg: "text-amber-600 dark:text-amber-300", bar: "bg-amber-500" },
+};
+
+function pct(part: number, total: number): string {
+  if (!total) return "0%";
+  return ((part / total) * 100).toFixed(1) + "%";
+}
+
+function StatTile({
   icon: Icon,
-  color,
+  tint,
   label,
   value,
-  sub,
+  total,
 }: {
   icon: React.ComponentType<{ className?: string }>;
-  color: string;
+  tint: Tint;
   label: string;
   value: number;
-  sub?: string;
+  total: number;
 }) {
+  const share = total > 0 ? (value / total) * 100 : 0;
   return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <p className="mt-1 text-xl font-bold tabular-nums">{fmtRp(value)}</p>
-          {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
-        </div>
-        <Icon className={`size-7 ${color}`} />
+    <Card className="p-4 transition-shadow hover:shadow-md">
+      <div className="flex items-center justify-between">
+        <span className={`grid size-9 place-items-center rounded-xl ${tint.bg} ${tint.fg}`}>
+          <Icon className="size-4" />
+        </span>
+        <span className="text-xs font-semibold tabular-nums text-muted-foreground">
+          {share > 0 ? pct(value, total) : "—"}
+        </span>
+      </div>
+      <p className="mt-3 truncate text-[13px] text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-lg font-bold tabular-nums">{fmtRp(value)}</p>
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className={`h-full rounded-full ${tint.bar} transition-[width] duration-500`}
+          style={{ width: `${Math.min(share, 100)}%` }}
+        />
       </div>
     </Card>
+  );
+}
+
+function CompositionBar({
+  title,
+  segments,
+  total,
+}: {
+  title: string;
+  segments: { label: string; value: number; cls: string }[];
+  total: number;
+}) {
+  const t = total || 1;
+  return (
+    <div>
+      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {title}
+      </p>
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+        {segments.map((s) =>
+          s.value > 0 ? (
+            <div
+              key={s.label}
+              className={s.cls}
+              style={{ width: `${(s.value / t) * 100}%` }}
+              title={`${s.label}: ${fmtRp(s.value)}`}
+            />
+          ) : null,
+        )}
+      </div>
+      <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-xs">
+        {segments.map((s) => (
+          <span key={s.label} className="inline-flex items-center gap-1.5">
+            <span className={`size-2 rounded-full ${s.cls}`} />
+            <span className="font-medium text-foreground">{s.label}</span>
+            <span className="tabular-nums text-muted-foreground">{pct(s.value, total)}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SourcePill({
+  label,
+  value,
+  total,
+  cls,
+}: {
+  label: string;
+  value: number;
+  total: number;
+  cls: string;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-muted/40 px-3 py-2">
+      <div className="flex items-center gap-2">
+        <span className={`text-xs font-bold ${cls}`}>{label}</span>
+        <span className="text-[11px] tabular-nums text-muted-foreground">{pct(value, total)}</span>
+      </div>
+      <p className="mt-0.5 font-mono text-sm font-semibold tabular-nums">{fmtN(value)}</p>
+    </div>
   );
 }
 
@@ -636,9 +722,7 @@ function FilterSelect({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
-        {label}
-      </label>
+      <label className="mb-1 block text-[11px] font-medium text-muted-foreground">{label}</label>
       <Select
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -653,9 +737,4 @@ function FilterSelect({
       </Select>
     </div>
   );
-}
-
-function pctStr(part: number, total: number): string {
-  if (!total) return "0%";
-  return ((part / total) * 100).toFixed(1) + "% dari total";
 }
