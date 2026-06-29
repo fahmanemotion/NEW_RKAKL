@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import type XLSXTypes from "xlsx-js-style";
+type XLSXModule = typeof import("xlsx-js-style");
 import { loadXLSXStyle } from "@/lib/xlsx-lazy";
 import { Printer, Download, Layers, ChevronsUpDown, Check, Search } from "lucide-react";
 import { Card, Select, Button } from "@/components/ui";
@@ -467,7 +468,7 @@ type Emit = {
   vol: number | null; satuan: string | null; harga: number | null; jumlah: number;
 };
 
-function buildRabSheet(XLSX: XLSXTypes, unit: RabUnit, ctx: Ctx, signers: Signers): XLSXTypes.WorkSheet {
+function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signers): XLSXTypes.WorkSheet {
   // Kolom 0-based A..T (20). "Rincian Perhitungan" dipecah C..P: 5 pasang
   // (qty, satuan) dipisah "x" → C,D|E|F,G|H|I,J|K|L,M|N|O,P.
   const A = 0, B = 1;
@@ -717,7 +718,7 @@ function safeSheetName(s: string): string {
   return (s || "RAB").replace(/[\\/?*[\]:]/g, " ").slice(0, 31).trim() || "RAB";
 }
 
-function downloadWorkbook(XLSX: XLSXTypes, wb: XLSXTypes.WorkBook, filename: string) {
+function downloadWorkbook(XLSX: XLSXModule, wb: XLSXTypes.WorkBook, filename: string) {
   const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
   const blob = new Blob([buf], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -728,14 +729,14 @@ function downloadWorkbook(XLSX: XLSXTypes, wb: XLSXTypes.WorkBook, filename: str
   URL.revokeObjectURL(url);
 }
 
-function downloadOne(XLSX: XLSXTypes, unit: RabUnit, ctx: Ctx, signers: Signers) {
+function downloadOne(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signers) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, buildRabSheet(XLSX, unit, ctx, signers), safeSheetName(unit.sheetName));
   // Nama file = kode RAB (mis. 3996.AEC.002.051.A.xlsx) agar langsung dikenali.
   downloadWorkbook(XLSX, wb, `${safeFileName(rabFileCode(unit))}.xlsx`);
 }
 
-async function downloadAll(XLSX: XLSXTypes, units: RabUnit[], ctx: Ctx, signers: Signers, _mode: Mode) {
+async function downloadAll(XLSX: XLSXModule, units: RabUnit[], ctx: Ctx, signers: Signers, _mode: Mode) {
   // Tanpa dependensi tambahan: unduh SATU file .xlsx per unit secara berurutan,
   // masing-masing dinamai dengan kodenya (mis. 3996.AEC.002.051.A.xlsx) sehingga
   // mudah dikenali tanpa membuka satu per satu. Browser akan meminta izin

@@ -64,7 +64,7 @@ function makeCtx(rows: KKRow[]): Ctx {
 function ancestorOf(ctx: Ctx, r: KKRow, level: string): KKRow | null {
   let cur: KKRow | null = r;
   while (cur && cur.parentId) {
-    const p = ctx.byId.get(cur.parentId) ?? null;
+    const p: KKRow | null = ctx.byId.get(cur.parentId) ?? null;
     if (p && p.level === level) return p;
     cur = p;
   }

@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import type XLSXTypes from "xlsx-js-style";
+type XLSXModule = typeof import("xlsx-js-style");
 import { loadXLSXStyle } from "@/lib/xlsx-lazy";
 import { Loader2, Inbox, Download } from "lucide-react";
 import { Card, Select, Button, Badge } from "@/components/ui";
@@ -375,7 +376,7 @@ const THIN = { style: "thin", color: { rgb: "9CA3AF" } };
 const ALL_BORDERS = { top: THIN, bottom: THIN, left: THIN, right: THIN };
 
 function buildWorkbook(
-  XLSX: XLSXTypes,
+  XLSX: XLSXModule,
   kkRows: KKRow[],
   total: KKBuckets,
   totalJumlah: number,

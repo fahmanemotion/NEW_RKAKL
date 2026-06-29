@@ -353,7 +353,7 @@ export async function listKodePaths(): Promise<KodePathRow[]> {
   if (error) throw error;
   type Nested = Record<string, unknown> & { master_ro?: Record<string, unknown> };
   const out: KodePathRow[] = [];
-  for (const k of (data ?? []) as Nested[]) {
+  for (const k of (data ?? []) as unknown as Nested[]) {
     const ro = (k.master_ro ?? {}) as Record<string, unknown>;
     const kro = (ro.master_kro ?? {}) as Record<string, unknown>;
     const keg = (kro.master_kegiatan ?? {}) as Record<string, unknown>;

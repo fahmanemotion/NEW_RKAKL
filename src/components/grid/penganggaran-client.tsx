@@ -606,7 +606,7 @@ export function PenganggaranClient({
       parentSumber = selectedRow.sumber_dana ?? null;
     }
 
-    if (level === "SUB_KOMPONEN") return setSubkompParent({ parentId });
+    if (level === "SUB_KOMPONEN") return setSubkompParent({ parentId: parentId ?? undefined });
     if (level === "DETAIL") {
       // Sumber dana & kategori SELALU diwarisi dari AKUN, walau induk langsung
       // berupa HEADER (telusuri ke atas sampai akun).
@@ -620,7 +620,7 @@ export function PenganggaranClient({
         if (meta) kategori = meta.kategori_belanja;
       }
       return setDetail({
-        parentId,
+        parentId: parentId!,
         inheritedSumberDana: akunSumber,
         akunInfo: {
           kode: akunNode?.kode ?? "",
@@ -638,7 +638,7 @@ export function PenganggaranClient({
       // hanya referensi_id node yang bisa basi/keliru. RO generik seperti 994
       // (Layanan Perkantoran) tetap terbaca komponennya dari referensi.
       const lastSeg = (k?: string | null) => (k ?? "").split(".").pop() || "";
-      const roNode = byId.get(parentId);
+      const roNode = byId.get(parentId!);
       if (roNode?.level === "RO") {
         const kroNode = roNode.parent_id ? byId.get(roNode.parent_id) : undefined;
         const kegNode = kroNode?.parent_id ? byId.get(kroNode.parent_id) : undefined;
