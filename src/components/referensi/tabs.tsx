@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
-// Modul Referensi disederhanakan menjadi 3 menu.
+// Modul Referensi disederhanakan menjadi beberapa menu.
 const TABS: { key: string; label: string }[] = [
   { key: 'kode', label: 'KODE' },
   { key: 'akun', label: 'Akun' },
@@ -15,7 +15,7 @@ const TABS: { key: string; label: string }[] = [
 export function ReferensiTabs() {
   const pathname = usePathname();
   return (
-    <div className="flex flex-wrap gap-1 border-b border-border">
+    <div className="flex flex-wrap gap-1.5">
       {TABS.map((t) => {
         const href = `/referensi/${t.key}`;
         const active = pathname === href;
@@ -23,9 +23,12 @@ export function ReferensiTabs() {
           <Link
             key={t.key}
             href={href}
+            aria-current={active ? 'page' : undefined}
             className={cn(
-              'rounded-t-md px-3 py-2 text-sm font-medium transition-colors',
-              active ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground',
+              'rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors',
+              active
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
             {t.label}
