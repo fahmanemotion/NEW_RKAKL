@@ -3,11 +3,22 @@ import * as React from "react";
 import type XLSXTypes from "xlsx-js-style";
 type XLSXModule = typeof import("xlsx-js-style");
 import { loadXLSXStyle } from "@/lib/xlsx-lazy";
-import { Loader2, Inbox, Printer, Download } from "lucide-react";
+import {
+  Loader2,
+  Inbox,
+  Printer,
+  Download,
+  Wallet,
+  Coins,
+  Tags,
+  Layers,
+  ListTree,
+  FolderTree,
+} from "lucide-react";
 import { Card, Select, Button, Badge } from "@/components/ui";
 import { createClient } from "@/lib/supabase";
 import { fetchAllStruktur } from "@/lib/fetch-struktur";
-import { fmtN } from "@/lib/constants";
+import { fmtN, fmtRp } from "@/lib/constants";
 import { STATUS_COLOR, type Status } from "@/lib/constants";
 import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
 import type { UsulanStruktur } from "@/types/database";
@@ -164,56 +175,58 @@ export function LaporanClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold">Laporan</h1>
-          <p className="text-sm text-muted-foreground">
-            Rekapitulasi anggaran — cetak atau unduh.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">
-              Tahun Anggaran
-            </label>
-            <Select
-              value={tahun ?? ""}
-              onChange={(e) => setTahun(Number(e.target.value))}
-              disabled={years.length === 0}
-              className="min-w-[120px]"
-            >
-              {years.length === 0 && <option value="">—</option>}
-              {years.map((y) => (
-                <option key={y} value={y}>
-                  TA {y}
-                </option>
-              ))}
-            </Select>
+      {/* ── Header hero ─────────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl border border-border card-elevated bg-gradient-to-br from-[hsl(214_92%_46%)] via-[hsl(206_92%_40%)] to-[hsl(217_56%_24%)] text-white">
+        <div className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-white/10 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-24 left-1/3 size-72 rounded-full bg-sky-300/10 blur-3xl" />
+        <div className="relative flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+              Rekapitulasi Anggaran
+            </p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight">Laporan</h1>
+            <p className="mt-1 text-sm text-white/85">
+              Rekapitulasi anggaran — tinjau, cetak, atau unduh ke Excel.
+            </p>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">
-              Tahap Pagu
-            </label>
-            <Select
-              value={tahap ?? ""}
-              onChange={(e) => setTahap(e.target.value)}
-              disabled={tahapList.length === 0}
-              className="min-w-[190px]"
-            >
-              {tahapList.length === 0 && <option value="">—</option>}
-              {tahapList.map((u) => (
-                <option key={u.id} value={u.tahap}>
-                  {TAHAP_LABEL[u.tahap as TahapPagu] ?? u.tahap} · {u.status}
-                </option>
-              ))}
-            </Select>
+          <div className="flex shrink-0 flex-wrap items-end gap-2.5">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-white/70">
+                Tahun Anggaran
+              </label>
+              <Select
+                value={tahun ?? ""}
+                onChange={(e) => setTahun(Number(e.target.value))}
+                disabled={years.length === 0}
+                className="min-w-[120px] border-white/25 bg-white/15 text-white shadow-none backdrop-blur [&>option]:text-foreground"
+              >
+                {years.length === 0 && <option value="">—</option>}
+                {years.map((y) => (
+                  <option key={y} value={y}>
+                    TA {y}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-white/70">
+                Tahap Pagu
+              </label>
+              <Select
+                value={tahap ?? ""}
+                onChange={(e) => setTahap(e.target.value)}
+                disabled={tahapList.length === 0}
+                className="min-w-[190px] border-white/25 bg-white/15 text-white shadow-none backdrop-blur [&>option]:text-foreground"
+              >
+                {tahapList.length === 0 && <option value="">—</option>}
+                {tahapList.map((u) => (
+                  <option key={u.id} value={u.tahap}>
+                    {TAHAP_LABEL[u.tahap as TahapPagu] ?? u.tahap} · {u.status}
+                  </option>
+                ))}
+              </Select>
+            </div>
           </div>
-          <Button variant="outline" onClick={printReport} disabled={!ready}>
-            <Printer className="size-4" /> Cetak
-          </Button>
-          <Button onClick={downloadExcel} disabled={!ready}>
-            <Download className="size-4" /> Unduh Excel
-          </Button>
         </div>
       </div>
 
@@ -235,140 +248,138 @@ export function LaporanClient({
         </Card>
       ) : (
         <>
+          {/* ── Kartu identitas + total + aksi ekspor ─────────────────── */}
           {usulan && (
-            <Card className="p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
+            <Card className="p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                    <Wallet className="size-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-bold uppercase">
+                      {usulan.satkerNama}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                      <span>{tahapLabel} · T.A. {usulan.tahun}</span>
+                      <Badge
+                        className={`${STATUS_COLOR[usulan.status as Status] ?? "bg-slate-100 text-slate-700"}`}
+                      >
+                        {usulan.status}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button variant="outline" onClick={printReport} disabled={!ready}>
+                    <Printer className="size-4" /> Cetak
+                  </Button>
+                  <Button onClick={downloadExcel} disabled={!ready}>
+                    <Download className="size-4" /> Unduh Excel
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-end justify-between gap-3 border-t border-border pt-4">
                 <div>
-                  <div className="text-sm font-bold uppercase">
-                    {usulan.satkerNama}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {tahapLabel} · T.A. {usulan.tahun}
-                    <Badge
-                      className={`ml-2 ${STATUS_COLOR[usulan.status as Status] ?? "bg-slate-100 text-slate-700"}`}
-                    >
-                      {usulan.status}
-                    </Badge>
+                  <div className="text-xs text-muted-foreground">Total Pagu Usulan</div>
+                  <div className="mt-0.5 text-2xl font-bold tabular-nums text-amber-700 dark:text-amber-400">
+                    {fmtRp(kk.totalJumlah)}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-xs text-muted-foreground">
-                    Total Pagu
-                  </div>
-                  <div className="text-lg font-bold tabular-nums text-amber-700 dark:text-amber-400">
-                    {fmtN(kk.totalJumlah)}
-                  </div>
-                  {usulan.totalHeader != null &&
-                    usulan.totalHeader > 0 &&
-                    Math.abs(usulan.totalHeader - kk.totalJumlah) >= 1 && (
-                      <div className="mt-1 max-w-[260px] text-[11px] leading-snug text-muted-foreground">
-                        Header file SAKTI: {fmtN(usulan.totalHeader)} (selisih{" "}
-                        {fmtN(Math.abs(kk.totalJumlah - usulan.totalHeader))}).
-                        Angka di atas menjumlahkan seluruh rincian; selisih
-                        berasal dari akun yang rinciannya melebihi pagu akun
-                        (umumnya gaji/tunjangan pada Pagu Kebutuhan).
-                      </div>
-                    )}
-                </div>
+                {usulan.totalHeader != null &&
+                  usulan.totalHeader > 0 &&
+                  Math.abs(usulan.totalHeader - kk.totalJumlah) >= 1 && (
+                    <div className="max-w-[420px] rounded-lg bg-muted/50 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
+                      Header file SAKTI: {fmtN(usulan.totalHeader)} (selisih{" "}
+                      {fmtN(Math.abs(kk.totalJumlah - usulan.totalHeader))}). Angka di
+                      atas menjumlahkan seluruh rincian; selisih berasal dari akun yang
+                      rinciannya melebihi pagu akun (umumnya gaji/tunjangan pada Pagu
+                      Kebutuhan).
+                    </div>
+                  )}
               </div>
             </Card>
           )}
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <RekapTable
-              title="Rekap per Sumber Dana"
-              items={sumber}
-              total={kk.totalJumlah}
-            />
-            <RekapTable
-              title="Rekap per Kategori"
-              items={kategori}
-              total={kk.totalJumlah}
-            />
+          {/* ── Rekap ringkas (bar share) ─────────────────────────────── */}
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <RekapTable title="Per Sumber Dana" items={sumber} total={kk.totalJumlah} icon={Coins} palette={PALETTES.blue} />
+            <RekapTable title="Per Kategori" items={kategori} total={kk.totalJumlah} icon={Tags} palette={PALETTES.teal} />
+            <RekapTable title="Per Jenis Belanja" items={jenis} total={kk.totalJumlah} icon={Layers} palette={PALETTES.violet} />
           </div>
-          <RekapTable
-            title="Rekap per Jenis Belanja"
-            items={jenis}
-            total={kk.totalJumlah}
-          />
 
+          {/* ── Rekap per Akun (BAS) ──────────────────────────────────── */}
           <Card className="overflow-hidden">
-            <div className="border-b border-border px-4 py-2.5 text-sm font-semibold">
-              Rekap per Akun (BAS)
+            <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+              <span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary">
+                <ListTree className="size-4" />
+              </span>
+              <h2 className="text-sm font-semibold">Rekap per Akun (BAS)</h2>
             </div>
-            <div className="overflow-x-auto">
+            <div className="max-h-[60vh] overflow-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="px-3 py-2 font-semibold">Kode</th>
-                    <th className="px-3 py-2 font-semibold">Uraian</th>
-                    <th className="px-3 py-2 font-semibold">Jenis</th>
-                    <th className="px-3 py-2 text-right font-semibold">Pagu</th>
-                    <th className="px-3 py-2 text-right font-semibold">%</th>
+                  <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-muted">
+                    <th className="px-3 py-2.5 font-semibold">Kode</th>
+                    <th className="px-3 py-2.5 font-semibold">Uraian</th>
+                    <th className="px-3 py-2.5 font-semibold">Jenis</th>
+                    <th className="px-3 py-2.5 text-right font-semibold">Pagu</th>
+                    <th className="px-3 py-2.5 text-right font-semibold">%</th>
                   </tr>
                 </thead>
                 <tbody>
                   {akun.map((a) => (
                     <tr
                       key={a.kode}
-                      className="border-b border-border last:border-0"
+                      className="border-b border-border transition-colors last:border-0 hover:bg-accent/40"
                     >
-                      <td className="px-3 py-1.5 font-mono text-xs">
-                        {a.kode}
-                      </td>
-                      <td className="px-3 py-1.5">{a.uraian}</td>
-                      <td className="px-3 py-1.5 text-xs text-muted-foreground">
-                        {a.jenis}
-                      </td>
-                      <td className="px-3 py-1.5 text-right font-mono tabular-nums">
-                        {fmtN(a.value)}
-                      </td>
-                      <td className="px-3 py-1.5 text-right text-xs text-muted-foreground tabular-nums">
-                        {a.pct.toFixed(1)}%
-                      </td>
+                      <td className="px-3 py-2 font-mono text-xs">{a.kode}</td>
+                      <td className="px-3 py-2">{a.uraian}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{a.jenis}</td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums">{fmtN(a.value)}</td>
+                      <td className="px-3 py-2 text-right text-xs text-muted-foreground tabular-nums">{a.pct.toFixed(1)}%</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-muted/40 font-bold">
-                    <td className="px-3 py-2" colSpan={3}>
-                      Total
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono tabular-nums">
-                      {fmtN(kk.totalJumlah)}
-                    </td>
-                    <td className="px-3 py-2 text-right text-xs tabular-nums">
-                      100%
-                    </td>
+                  <tr className="sticky bottom-0 z-10 border-t-2 border-border bg-muted font-bold [&>td]:bg-muted">
+                    <td className="px-3 py-2.5" colSpan={3}>Total</td>
+                    <td className="px-3 py-2.5 text-right font-mono tabular-nums">{fmtN(kk.totalJumlah)}</td>
+                    <td className="px-3 py-2.5 text-right text-xs tabular-nums">100%</td>
                   </tr>
                 </tfoot>
               </table>
             </div>
           </Card>
 
+          {/* ── Ringkasan struktur ────────────────────────────────────── */}
           <Card className="overflow-hidden">
-            <div className="border-b border-border px-4 py-2.5 text-sm font-semibold">
-              Ringkasan Struktur (Program → Kegiatan → KRO → RO)
+            <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+              <span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary">
+                <FolderTree className="size-4" />
+              </span>
+              <h2 className="text-sm font-semibold">
+                Ringkasan Struktur (Program → Kegiatan → KRO → RO)
+              </h2>
             </div>
-            <div className="overflow-x-auto">
+            <div className="max-h-[60vh] overflow-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="px-3 py-2 font-semibold">Kode</th>
-                    <th className="px-3 py-2 font-semibold">Uraian</th>
-                    <th className="px-3 py-2 text-right font-semibold">Pagu</th>
+                  <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-muted">
+                    <th className="px-3 py-2.5 font-semibold">Kode</th>
+                    <th className="px-3 py-2.5 font-semibold">Uraian</th>
+                    <th className="px-3 py-2.5 text-right font-semibold">Pagu</th>
                   </tr>
                 </thead>
                 <tbody>
                   {struktur.map((r, i) => (
                     <tr
                       key={i}
-                      className="border-b border-border last:border-0"
+                      className="border-b border-border transition-colors last:border-0 hover:bg-accent/40"
                     >
-                      <td className="px-3 py-1.5 font-mono text-xs">
-                        {r.kode}
-                      </td>
-                      <td className="px-3 py-1.5">
+                      <td className="px-3 py-2 font-mono text-xs">{r.kode}</td>
+                      <td className="px-3 py-2">
                         <span
                           style={{ paddingLeft: r.depth * 12 }}
                           className={
@@ -380,9 +391,7 @@ export function LaporanClient({
                           {r.uraian}
                         </span>
                       </td>
-                      <td className="px-3 py-1.5 text-right font-mono tabular-nums">
-                        {fmtN(r.jumlah)}
-                      </td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums">{fmtN(r.jumlah)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -404,44 +413,61 @@ export function LaporanClient({
   );
 }
 
+/* ── Rekap ringkas dengan bar share ──────────────────────────────────────── */
+
+type Palette = { chipBg: string; chipFg: string; fill: string };
+const PALETTES: Record<string, Palette> = {
+  blue: { chipBg: "bg-blue-100 dark:bg-blue-900/40", chipFg: "text-blue-600 dark:text-blue-300", fill: "bg-blue-500" },
+  teal: { chipBg: "bg-teal-100 dark:bg-teal-900/40", chipFg: "text-teal-600 dark:text-teal-300", fill: "bg-teal-500" },
+  violet: { chipBg: "bg-violet-100 dark:bg-violet-900/40", chipFg: "text-violet-600 dark:text-violet-300", fill: "bg-violet-500" },
+};
+
 function RekapTable({
   title,
   items,
   total,
+  icon: Icon,
+  palette,
 }: {
   title: string;
   items: RekapItem[];
   total: number;
+  icon: React.ComponentType<{ className?: string }>;
+  palette: Palette;
 }) {
   return (
     <Card className="overflow-hidden">
-      <div className="border-b border-border px-4 py-2.5 text-sm font-semibold">
-        {title}
+      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+        <span className={`grid size-7 place-items-center rounded-lg ${palette.chipBg} ${palette.chipFg}`}>
+          <Icon className="size-4" />
+        </span>
+        <h3 className="text-sm font-semibold">{title}</h3>
       </div>
-      <table className="w-full text-sm">
-        <tbody>
-          {items.map((it) => (
-            <tr key={it.label} className="border-b border-border last:border-0">
-              <td className="px-4 py-2">{it.label}</td>
-              <td className="px-4 py-2 text-right font-mono tabular-nums">
-                {fmtN(it.value)}
-              </td>
-              <td className="w-16 px-4 py-2 text-right text-xs text-muted-foreground tabular-nums">
+      <div className="divide-y divide-border">
+        {items.map((it) => (
+          <div key={it.label} className="px-4 py-2.5">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="truncate">{it.label}</span>
+              <span className="shrink-0 font-mono tabular-nums">{fmtN(it.value)}</span>
+            </div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                <div
+                  className={`h-full rounded-full ${palette.fill} transition-[width] duration-500`}
+                  style={{ width: `${Math.min(it.pct, 100)}%` }}
+                />
+              </div>
+              <span className="w-12 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
                 {it.pct.toFixed(1)}%
-              </td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="bg-muted/40 font-bold">
-            <td className="px-4 py-2">Total</td>
-            <td className="px-4 py-2 text-right font-mono tabular-nums">
-              {fmtN(total)}
-            </td>
-            <td className="px-4 py-2 text-right text-xs tabular-nums">100%</td>
-          </tr>
-        </tfoot>
-      </table>
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-between border-t border-border bg-muted/40 px-4 py-2.5 text-sm font-bold">
+        <span>Total</span>
+        <span className="font-mono tabular-nums">{fmtN(total)}</span>
+      </div>
     </Card>
   );
 }
