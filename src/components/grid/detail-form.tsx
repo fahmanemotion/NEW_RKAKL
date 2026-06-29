@@ -119,55 +119,47 @@ export function DetailForm({
       </>}
     >
       <div className="space-y-4">
-        {/* Info akun (sumber dana & kategori otomatis ikut akun) */}
-        {akunInfo && (
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-md bg-muted px-3 py-2 text-sm">
-            <span><span className="text-muted-foreground">Akun:</span> <span className="font-mono">{akunInfo.kode}</span> {akunInfo.uraian}</span>
-            <span><span className="text-muted-foreground">Sumber Dana:</span> <strong>{akunInfo.sumberDana}</strong></span>
-            {akunInfo.kategori && <span><span className="text-muted-foreground">Kategori:</span> <strong>{akunInfo.kategori}</strong></span>}
+        {/* Info akun (kiri) + Jenis Belanja compact (kanan) — satu kontainer */}
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-md bg-muted px-3 py-2 text-sm">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+            {akunInfo ? (
+              <>
+                <span><span className="text-muted-foreground">Akun:</span> <span className="font-mono">{akunInfo.kode}</span> {akunInfo.uraian}</span>
+                <span><span className="text-muted-foreground">Sumber Dana:</span> <strong>{akunInfo.sumberDana}</strong></span>
+                {akunInfo.kategori && <span><span className="text-muted-foreground">Kategori:</span> <strong>{akunInfo.kategori}</strong></span>}
+              </>
+            ) : (
+              <span className="text-muted-foreground">Detail belanja</span>
+            )}
           </div>
-        )}
-
-        {/* Rincian volume (kiri, span 3 kolom) + Jenis Belanja (kolom ke-4, sejajar Jumlah) */}
-        <div className="grid grid-cols-2 items-end gap-3 sm:grid-cols-4">
-          {showRincian && (
-            <div className="col-span-2 sm:col-span-3">
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                Rincian Volume (Volkeg terkunci = hasil kali)
-              </label>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {[0, 1, 2].map((i) => (
-                  <React.Fragment key={i}>
-                    {i > 0 && <span className="px-0.5 text-muted-foreground">×</span>}
-                    <Input className="w-16 text-right" type="number" min={0} placeholder="0"
-                      value={seg[i].qty === 0 ? '' : String(seg[i].qty)}
-                      onChange={(e) => setSegAt(i, { qty: e.target.value })} />
-                    <Input className="w-24" placeholder="satuan"
-                      value={seg[i].sat} onChange={(e) => setSegAt(i, { sat: e.target.value })} />
-                  </React.Fragment>
-                ))}
-              </div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                {[3, 4].map((i) => (
-                  <React.Fragment key={i}>
-                    <span className="px-0.5 text-muted-foreground">×</span>
-                    <Input className="w-16 text-right" type="number" min={0} placeholder="0"
-                      value={seg[i].qty === 0 ? '' : String(seg[i].qty)}
-                      onChange={(e) => setSegAt(i, { qty: e.target.value })} />
-                    <Input className="w-24" placeholder="satuan"
-                      value={seg[i].sat} onChange={(e) => setSegAt(i, { sat: e.target.value })} />
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="col-span-2 sm:col-span-1 sm:col-start-4">
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Jenis Belanja</label>
-            <Select value={jenis} onChange={(e) => setJenis(e.target.value as JenisBelanja)} className="w-full">
+          <div className="flex shrink-0 items-center gap-2">
+            <label htmlFor="jenis-belanja" className="whitespace-nowrap text-xs font-medium text-muted-foreground">Jenis Belanja</label>
+            <Select id="jenis-belanja" value={jenis} onChange={(e) => setJenis(e.target.value as JenisBelanja)} className="h-8 w-auto min-w-[4.5rem]">
               {JENIS_BELANJA.map((j) => <option key={j.value} value={j.value}>{j.label}</option>)}
             </Select>
           </div>
         </div>
+
+        {/* Rincian volume — full-width; tiap faktor dikelompokkan agar × tak terpisah saat wrap */}
+        {showRincian && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              Rincian Volume (Volkeg terkunci = hasil kali)
+            </label>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  {i > 0 && <span className="px-0.5 text-muted-foreground">×</span>}
+                  <Input className="w-16 text-right" type="number" min={0} placeholder="0"
+                    value={seg[i].qty === 0 ? '' : String(seg[i].qty)}
+                    onChange={(e) => setSegAt(i, { qty: e.target.value })} />
+                  <Input className="w-24" placeholder="satuan"
+                    value={seg[i].sat} onChange={(e) => setSegAt(i, { sat: e.target.value })} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Uraian — tekan Enter untuk membuka/menutup rincian volume */}
         <div>
