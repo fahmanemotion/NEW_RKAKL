@@ -62,8 +62,8 @@ export type SumberDana = (typeof SUMBER_DANA)[number];
 // Jenis belanja detail: Operasional / Non Operasional (menggantikan pilihan
 // Sumber Dana di form detail — sumber dana otomatis ikut akun).
 export const JENIS_BELANJA = [
-  { value: 'OPS', label: 'OPS' },
-  { value: 'NON_OPS', label: 'NON' },
+  { value: 'OPS', label: 'Operasional' },
+  { value: 'NON_OPS', label: 'Non Operasional' },
 ] as const;
 export type JenisBelanja = (typeof JENIS_BELANJA)[number]['value'];
 
