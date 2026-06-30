@@ -238,7 +238,7 @@ export function PenganggaranClient({
       visibleKros.size === 0
         ? []
         : kroOptions.filter((o) => visibleKros.has(o.id));
-    setMyKros(sel.map((o) => ({ kode: o.kode, uraian: o.uraian })));
+    setMyKros(sel.map((o) => ({ id: o.id, kode: o.kode, uraian: o.uraian })));
   }, [visibleKros, kroOptions, setMyKros]);
 
   // Saat pertama membuka halaman input anggaran, tampilkan modal "Pilih KRO"

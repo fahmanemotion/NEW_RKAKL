@@ -2,7 +2,8 @@
 import * as React from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Button, Input } from '@/components/ui';
-import { Check } from 'lucide-react';
+import { Check, Lock } from 'lucide-react';
+import { usePresenceUsers } from '@/components/shell/presence';
 
 export interface KroOption {
   id: string;
@@ -14,8 +15,11 @@ export interface KroOption {
 
 /**
  * Modal "KRO yang akan ditampilkan".
- * Hanya kolom KODE (kode + uraian Program/Kegiatan/KRO) dan kolom centang.
  * Bisa mencentang lebih dari satu KRO. Kosong = tampilkan semua.
+ *
+ * KRO yang sedang dipilih pengguna LAIN (via presence real-time) dikunci:
+ * checkbox-nya nonaktif dan diberi penanda nama pemiliknya, agar tidak terjadi
+ * dobel input pada KRO yang sama.
  */
 export function KroFilterModal({
   open, onClose, options, value, onApply,
@@ -29,9 +33,26 @@ export function KroFilterModal({
   const [draft, setDraft] = React.useState<Set<string>>(new Set());
   const [q, setQ] = React.useState('');
 
+  // KRO yang dikunci pengguna lain → Map<kroId, namaPemilik>.
+  const { users } = usePresenceUsers();
+  const lockedBy = React.useMemo(() => {
+    const m = new Map<string, string>();
+    for (const u of users) {
+      if (u.self) continue;
+      for (const k of u.kros) if (k.id && !m.has(k.id)) m.set(k.id, u.name);
+    }
+    return m;
+  }, [users]);
+
   React.useEffect(() => {
     if (open) { setDraft(new Set(value)); setQ(''); }
   }, [open, value]);
+
+  // Terkunci untuk SAYA hanya bila diambil orang lain DAN bukan pilihan saya.
+  const isLocked = React.useCallback(
+    (id: string) => lockedBy.has(id) && !draft.has(id),
+    [lockedBy, draft],
+  );
 
   const filtered = React.useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -46,19 +67,26 @@ export function KroFilterModal({
   }, [options, q]);
 
   function toggle(id: string) {
+    if (isLocked(id)) return; // tidak bisa memilih KRO milik orang lain
     setDraft((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }
+
+  // "Pilih semua / Kosongkan" hanya berlaku untuk KRO yang dapat dipilih.
+  const selectable = React.useMemo(
+    () => filtered.filter((o) => !isLocked(o.id)),
+    [filtered, isLocked],
+  );
   const allVisibleChecked =
-    filtered.length > 0 && filtered.every((o) => draft.has(o.id));
+    selectable.length > 0 && selectable.every((o) => draft.has(o.id));
   function toggleAllVisible() {
     setDraft((prev) => {
       const next = new Set(prev);
-      if (allVisibleChecked) filtered.forEach((o) => next.delete(o.id));
-      else filtered.forEach((o) => next.add(o.id));
+      if (allVisibleChecked) selectable.forEach((o) => next.delete(o.id));
+      else selectable.forEach((o) => next.add(o.id));
       return next;
     });
   }
@@ -103,36 +131,50 @@ export function KroFilterModal({
             )}
             {filtered.map((o) => {
               const checked = draft.has(o.id);
+              const owner = lockedBy.get(o.id);
+              const locked = !!owner && !checked;
               return (
                 <label
                   key={o.id}
-                  className="grid cursor-pointer grid-cols-[1fr_64px] items-center gap-2 border-b border-border px-3 py-2 last:border-b-0 hover:bg-accent/50"
+                  className={
+                    'grid grid-cols-[1fr_64px] items-center gap-2 border-b border-border px-3 py-2 last:border-b-0 ' +
+                    (locked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-accent/50')
+                  }
                 >
                   <span className="min-w-0">
                     <span className="block text-sm font-medium">
                       {o.kode}{o.uraian ? ` — ${o.uraian}` : ''}
                     </span>
-                    {(o.programLabel || o.kegiatanLabel) && (
-                      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                        {[o.programLabel, o.kegiatanLabel].filter(Boolean).join('  ›  ')}
+                    {locked ? (
+                      <span className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                        <Lock className="size-3" /> Sedang dipilih oleh {owner}
                       </span>
+                    ) : (
+                      (o.programLabel || o.kegiatanLabel) && (
+                        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                          {[o.programLabel, o.kegiatanLabel].filter(Boolean).join('  ›  ')}
+                        </span>
+                      )
                     )}
                   </span>
                   <span className="flex justify-center">
                     <span
                       className={
                         'flex size-5 items-center justify-center rounded border ' +
-                        (checked
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-input bg-background')
+                        (locked
+                          ? 'border-border bg-muted text-muted-foreground'
+                          : checked
+                            ? 'border-primary bg-primary text-primary-foreground'
+                            : 'border-input bg-background')
                       }
                     >
-                      {checked && <Check className="size-3.5" strokeWidth={3} />}
+                      {locked ? <Lock className="size-3" /> : checked && <Check className="size-3.5" strokeWidth={3} />}
                     </span>
                     <input
                       type="checkbox"
                       className="sr-only"
                       checked={checked}
+                      disabled={locked}
                       onChange={() => toggle(o.id)}
                     />
                   </span>

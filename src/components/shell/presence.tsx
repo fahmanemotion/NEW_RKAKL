@@ -5,7 +5,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase';
 import type { CurrentUser } from '@/lib/auth';
 
-export interface PresenceKro { kode: string; uraian: string }
+export interface PresenceKro { id: string; kode: string; uraian: string }
 export interface PresenceUser {
   userId: string;
   name: string;
@@ -119,10 +119,11 @@ export function usePresenceUsers() {
   return React.useContext(UsersCtx);
 }
 
-/** Panel sidebar: daftar pengguna yang sedang mengakses + KRO mereka. */
+/** Panel sidebar: daftar pengguna LAIN yang sedang mengakses + KRO mereka. */
 export function PresencePanel() {
   const { users, active } = usePresenceUsers();
   if (!active) return null;
+  const others = users.filter((u) => !u.self);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col border-t border-white/10">
@@ -134,18 +135,15 @@ export function PresencePanel() {
         Sedang mengakses
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
-        {users.length === 0 ? (
-          <p className="px-1 text-xs text-sidebar-foreground/50">Menyambungkan…</p>
+        {others.length === 0 ? (
+          <p className="px-1 text-xs text-sidebar-foreground/45">
+            Belum ada pengguna lain yang mengakses.
+          </p>
         ) : (
-          users.map((u) => (
+          others.map((u) => (
             <div key={u.userId} className="rounded-lg border border-white/10 bg-white/5 p-2.5">
-              <div className="flex items-center gap-1.5 text-sm font-semibold text-white">
-                <span className="truncate">{u.name}</span>
-                {u.self && (
-                  <span className="shrink-0 rounded bg-emerald-400/15 px-1 text-[10px] font-normal text-emerald-300">
-                    Anda
-                  </span>
-                )}
+              <div className="text-sm font-semibold text-white">
+                <span className="block truncate">{u.name}</span>
               </div>
               {u.kros.length === 0 ? (
                 <p className="mt-1 text-[11px] italic text-sidebar-foreground/45">
@@ -154,7 +152,7 @@ export function PresencePanel() {
               ) : (
                 <ol className="mt-1 space-y-0.5">
                   {u.kros.map((k, i) => (
-                    <li key={`${k.kode}-${i}`} className="flex gap-1.5 text-[11px] text-sidebar-foreground/75">
+                    <li key={`${k.id}-${i}`} className="flex gap-1.5 text-[11px] text-sidebar-foreground/75">
                       <span className="text-sidebar-foreground/40">{i + 1}.</span>
                       <span className="truncate font-mono" title={k.uraian || k.kode}>{k.kode}</span>
                     </li>
