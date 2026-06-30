@@ -21,6 +21,7 @@ import { fmtN, type Level } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
 import { usePenganggaran } from "@/store/penganggaran";
+import { usePresenceSetter } from "@/components/shell/presence";
 import {
   addNode,
   addHeader,
@@ -228,6 +229,27 @@ export function PenganggaranClient({
       const next = new Set([...prev].filter((id) => valid.has(id)));
       return next.size === prev.size ? prev : next;
     });
+  }, [kroOptions]);
+
+  // ── Presence: siarkan KRO yang sedang dibuka/dikerjakan ke panel sidebar ───
+  const setMyKros = usePresenceSetter();
+  React.useEffect(() => {
+    const sel =
+      visibleKros.size === 0
+        ? []
+        : kroOptions.filter((o) => visibleKros.has(o.id));
+    setMyKros(sel.map((o) => ({ kode: o.kode, uraian: o.uraian })));
+  }, [visibleKros, kroOptions, setMyKros]);
+
+  // Saat pertama membuka halaman input anggaran, tampilkan modal "Pilih KRO"
+  // lebih dulu agar pengguna memilih KRO yang akan ditampilkan/dikerjakan.
+  const kroAutoOpenedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (kroAutoOpenedRef.current) return;
+    if (kroOptions.length > 0) {
+      kroAutoOpenedRef.current = true;
+      setKroModalOpen(true);
+    }
   }, [kroOptions]);
 
   const gridRows = React.useMemo(() => {

@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { Button, Badge } from '@/components/ui';
 import { ThemeToggle } from '@/components/theme';
 import { navForRole, type NavItem } from './nav';
+import { PresenceProvider, PresencePanel } from './presence';
 import type { CurrentUser } from '@/lib/auth';
 import { STATUS_COLOR } from '@/lib/constants';
 
@@ -24,22 +25,23 @@ export function Shell({ user, children }: { user: CurrentUser; children: React.R
   }
 
   return (
+    <PresenceProvider user={user}>
     <div className="flex min-h-screen bg-background">
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 w-64 -translate-x-full app-sidebar bg-sidebar text-sidebar-foreground transition-transform lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col app-sidebar bg-sidebar text-sidebar-foreground transition-transform lg:translate-x-0',
           open && 'translate-x-0',
         )}
       >
-        <div className="flex h-14 items-center gap-2.5 border-b border-white/10 px-5">
+        <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-white/10 px-5">
           <div className="grid size-8 place-items-center rounded-lg bg-gradient-to-br from-sidebar-accent to-primary text-white shadow-md shadow-black/20">
             <Building2 className="size-5" />
           </div>
           <span className="text-base font-bold tracking-wide">SIPPT</span>
           <button className="ml-auto lg:hidden" onClick={() => setOpen(false)}><X className="size-5" /></button>
         </div>
-        <nav className="space-y-1 p-3">
+        <nav className="shrink-0 space-y-1 p-3">
           {items.map((it: NavItem) => {
             const active = pathname.startsWith(it.href);
             const Icon = it.icon;
@@ -58,7 +60,13 @@ export function Shell({ user, children }: { user: CurrentUser; children: React.R
             );
           })}
         </nav>
-        <div className="absolute inset-x-0 bottom-0 border-t border-white/10 p-3">
+
+        {/* Panel kolaborasi: hanya tampil di halaman input anggaran, mengisi
+            ruang antara menu dan tombol Keluar. Jika tidak aktif → null,
+            tombol Keluar terdorong ke bawah oleh mt-auto (sidebar utuh). */}
+        <PresencePanel />
+
+        <div className="mt-auto shrink-0 border-t border-white/10 p-3">
           <button onClick={logout} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-white/10">
             <LogOut className="size-4" /> Keluar
           </button>
@@ -87,5 +95,6 @@ export function Shell({ user, children }: { user: CurrentUser; children: React.R
         <main className="flex-1 p-4 lg:p-6">{children}</main>
       </div>
     </div>
+    </PresenceProvider>
   );
 }
