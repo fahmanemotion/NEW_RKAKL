@@ -22,7 +22,7 @@ export interface KroOption {
  * dobel input pada KRO yang sama.
  */
 export function KroFilterModal({
-  open, onClose, options, value, claimedBy, busy, onApply,
+  open, onClose, options, value, claimedBy, busy, dismissable = true, onApply,
 }: {
   open: boolean;
   onClose: () => void;
@@ -32,6 +32,11 @@ export function KroFilterModal({
   claimedBy?: Map<string, string>;
   /** true selama proses klaim/lepas ke database. */
   busy?: boolean;
+  /**
+   * Jika false (mode wajib, saat baru masuk halaman): modal tak bisa ditutup —
+   * tanpa tombol X / Batal, dan Ok wajib memilih minimal satu KRO.
+   */
+  dismissable?: boolean;
   onApply: (next: Set<string>) => void;
 }) {
   const [draft, setDraft] = React.useState<Set<string>>(new Set());
@@ -99,14 +104,28 @@ export function KroFilterModal({
     <Modal
       open={open}
       onClose={onClose}
+      dismissable={dismissable}
       title="Pilih KRO yang akan ditampilkan"
       className="max-w-3xl"
       footer={<>
         <span className="mr-auto text-xs text-muted-foreground">
-          {draft.size === 0 ? 'Belum ada yang dicentang → semua KRO ditampilkan' : `${draft.size} KRO dipilih`}
+          {!dismissable
+            ? selectable.length === 0
+              ? 'Semua KRO sedang dikerjakan pengguna lain — tekan Ok untuk lanjut'
+              : draft.size === 0
+                ? 'Pilih minimal satu KRO untuk lanjut'
+                : `${draft.size} KRO dipilih`
+            : draft.size === 0
+              ? 'Belum ada yang dicentang → semua KRO ditampilkan'
+              : `${draft.size} KRO dipilih`}
         </span>
-        <Button variant="outline" onClick={onClose} disabled={busy}>Batal</Button>
-        <Button onClick={() => { onApply(new Set(draft)); onClose(); }} disabled={busy}>
+        {dismissable && (
+          <Button variant="outline" onClick={onClose} disabled={busy}>Batal</Button>
+        )}
+        <Button
+          onClick={() => { onApply(new Set(draft)); onClose(); }}
+          disabled={busy || (!dismissable && draft.size === 0 && selectable.length > 0)}
+        >
           {busy ? 'Memproses…' : 'Ok'}
         </Button>
       </>}
@@ -119,9 +138,13 @@ export function KroFilterModal({
             placeholder="Pencarian kode / uraian…"
             className="flex-1"
           />
-          <Button variant="secondary" onClick={toggleAllVisible}>
-            {allVisibleChecked ? 'Kosongkan' : 'Pilih semua'}
-          </Button>
+          {/* "Pilih semua" hanya bila SELURUH KRO masih tersedia (tidak ada yang
+              dikunci pengguna lain) dan ada opsi — untuk keamanan. */}
+          {options.length > 0 && lockedBy.size === 0 && (
+            <Button variant="secondary" onClick={toggleAllVisible}>
+              {allVisibleChecked ? 'Kosongkan' : 'Pilih semua'}
+            </Button>
+          )}
         </div>
 
         <div className="overflow-hidden rounded-md border border-border">

@@ -216,6 +216,8 @@ export function PenganggaranClient({
     return mine;
   });
   const [kroModalOpen, setKroModalOpen] = React.useState(false);
+  // true = modal wajib (saat baru masuk halaman): tak bisa ditutup tanpa memilih.
+  const [kroModalMandatory, setKroModalMandatory] = React.useState(false);
 
   // Komponen yang sedang di-expand (klik 2x). Saat KRO difilter, tampilan
   // menciut sampai level Komponen; expand untuk melihat sub/akun/detail.
@@ -257,6 +259,7 @@ export function PenganggaranClient({
     if (kroAutoOpenedRef.current) return;
     if (kroOptions.length > 0) {
       kroAutoOpenedRef.current = true;
+      setKroModalMandatory(true);
       setKroModalOpen(true);
     }
   }, [kroOptions]);
@@ -1205,7 +1208,7 @@ export function PenganggaranClient({
       {kroOptions.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
           <span className="font-medium text-muted-foreground">Filter tampilan:</span>
-          <Button variant="outline" size="sm" className="h-8" onClick={() => setKroModalOpen(true)}>
+          <Button variant="outline" size="sm" className="h-8" onClick={() => { setKroModalMandatory(false); setKroModalOpen(true); }}>
             <Rows3 className="size-4" />
             {visibleKros.size === 0
               ? "Semua KRO"
@@ -1297,6 +1300,7 @@ export function PenganggaranClient({
         value={visibleKros}
         claimedBy={claimedByOthers}
         busy={kroApplyBusy}
+        dismissable={!kroModalMandatory}
         onApply={applyKroSelection}
         onClose={() => setKroModalOpen(false)}
       />

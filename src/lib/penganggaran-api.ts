@@ -229,15 +229,29 @@ export async function releaseKro(kroId: string, me: { id: string }): Promise<voi
   if (error) throw error;
 }
 
+/** Deteksi error "kolom klaim belum ada" (migrasi belum dijalankan). */
+function isClaimColumnMissing(e: unknown): boolean {
+  const err = e as { code?: string; message?: string };
+  return (
+    err?.code === "PGRST204" ||
+    /dikerjakan_oleh|schema cache|could not find the/i.test(err?.message ?? "")
+  );
+}
+
 /**
  * Klaim beberapa KRO sekaligus (atomik per-KRO via claimKro). Mengembalikan id
  * yang berhasil diklaim dan yang gagal (sudah dikunci pengguna lain) beserta
  * nama pemilik saat ini untuk ditampilkan ke pengguna.
+ *
+ * Jika kolom klaim belum ada di database (migrasi belum dijalankan), fungsi
+ * mendegradasi dengan aman: menganggap semua KRO "terklaim" tanpa menulis ke DB,
+ * sehingga lock keras nonaktif namun aplikasi tetap berjalan (lock presence tetap
+ * berfungsi). Jalankan migrasi penambahan kolom untuk mengaktifkan lock keras.
  */
 export async function claimKros(
   kroIds: string[],
   me: { id: string; nama: string | null },
-): Promise<{ claimedIds: string[]; failed: { id: string; owner: string | null }[] }> {
+): Promise<{ claimedIds: string[]; failed: { id: string; owner: string | null }[]; unavailable?: boolean }> {
   const claimedIds: string[] = [];
   const failed: { id: string; owner: string | null }[] = [];
   for (const id of kroIds) {
@@ -245,13 +259,17 @@ export async function claimKros(
       await claimKro(id, me);
       claimedIds.push(id);
     } catch (e) {
-      if ((e as Error).message?.includes("TERKUNCI")) {
+      const msg = (e as Error).message ?? "";
+      if (msg.includes("TERKUNCI")) {
         const { data } = await sb()
           .from("usulan_struktur")
           .select("dikerjakan_oleh_nama")
           .eq("id", id)
           .maybeSingle();
         failed.push({ id, owner: (data as { dikerjakan_oleh_nama?: string | null } | null)?.dikerjakan_oleh_nama ?? null });
+      } else if (isClaimColumnMissing(e)) {
+        // Fitur klaim DB belum tersedia → jangan blokir pengguna.
+        return { claimedIds: [...kroIds], failed: [], unavailable: true };
       } else {
         throw e;
       }
