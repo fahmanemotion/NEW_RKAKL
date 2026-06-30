@@ -67,6 +67,17 @@ export const JENIS_BELANJA = [
 ] as const;
 export type JenisBelanja = (typeof JENIS_BELANJA)[number]['value'];
 
+/**
+ * Aturan operasional: HANYA KRO dengan kode di daftar ini yang tergolong
+ * Belanja Operasional; semua KRO lain → Non Operasional. Jenis belanja sebuah
+ * detail ditentukan OTOMATIS dari KRO induknya (pengguna tidak memilih manual).
+ */
+export const KODE_KRO_OPERASIONAL: readonly string[] = ['4627.994'];
+
+export function jenisBelanjaForKroKode(kroKode: string | null | undefined): JenisBelanja {
+  return kroKode != null && KODE_KRO_OPERASIONAL.includes(kroKode) ? 'OPS' : 'NON_OPS';
+}
+
 // Format rupiah ribuan tanpa simbol (gaya kertas kerja SAKTI).
 export const fmtN = (n: number | null | undefined) =>
   Math.round(Number(n) || 0).toLocaleString('id-ID');

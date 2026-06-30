@@ -1,8 +1,8 @@
 'use client';
 import * as React from 'react';
 import { Modal } from '@/components/ui/modal';
-import { Button, Input, Select } from '@/components/ui';
-import { fmtN, JENIS_BELANJA, type JenisBelanja } from '@/lib/constants';
+import { Button, Input } from '@/components/ui';
+import { fmtN } from '@/lib/constants';
 import { computeVolume, computeJumlah, effectiveVolume, normalizeSegments, type VolSegment } from '@/lib/detail-volume';
 
 export interface DetailValues {
@@ -11,7 +11,6 @@ export interface DetailValues {
   volume: number;
   satuan: string;
   harga: number;
-  jenis_belanja: JenisBelanja;
   segments: { qty: number; sat: string }[] | null;
 }
 
@@ -33,7 +32,6 @@ export function DetailForm({
   const [manualVolume, setManualVolume] = React.useState<number | string>(1); // Volkeg manual
   const [uraian, setUraian] = React.useState('');
   const [harga, setHarga] = React.useState(0);
-  const [jenis, setJenis] = React.useState<JenisBelanja>('OPS');
   const [satkeg, setSatkeg] = React.useState('');       // satuan manual (Satkeg)
   const [satkegTouched, setSatkegTouched] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -58,13 +56,12 @@ export function DetailForm({
       setManualVolume(initial.volume ?? 1);
       setUraian(initial.uraian ?? '');
       setHarga(initial.harga ?? 0);
-      setJenis((initial.jenis_belanja as JenisBelanja) ?? 'OPS');
       setSatkeg(initial.satuan ?? '');
       setSatkegTouched(true);   // jangan timpa satuan lama dengan saran otomatis
     } else {
       setSeg(EMPTY_SEG.map((s) => ({ ...s })));
       setShowRincian(false); setManualVolume(1);
-      setUraian(''); setHarga(0); setJenis('OPS');
+      setUraian(''); setHarga(0);
       setSatkeg(''); setSatkegTouched(false);
     }
   }, [open, initial]);
@@ -112,7 +109,7 @@ export function DetailForm({
     setBusy(true); setErr(null);
     try {
       const segments = showRincian ? normalizeSegments(seg) : null;
-      await onSubmit({ id: initial?.id, uraian: uraian.trim(), volume, satuan: satkeg.trim(), harga, jenis_belanja: jenis, segments });
+      await onSubmit({ id: initial?.id, uraian: uraian.trim(), volume, satuan: satkeg.trim(), harga, segments });
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
 
@@ -127,25 +124,17 @@ export function DetailForm({
       </>}
     >
       <div className="space-y-4">
-        {/* Info akun (kiri) + Jenis Belanja compact (kanan) — satu kontainer */}
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-md bg-muted px-3 py-2 text-sm">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
-            {akunInfo ? (
-              <>
-                <span><span className="text-muted-foreground">Akun:</span> <span className="font-mono">{akunInfo.kode}</span> {akunInfo.uraian}</span>
-                <span><span className="text-muted-foreground">Sumber Dana:</span> <strong>{akunInfo.sumberDana}</strong></span>
-                {akunInfo.kategori && <span><span className="text-muted-foreground">Kategori:</span> <strong>{akunInfo.kategori}</strong></span>}
-              </>
-            ) : (
-              <span className="text-muted-foreground">Detail belanja</span>
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <label htmlFor="jenis-belanja" className="whitespace-nowrap text-xs font-medium text-muted-foreground">Jenis Belanja</label>
-            <Select id="jenis-belanja" value={jenis} onChange={(e) => setJenis(e.target.value as JenisBelanja)} className="h-8 w-auto min-w-[4.5rem]">
-              {JENIS_BELANJA.map((j) => <option key={j.value} value={j.value}>{j.label}</option>)}
-            </Select>
-          </div>
+        {/* Info akun */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-md bg-muted px-3 py-2 text-sm">
+          {akunInfo ? (
+            <>
+              <span><span className="text-muted-foreground">Akun:</span> <span className="font-mono">{akunInfo.kode}</span> {akunInfo.uraian}</span>
+              <span><span className="text-muted-foreground">Sumber Dana:</span> <strong>{akunInfo.sumberDana}</strong></span>
+              {akunInfo.kategori && <span><span className="text-muted-foreground">Kategori:</span> <strong>{akunInfo.kategori}</strong></span>}
+            </>
+          ) : (
+            <span className="text-muted-foreground">Detail belanja</span>
+          )}
         </div>
 
         {/* Rincian volume — full-width; tiap faktor dikelompokkan agar × tak terpisah saat wrap */}

@@ -16,7 +16,7 @@ import { createClient } from "@/lib/supabase";
 import { Button, Card, Select } from "@/components/ui";
 import { flattenForGrid, subtreeIds, filterByKros, checkedRootNodes, type GridRow } from "@/lib/tree";
 import { toolbarActions, type ToolbarAction } from "@/lib/toolbar";
-import { fmtN, type Level } from "@/lib/constants";
+import { fmtN, jenisBelanjaForKroKode, type Level } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
 import { usePenganggaran } from "@/store/penganggaran";
@@ -846,6 +846,8 @@ export function PenganggaranClient({
 
   async function onSubmitDetail(v: DetailValues) {
     if (!detail) return;
+    // Jenis belanja ditentukan OTOMATIS dari KRO induk (bukan input manual).
+    const kro = kroAncestor(detail.parentId);
     await upsertDetail({
       id: v.id,
       usulan_id: header.id,
@@ -855,7 +857,7 @@ export function PenganggaranClient({
       satuan: v.satuan,
       harga: v.harga,
       sumber_dana: detail.inheritedSumberDana, // ikut akun
-      jenis_belanja: v.jenis_belanja,
+      jenis_belanja: jenisBelanjaForKroKode(kro?.kode),
       segments: v.segments,
     });
     setDetail(null);
@@ -884,8 +886,6 @@ export function PenganggaranClient({
         volume: r.volume ?? 0,
         satuan: r.satuan ?? "",
         harga: r.harga ?? 0,
-        jenis_belanja:
-          (r.jenis_belanja as DetailValues["jenis_belanja"]) ?? "OPS",
         segments:
           (r as { volume_rincian?: { qty: number; sat: string }[] | null })
             .volume_rincian ?? null,
