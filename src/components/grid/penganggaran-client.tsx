@@ -273,6 +273,20 @@ export function PenganggaranClient({
     return m;
   }, [rows, me.id]);
 
+  // KRO yang BARU ditambah pengguna → langsung tampil di daftar usulan tanpa
+  // perlu membuka "filter tampilan" lagi. Saat filter aktif (visibleKros terisi)
+  // KRO baru otomatis dimasukkan ke set tampil & diklaim (konsisten dgn lock).
+  // Saat sedang "tampil semua" (set kosong), KRO baru memang sudah terlihat.
+  const pendingNewKroRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const id = pendingNewKroRef.current;
+    if (!id || !kroOptions.some((o) => o.id === id)) return; // tunggu KRO termuat
+    pendingNewKroRef.current = null;
+    if (visibleKros.size === 0) return; // tampil semua → sudah terlihat
+    setVisibleKros((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+    void claimKros([id], me).catch(() => {});
+  }, [kroOptions, visibleKros, me]);
+
   // Apply pilihan KRO: KLAIM yang baru (atomik, tolak yang sudah dikunci) &
   // LEPAS yang tak lagi dipilih. KRO yang gagal diklaim tidak ikut ditampilkan.
   const [kroApplyBusy, setKroApplyBusy] = React.useState(false);
@@ -765,7 +779,7 @@ export function PenganggaranClient({
     }
 
     try {
-      await addNode({
+      const created = await addNode({
         usulan_id: header.id,
         parent_id: parentStrukturId,
         level,
@@ -774,6 +788,8 @@ export function PenganggaranClient({
         uraian: row.nama,
         sumber_dana,
       });
+      // KRO baru: tandai agar langsung ditampilkan di daftar setelah refresh.
+      if (level === "KRO") pendingNewKroRef.current = created.id;
     } catch (e) {
       // Mis. duplikat — beri tahu & biarkan picker tetap terbuka.
       alert((e as Error).message);
