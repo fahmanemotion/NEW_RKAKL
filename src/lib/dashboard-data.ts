@@ -183,16 +183,18 @@ export function buildDashboardRows(rows: UsulanStruktur[]): DashAkunRow[] {
       const komponenKey = [progKode, kegKode, kroKode, roKode, komponenKode]
         .filter(Boolean)
         .join(SEP);
-      const kode = [progKode, kegKode, kroKode, roKode, a.kode ?? ""]
-        .filter(Boolean)
-        .join(".");
+      // Kode struktural sudah KUMULATIF (ro memuat kro, kro memuat kegiatan),
+      // jadi cukup pakai yang TERDALAM + program + akun agar prefix induk tidak
+      // tergandakan (mis. hindari "1975.1975.EBB.1975.EBB.951").
+      const struct = roKode || kroKode || kegKode;
+      const kode = [progKode, struct, a.kode ?? ""].filter(Boolean).join(".");
 
       out.push({
         id: a.id,
         kode,
         akunKode: a.kode ?? "",
         akunUraian: a.uraian ?? "",
-        context: [progKode, kegKode, kroKode, roKode].filter(Boolean).join(" • "),
+        context: [progKode, struct].filter(Boolean).join(" • "),
         progKode,
         progUraian: progN?.uraian ?? "",
         kegKode,
@@ -213,8 +215,20 @@ export function buildDashboardRows(rows: UsulanStruktur[]): DashAkunRow[] {
       });
     });
 
-  out.sort((x, y) => x.kode.localeCompare(y.kode));
-  return out;
+  // Cegah baris dobel: dua node AKUN dengan jalur + kode + uraian IDENTIK
+  // (akibat duplikat struktur di data) digabung menjadi satu — diambil yang
+  // pagunya tertinggi — agar tidak tampil ganda maupun terhitung dua kali pada
+  // total. Akun sama di komponen/RO BERBEDA tidak terpengaruh (kunci berbeda).
+  const best = new Map<string, DashAkunRow>();
+  for (const r of out) {
+    const pathKey = r.komponenKey || r.roKey || r.kroKey || r.progKode;
+    const key = `${pathKey}||${r.akunKode}||${r.akunUraian}`;
+    const cur = best.get(key);
+    if (!cur || r.pagu > cur.pagu) best.set(key, r);
+  }
+  const deduped = Array.from(best.values());
+  deduped.sort((x, y) => x.kode.localeCompare(y.kode));
+  return deduped;
 }
 
 export interface DashSummary {
