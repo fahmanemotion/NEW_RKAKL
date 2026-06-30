@@ -42,8 +42,8 @@ export default async function LaporanPage() {
 
   return (
     <div className="space-y-5">
-      <KertasKerjaImport usulanList={usulanList} />
       <LaporanClient usulanList={usulanList} />
+      <KertasKerjaImport usulanList={usulanList} />
     </div>
   );
 }
