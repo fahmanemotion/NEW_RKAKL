@@ -30,6 +30,8 @@ import {
   pasteNode,
   claimKro,
   releaseKro,
+  claimKros,
+  releaseKros,
   editNode,
   setChildrenSumber,
   fetchStruktur,
@@ -204,8 +206,15 @@ export function PenganggaranClient({
       );
   }, [rows]);
 
-  // KRO yang dicentang. Kosong = tampilkan semua.
-  const [visibleKros, setVisibleKros] = React.useState<Set<string>>(new Set());
+  // KRO yang dicentang. Kosong = tampilkan semua. Saat masuk, prisi dari KRO
+  // yang sudah saya klaim sebelumnya (dikerjakan_oleh = saya) agar bisa lanjut.
+  const [visibleKros, setVisibleKros] = React.useState<Set<string>>(() => {
+    const mine = new Set<string>();
+    for (const r of initialRows) {
+      if (r.level === "KRO" && r.dikerjakan_oleh === me.id) mine.add(r.id);
+    }
+    return mine;
+  });
   const [kroModalOpen, setKroModalOpen] = React.useState(false);
 
   // Komponen yang sedang di-expand (klik 2x). Saat KRO difilter, tampilan
@@ -251,6 +260,66 @@ export function PenganggaranClient({
       setKroModalOpen(true);
     }
   }, [kroOptions]);
+
+  // ── Lapisan kedua (DB): KRO yang diklaim pengguna LAIN (dikerjakan_oleh) ───
+  // Otoritatif dari data; dipakai modal untuk mengunci selain presence.
+  const claimedByOthers = React.useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of rows) {
+      if (r.level === "KRO" && r.dikerjakan_oleh && r.dikerjakan_oleh !== me.id) {
+        m.set(r.id, r.dikerjakan_oleh_nama || "pengguna lain");
+      }
+    }
+    return m;
+  }, [rows, me.id]);
+
+  // Apply pilihan KRO: KLAIM yang baru (atomik, tolak yang sudah dikunci) &
+  // LEPAS yang tak lagi dipilih. KRO yang gagal diklaim tidak ikut ditampilkan.
+  const [kroApplyBusy, setKroApplyBusy] = React.useState(false);
+  async function applyKroSelection(next: Set<string>) {
+    const old = visibleKros;
+    const added = [...next].filter((id) => !old.has(id));
+    const removed = [...old].filter((id) => !next.has(id));
+    setKroApplyBusy(true);
+    try {
+      let failed: { id: string; owner: string | null }[] = [];
+      if (added.length) {
+        const res = await claimKros(added, me);
+        failed = res.failed;
+      }
+      if (removed.length) await releaseKros(removed, me);
+
+      const failedSet = new Set(failed.map((f) => f.id));
+      setVisibleKros(new Set([...next].filter((id) => !failedSet.has(id))));
+      await refresh(); // perbarui dikerjakan_oleh pada rows → lock & panel akurat
+
+      if (failed.length) {
+        const lines = failed.map((f) => {
+          const o = kroOptions.find((k) => k.id === f.id);
+          return `• ${o?.kode ?? f.id}${f.owner ? ` — dikunci oleh ${f.owner}` : ""}`;
+        });
+        alert(
+          "Sebagian KRO sedang dikerjakan pengguna lain dan tidak dipilih:\n\n" +
+            lines.join("\n"),
+        );
+      }
+    } catch (e) {
+      alert("Gagal memproses pilihan KRO: " + (e as Error).message);
+    } finally {
+      setKroApplyBusy(false);
+    }
+  }
+
+  // Lepas klaim KRO saya saat meninggalkan halaman (best-effort untuk navigasi
+  // SPA; pada penutupan tab klaim tetap tersimpan dan dilanjutkan saat kembali).
+  const visibleKrosRef = React.useRef(visibleKros);
+  visibleKrosRef.current = visibleKros;
+  React.useEffect(() => {
+    return () => {
+      const ids = [...visibleKrosRef.current];
+      if (ids.length) void releaseKros(ids, me).catch(() => {});
+    };
+  }, [me]);
 
   const gridRows = React.useMemo(() => {
     if (visibleKros.size === 0) return allGridRows;
@@ -1226,7 +1295,9 @@ export function PenganggaranClient({
         open={kroModalOpen}
         options={kroOptions}
         value={visibleKros}
-        onApply={setVisibleKros}
+        claimedBy={claimedByOthers}
+        busy={kroApplyBusy}
+        onApply={applyKroSelection}
         onClose={() => setKroModalOpen(false)}
       />
       <DetailForm

@@ -22,27 +22,31 @@ export interface KroOption {
  * dobel input pada KRO yang sama.
  */
 export function KroFilterModal({
-  open, onClose, options, value, onApply,
+  open, onClose, options, value, claimedBy, busy, onApply,
 }: {
   open: boolean;
   onClose: () => void;
   options: KroOption[];
   value: Set<string>;
+  /** KRO yang dikunci pengguna lain menurut DB (otoritatif): id → nama pemilik. */
+  claimedBy?: Map<string, string>;
+  /** true selama proses klaim/lepas ke database. */
+  busy?: boolean;
   onApply: (next: Set<string>) => void;
 }) {
   const [draft, setDraft] = React.useState<Set<string>>(new Set());
   const [q, setQ] = React.useState('');
 
-  // KRO yang dikunci pengguna lain → Map<kroId, namaPemilik>.
+  // Sumber kunci digabung: DB (claimedBy, otoritatif) + presence (live).
   const { users } = usePresenceUsers();
   const lockedBy = React.useMemo(() => {
-    const m = new Map<string, string>();
+    const m = new Map<string, string>(claimedBy ?? []);
     for (const u of users) {
       if (u.self) continue;
       for (const k of u.kros) if (k.id && !m.has(k.id)) m.set(k.id, u.name);
     }
     return m;
-  }, [users]);
+  }, [users, claimedBy]);
 
   React.useEffect(() => {
     if (open) { setDraft(new Set(value)); setQ(''); }
@@ -101,8 +105,10 @@ export function KroFilterModal({
         <span className="mr-auto text-xs text-muted-foreground">
           {draft.size === 0 ? 'Belum ada yang dicentang → semua KRO ditampilkan' : `${draft.size} KRO dipilih`}
         </span>
-        <Button variant="outline" onClick={onClose}>Batal</Button>
-        <Button onClick={() => { onApply(new Set(draft)); onClose(); }}>Ok</Button>
+        <Button variant="outline" onClick={onClose} disabled={busy}>Batal</Button>
+        <Button onClick={() => { onApply(new Set(draft)); onClose(); }} disabled={busy}>
+          {busy ? 'Memproses…' : 'Ok'}
+        </Button>
       </>}
     >
       <div className="space-y-3">

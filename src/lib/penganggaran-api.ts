@@ -229,6 +229,48 @@ export async function releaseKro(kroId: string, me: { id: string }): Promise<voi
   if (error) throw error;
 }
 
+/**
+ * Klaim beberapa KRO sekaligus (atomik per-KRO via claimKro). Mengembalikan id
+ * yang berhasil diklaim dan yang gagal (sudah dikunci pengguna lain) beserta
+ * nama pemilik saat ini untuk ditampilkan ke pengguna.
+ */
+export async function claimKros(
+  kroIds: string[],
+  me: { id: string; nama: string | null },
+): Promise<{ claimedIds: string[]; failed: { id: string; owner: string | null }[] }> {
+  const claimedIds: string[] = [];
+  const failed: { id: string; owner: string | null }[] = [];
+  for (const id of kroIds) {
+    try {
+      await claimKro(id, me);
+      claimedIds.push(id);
+    } catch (e) {
+      if ((e as Error).message?.includes("TERKUNCI")) {
+        const { data } = await sb()
+          .from("usulan_struktur")
+          .select("dikerjakan_oleh_nama")
+          .eq("id", id)
+          .maybeSingle();
+        failed.push({ id, owner: (data as { dikerjakan_oleh_nama?: string | null } | null)?.dikerjakan_oleh_nama ?? null });
+      } else {
+        throw e;
+      }
+    }
+  }
+  return { claimedIds, failed };
+}
+
+/** Lepas beberapa klaim KRO sekaligus (hanya milik sendiri; error diabaikan). */
+export async function releaseKros(kroIds: string[], me: { id: string }): Promise<void> {
+  for (const id of kroIds) {
+    try {
+      await releaseKro(id, me);
+    } catch {
+      /* abaikan kegagalan pelepasan individual */
+    }
+  }
+}
+
 /** Hapus beberapa node sekaligus (mis. sebuah node beserta seluruh turunannya). */
 export async function deleteNodes(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
