@@ -68,14 +68,16 @@ export const JENIS_BELANJA = [
 export type JenisBelanja = (typeof JENIS_BELANJA)[number]['value'];
 
 /**
- * Aturan operasional: HANYA KRO dengan kode di daftar ini yang tergolong
- * Belanja Operasional; semua KRO lain → Non Operasional. Jenis belanja sebuah
- * detail ditentukan OTOMATIS dari KRO induknya (pengguna tidak memilih manual).
+ * Belanja Operasional = output "Layanan Perkantoran" (kode RO berakhiran ".994",
+ * mis. 4627.EBA.994) — mencakup komponen Gaji & Tunjangan (001) dan Operasional
+ * & Pemeliharaan Kantor (002) beserta SELURUH detail turunannya. Output lain →
+ * Non Operasional. Jenis belanja ditentukan OTOMATIS (bukan input manual).
  */
-export const KODE_KRO_OPERASIONAL: readonly string[] = ['4627.994'];
+export const SUFIKS_OUTPUT_OPERASIONAL = '.994';
 
-export function jenisBelanjaForKroKode(kroKode: string | null | undefined): JenisBelanja {
-  return kroKode != null && KODE_KRO_OPERASIONAL.includes(kroKode) ? 'OPS' : 'NON_OPS';
+/** True bila kode termasuk output operasional (Layanan Perkantoran). */
+export function isKodeOperasional(kode: string | null | undefined): boolean {
+  return kode != null && kode.endsWith(SUFIKS_OUTPUT_OPERASIONAL);
 }
 
 // Format rupiah ribuan tanpa simbol (gaya kertas kerja SAKTI).

@@ -16,7 +16,7 @@ import { createClient } from "@/lib/supabase";
 import { Button, Card, Select } from "@/components/ui";
 import { flattenForGrid, subtreeIds, filterByKros, checkedRootNodes, type GridRow } from "@/lib/tree";
 import { toolbarActions, type ToolbarAction } from "@/lib/toolbar";
-import { fmtN, jenisBelanjaForKroKode, type Level } from "@/lib/constants";
+import { fmtN, isKodeOperasional, type Level } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
 import { usePenganggaran } from "@/store/penganggaran";
@@ -527,6 +527,17 @@ export function PenganggaranClient({
     return null;
   }
   const selKro = kroAncestor(selectedRow?.ref?.id ?? null);
+
+  // Belanja Operasional bila node berada di bawah output "Layanan Perkantoran"
+  // (kode RO berakhiran .994). Telusuri ke atas dari node awal.
+  function isUnderOperasional(startId: string | null | undefined): boolean {
+    let cur = startId ? byId.get(startId) ?? null : null;
+    while (cur) {
+      if (isKodeOperasional(cur.kode)) return true;
+      cur = cur.parent_id ? byId.get(cur.parent_id) ?? null : null;
+    }
+    return false;
+  }
   const kroOwnerId = selKro?.dikerjakan_oleh ?? null;
   const kroOwnerNama = selKro?.dikerjakan_oleh_nama ?? null;
   const lockedByOther = !!kroOwnerId && kroOwnerId !== me.id;
@@ -846,8 +857,8 @@ export function PenganggaranClient({
 
   async function onSubmitDetail(v: DetailValues) {
     if (!detail) return;
-    // Jenis belanja ditentukan OTOMATIS dari KRO induk (bukan input manual).
-    const kro = kroAncestor(detail.parentId);
+    // Jenis belanja OTOMATIS: OPS bila berada di bawah output Layanan Perkantoran
+    // (kode RO .994), selain itu NON_OPS.
     await upsertDetail({
       id: v.id,
       usulan_id: header.id,
@@ -857,7 +868,7 @@ export function PenganggaranClient({
       satuan: v.satuan,
       harga: v.harga,
       sumber_dana: detail.inheritedSumberDana, // ikut akun
-      jenis_belanja: jenisBelanjaForKroKode(kro?.kode),
+      jenis_belanja: isUnderOperasional(detail.parentId) ? "OPS" : "NON_OPS",
       segments: v.segments,
     });
     setDetail(null);
