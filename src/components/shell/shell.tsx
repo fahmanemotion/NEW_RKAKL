@@ -110,6 +110,15 @@ export function Shell({ user, children }: { user: CurrentUser; children: React.R
               <Menu className="size-5" />
             </button>
 
+            {user.satker_logo && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={user.satker_logo}
+                alt="Logo satker"
+                className="h-9 w-auto max-w-[150px] object-contain"
+              />
+            )}
+
             <div className="ml-auto flex items-center gap-2 sm:gap-3">
               <ThemeToggle />
 

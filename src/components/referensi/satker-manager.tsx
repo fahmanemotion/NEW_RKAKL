@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { Loader2, Save, Building2, CheckCircle2 } from "lucide-react";
+import { Loader2, Save, Building2, CheckCircle2, Upload, Image as ImageIcon, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Card } from "@/components/ui";
 import { createClient } from "@/lib/supabase";
@@ -11,6 +11,38 @@ interface SatkerRow {
   nama_satker: string;
   kppn: string | null;
   lokus: string | null;
+  logo: string | null;
+}
+
+/** Baca file gambar → perkecil (maks 256px) → data URL PNG agar ringan disimpan. */
+async function fileToLogoDataUrl(file: File): Promise<string> {
+  const dataUrl: string = await new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result));
+    fr.onerror = () => rej(new Error("Gagal membaca file."));
+    fr.readAsDataURL(file);
+  });
+  const img: HTMLImageElement = await new Promise((res, rej) => {
+    const i = new window.Image();
+    i.onload = () => res(i);
+    i.onerror = () => rej(new Error("File bukan gambar yang valid."));
+    i.src = dataUrl;
+  });
+  const MAX = 256;
+  let w = img.width;
+  let h = img.height;
+  if (w > MAX || h > MAX) {
+    const r = Math.min(MAX / w, MAX / h);
+    w = Math.round(w * r);
+    h = Math.round(h * r);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return dataUrl;
+  ctx.drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL("image/png");
 }
 
 /**
@@ -26,6 +58,7 @@ export function SatkerManager({ satkerId }: { satkerId: string | null }) {
   const [kode, setKode] = React.useState("");
   const [kppn, setKppn] = React.useState("");
   const [lokus, setLokus] = React.useState("");
+  const [logo, setLogo] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -36,7 +69,7 @@ export function SatkerManager({ satkerId }: { satkerId: string | null }) {
     (async () => {
       try {
         const sb = createClient();
-        const sel = sb.from("master_satker").select("id, kode_satker, nama_satker, kppn, lokus");
+        const sel = sb.from("master_satker").select("id, kode_satker, nama_satker, kppn, lokus, logo");
         const { data, error } = satkerId
           ? await sel.eq("id", satkerId).maybeSingle()
           : await sel.order("nama_satker").limit(1).maybeSingle();
@@ -49,6 +82,7 @@ export function SatkerManager({ satkerId }: { satkerId: string | null }) {
           setKode(r.kode_satker ?? "");
           setKppn(r.kppn ?? "");
           setLokus(r.lokus ?? "");
+          setLogo(r.logo ?? null);
         }
       } catch (e) {
         if (alive) setErr((e as Error).message);
@@ -60,6 +94,22 @@ export function SatkerManager({ satkerId }: { satkerId: string | null }) {
   }, [satkerId]);
 
   const touch = () => setSaved(false);
+
+  async function onPickLogo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // izinkan memilih file yang sama lagi
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setErr("File harus berupa gambar."); return; }
+    if (file.size > 3 * 1024 * 1024) { setErr("Ukuran gambar maksimal 3 MB."); return; }
+    try {
+      const url = await fileToLogoDataUrl(file);
+      setLogo(url);
+      setErr(null);
+      touch();
+    } catch (e2) {
+      setErr((e2 as Error).message);
+    }
+  }
 
   async function save() {
     if (!row) return;
@@ -77,12 +127,13 @@ export function SatkerManager({ satkerId }: { satkerId: string | null }) {
           kode_satker: kode.trim(),
           kppn: kppn.trim() || null,
           lokus: lokus.trim() || null,
+          logo: logo,
           updated_at: new Date().toISOString(),
         })
         .eq("id", row.id);
       if (error) throw error;
       setSaved(true);
-      router.refresh(); // segarkan nama satker di shell & halaman server lain
+      router.refresh(); // segarkan nama & logo satker di shell & halaman server lain
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -122,6 +173,38 @@ export function SatkerManager({ satkerId }: { satkerId: string | null }) {
         </div>
 
         <div className="space-y-4 p-5">
+          <div>
+            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <ImageIcon className="size-3.5" /> Logo Satker
+            </label>
+            <div className="flex items-center gap-3">
+              <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-xl border border-border bg-muted/40">
+                {logo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logo} alt="Logo satker" className="size-full object-contain" />
+                ) : (
+                  <ImageIcon className="size-6 text-muted-foreground" />
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap gap-2">
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-input bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent">
+                    <Upload className="size-4" /> {logo ? "Ganti Logo" : "Unggah Logo"}
+                    <input type="file" accept="image/*" className="hidden" onChange={onPickLogo} />
+                  </label>
+                  {logo && (
+                    <Button variant="outline" size="sm" onClick={() => { setLogo(null); touch(); }}>
+                      <Trash2 className="size-4" /> Hapus
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  PNG/JPG. Tampil di pojok kiri atas aplikasi. Otomatis diperkecil &amp; disimpan saat menekan Simpan.
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div>
             <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <Building2 className="size-3.5" /> Nama Satker

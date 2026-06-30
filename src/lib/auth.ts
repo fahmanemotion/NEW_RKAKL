@@ -10,6 +10,7 @@ export interface CurrentUser {
   jabatan: string | null;
   satker_id: string | null;
   satker_nama: string | null;
+  satker_logo: string | null;
   role: RoleName | null;
 }
 
@@ -32,17 +33,19 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('nama, jabatan, satker_id, roles(nama), master_satker(nama_satker)')
+    .select('nama, jabatan, satker_id, roles(nama), master_satker(nama_satker, logo)')
     .eq('id', userId)
     .single();
 
+  const satker = profile?.master_satker as { nama_satker?: string; logo?: string | null } | null;
   return {
     id: userId,
     email: authUser.email ?? null,
     nama: (profile?.nama as string) ?? authUser.email ?? null,
     jabatan: (profile?.jabatan as string) ?? null,
     satker_id: (profile?.satker_id as string) ?? null,
-    satker_nama: (profile?.master_satker as { nama_satker?: string } | null)?.nama_satker ?? null,
+    satker_nama: satker?.nama_satker ?? null,
+    satker_logo: satker?.logo ?? null,
     role: ((profile?.roles as { nama?: RoleName } | null)?.nama ?? null) as RoleName | null,
   };
 });

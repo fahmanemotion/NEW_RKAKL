@@ -5,7 +5,6 @@ import {
   Plus,
   Trash2,
   CheckCircle2,
-  Lock,
   Unlock,
   Save,
   Loader2,
@@ -28,8 +27,6 @@ import {
   upsertDetail,
   deleteNodes,
   pasteNode,
-  claimKro,
-  releaseKro,
   claimKros,
   releaseKros,
   editNode,
@@ -519,37 +516,9 @@ export function PenganggaranClient({
   const kroOwnerId = selKro?.dikerjakan_oleh ?? null;
   const kroOwnerNama = selKro?.dikerjakan_oleh_nama ?? null;
   const lockedByOther = !!kroOwnerId && kroOwnerId !== me.id;
-  const ownedByMe = !!kroOwnerId && kroOwnerId === me.id;
-  const [claimBusy, setClaimBusy] = React.useState(false);
-
-  async function onClaim() {
-    if (!selKro) return;
-    setClaimBusy(true);
-    try {
-      await claimKro(selKro.id, me);
-      await refresh();
-    } catch (e) {
-      alert(
-        (e as Error).message?.includes("TERKUNCI")
-          ? "KRO ini sedang dikerjakan pengguna lain."
-          : (e as Error).message,
-      );
-    } finally {
-      setClaimBusy(false);
-    }
-  }
-  async function onRelease() {
-    if (!selKro) return;
-    setClaimBusy(true);
-    try {
-      await releaseKro(selKro.id, me);
-      await refresh();
-    } catch (e) {
-      alert((e as Error).message);
-    } finally {
-      setClaimBusy(false);
-    }
-  }
+  // Catatan: tombol "Kerjakan KRO"/"Lepas KRO" manual telah dihapus. Penguncian
+  // input tetap berlaku melalui `lockedByOther`; klaim/lepas KRO kini dilakukan
+  // lewat modal "Pilih KRO" (applyKroSelection).
 
   async function onPaste() {
     if (!clip || !selectedRow?.ref) return;
@@ -1121,31 +1090,6 @@ export function PenganggaranClient({
             >
               Batal (Esc)
             </button>
-          )}
-
-          {/* Klaim / lepas KRO (pengganti bar; status lock tampil pada baris KRO) */}
-          {selKro && !isFinal && ownedByMe && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8"
-              onClick={onRelease}
-              disabled={claimBusy}
-              title={`Lepas KRO ${selKro.kode}`}
-            >
-              <Unlock className="size-4" /> {claimBusy ? "…" : "Lepas KRO"}
-            </Button>
-          )}
-          {selKro && !isFinal && !ownedByMe && !lockedByOther && (
-            <Button
-              size="sm"
-              className="h-8"
-              onClick={onClaim}
-              disabled={claimBusy}
-              title={`Klaim KRO ${selKro.kode} agar tidak bentrok`}
-            >
-              <Lock className="size-4" /> {claimBusy ? "…" : "Kerjakan KRO"}
-            </Button>
           )}
         </div>
 
