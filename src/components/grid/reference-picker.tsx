@@ -37,13 +37,16 @@ export function ReferencePicker({ open, title, query, extraHead, okGreen, onPick
     searchReference(query, term, page, PER)
       .then((r) => {
         if (!active) return;
-        // Dedup defensif: gabungkan HANYA baris yang benar-benar identik
-        // (kode DAN nama sama) — sisa duplikat data master. Jangan dedup by
-        // kode saja, karena komponen berbeda yang kebetulan berkode sama akan
-        // ikut terbuang sehingga "tidak muncul".
+        // Dedup defensif terhadap duplikat data master:
+        // • Level kode UNIK GLOBAL (Program, Akun) → dedup by KODE saja, sehingga
+        //   duplikat berkode sama walau namanya berbeda tetap tampil sekali.
+        // • Level lain → dedup by kode+nama agar item berkode sama beda induk
+        //   (mis. komponen generik) tidak ikut terbuang.
         const seen = new Set<string>();
         const uniq = r.rows.filter((row) => {
-          const k = `${(row.kode || "").trim()}|${(row.nama || "").trim()}`.toLowerCase();
+          const k = query.globalKode
+            ? (row.kode || "").trim().toLowerCase()
+            : `${(row.kode || "").trim()}|${(row.nama || "").trim()}`.toLowerCase();
           if (seen.has(k)) return false;
           seen.add(k);
           return true;
