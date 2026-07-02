@@ -17,18 +17,22 @@ export interface CurrentUser {
 /**
  * Ambil user + profil + role (Server Component / Server Action).
  *
- * Memakai getUser() — memvalidasi sesi ke server Auth Supabase. Refresh token
- * yang andal ditangani middleware (satu-satunya tempat cookie bisa ditulis),
- * sehingga halaman tinggal membaca sesi yang sudah segar tanpa balapan refresh.
+ * Sesi sudah DIVALIDASI & di-refresh oleh middleware pada setiap request navigasi
+ * terproteksi (middleware memanggil auth.getUser() lalu redirect ke /login bila
+ * tidak sah). Karena itu di sini cukup MEMBACA sesi dari cookie via getSession()
+ * — tanpa round-trip ke server Auth Supabase — sehingga perpindahan antar-halaman
+ * lebih cepat. Keamanan data tetap ditegakkan oleh Row Level Security di database
+ * (setiap query memakai token sesi yang sama).
+ *
  * Dibungkus React cache(): bila layout + page (+ action) memanggilnya dalam satu
  * request render, kerjanya hanya SEKALI.
  */
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const supabase = await createServerSupabase();
 
-  const { data: userData, error } = await supabase.auth.getUser();
-  const authUser = userData?.user;
-  if (error || !authUser) return null;
+  const { data: sessionData } = await supabase.auth.getSession();
+  const authUser = sessionData?.session?.user ?? null;
+  if (!authUser) return null;
   const userId = authUser.id;
 
   const { data: profile } = await supabase
