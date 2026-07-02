@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui';
 import { ThemeToggle } from '@/components/theme';
 import { navForRole, type NavItem } from './nav';
 import { PresenceProvider, PresencePanel } from './presence';
+import { RouteProgress, LinkPendingIcon } from '@/components/ui/loading';
 import type { CurrentUser } from '@/lib/auth';
 import { STATUS_COLOR } from '@/lib/constants';
 
@@ -26,6 +27,7 @@ export function Shell({ user, children }: { user: CurrentUser; children: React.R
 
   return (
     <PresenceProvider user={user}>
+      <RouteProgress />
       <div className="flex min-h-screen bg-background">
         {/* ── Sidebar ─────────────────────────────────────────────────── */}
         <aside
@@ -75,7 +77,8 @@ export function Shell({ user, children }: { user: CurrentUser; children: React.R
                       : 'text-sidebar-foreground/75 hover:bg-white/[0.07] hover:text-white',
                   )}
                 >
-                  <Icon
+                  <LinkPendingIcon
+                    Icon={Icon}
                     className={cn(
                       'size-[18px] shrink-0 transition-colors',
                       active ? 'text-sidebar-accent' : 'text-sidebar-foreground/55 group-hover:text-white',
