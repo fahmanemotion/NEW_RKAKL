@@ -279,6 +279,13 @@ export function filterByKros(
     addAncestors(kroId);
     addSubtree(kroId);
   }
+  // Selalu tampilkan kerangka PROGRAM & KEGIATAN (beserta jalur induknya) meski
+  // KRO-nya tidak dipilih, agar program yang sudah ditambahkan TIDAK hilang dari
+  // layar saat filter KRO aktif. Detail (RO ke bawah) tetap terbatas pada KRO
+  // yang dipilih sehingga tampilan tetap fokus & ringan.
+  for (const r of rows) {
+    if (r.level === "PROGRAM" || r.level === "KEGIATAN") addAncestors(r.id);
+  }
   return rows.filter((r) => allow.has(r.id));
 }
 
