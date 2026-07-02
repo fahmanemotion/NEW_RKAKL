@@ -215,20 +215,14 @@ export function buildDashboardRows(rows: UsulanStruktur[]): DashAkunRow[] {
       });
     });
 
-  // Cegah baris dobel: dua node AKUN dengan jalur + kode + uraian IDENTIK
-  // (akibat duplikat struktur di data) digabung menjadi satu — diambil yang
-  // pagunya tertinggi — agar tidak tampil ganda maupun terhitung dua kali pada
-  // total. Akun sama di komponen/RO BERBEDA tidak terpengaruh (kunci berbeda).
-  const best = new Map<string, DashAkunRow>();
-  for (const r of out) {
-    const pathKey = r.komponenKey || r.roKey || r.kroKey || r.progKode;
-    const key = `${pathKey}||${r.akunKode}||${r.akunUraian}`;
-    const cur = best.get(key);
-    if (!cur || r.pagu > cur.pagu) best.set(key, r);
-  }
-  const deduped = Array.from(best.values());
-  deduped.sort((x, y) => x.kode.localeCompare(y.kode));
-  return deduped;
+  // Setiap node AKUN = satu baris; setiap DETAIL dihitung tepat sekali. Ini
+  // membuat total dashboard SAMA PERSIS dengan total di editor penganggaran
+  // (yang juga menjumlahkan seluruh node). Duplikat struktur (akun berkode sama
+  // pada induk yang sama) TIDAK digabung di sini secara paksa karena akan
+  // menghilangkan akun sah yang berada di Sub Komponen berbeda; pencegahan
+  // duplikat ditangani di database oleh index uq_usulan_struktur_sibling_kode.
+  out.sort((x, y) => x.kode.localeCompare(y.kode) || x.akunUraian.localeCompare(y.akunUraian));
+  return out;
 }
 
 export interface DashSummary {
