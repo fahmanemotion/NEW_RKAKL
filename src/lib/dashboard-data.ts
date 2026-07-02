@@ -28,6 +28,7 @@ export interface DashAkunRow {
   kroKode: string;
   roKode: string;
   komponenKode: string;
+  subKode: string;
   // Kunci UNIK per posisi hierarki = path kode master (Program|KRO|RO|Komponen).
   // Mencegah opsi filter tertukar saat kode anak SAMA di bawah induk BERBEDA
   // (mis. RO "001" pada dua KRO). Label diambil dari uraian node itu sendiri
@@ -170,11 +171,13 @@ export function buildDashboardRows(rows: UsulanStruktur[]): DashAkunRow[] {
       const kroN = ancestorNode(a, "KRO");
       const roN = ancestorNode(a, "RO");
       const kompN = ancestorNode(a, "KOMPONEN");
+      const subN = ancestorNode(a, "SUB_KOMPONEN");
       const progKode = progN?.kode ?? "";
       const kegKode = kegN?.kode ?? "";
       const kroKode = kroN?.kode ?? "";
       const roKode = roN?.kode ?? "";
       const komponenKode = kompN?.kode ?? "";
+      const subKode = subN?.kode ?? "";
       // Kunci unik = path kode master induk→anak. Pemisah "|" tak muncul pada
       // kode, sehingga dua anak berkode sama di induk berbeda → kunci berbeda.
       const SEP = "|";
@@ -184,10 +187,15 @@ export function buildDashboardRows(rows: UsulanStruktur[]): DashAkunRow[] {
         .filter(Boolean)
         .join(SEP);
       // Kode struktural sudah KUMULATIF (ro memuat kro, kro memuat kegiatan),
-      // jadi cukup pakai yang TERDALAM + program + akun agar prefix induk tidak
-      // tergandakan (mis. hindari "1975.1975.EBB.1975.EBB.951").
+      // jadi cukup pakai yang TERDALAM + program agar prefix induk tidak
+      // tergandakan. Komponen & Sub Komponen TIDAK kumulatif, jadi ditambahkan
+      // sebagai segmen tersendiri agar kolom KODE menampilkan jalur lengkap
+      // (mudah dibaca & difilter, sekaligus membedakan akun berkode sama di
+      // Sub Komponen berbeda). Hasil: prog.(kro.ro).komponen.subkomponen.akun
       const struct = roKode || kroKode || kegKode;
-      const kode = [progKode, struct, a.kode ?? ""].filter(Boolean).join(".");
+      const kode = [progKode, struct, komponenKode, subKode, a.kode ?? ""]
+        .filter(Boolean)
+        .join(".");
 
       out.push({
         id: a.id,
@@ -201,6 +209,7 @@ export function buildDashboardRows(rows: UsulanStruktur[]): DashAkunRow[] {
         kroKode,
         roKode,
         komponenKode,
+        subKode,
         kroKey,
         roKey,
         komponenKey,
