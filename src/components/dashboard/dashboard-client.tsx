@@ -423,36 +423,41 @@ export function DashboardClient({
               )}
             </div>
 
-            {/* Filter strip */}
-            <div className="flex flex-wrap items-end gap-2 border-b border-border bg-muted/40 p-3">
-              <FilterSelect label="Program" value={fProg} onChange={onProg} options={opt(cascade.progM)} />
-              <FilterSelect label="KRO" value={fKro} onChange={onKro} options={opt(cascade.kroM)} />
-              <FilterSelect label="RO" value={fRo} onChange={onRo} options={opt(cascade.roM)} />
-              <FilterSelect label="Komponen" value={fKomponen} onChange={onKomponen} options={opt(cascade.kompM)} />
-              <FilterSelect label="Akun" value={fAkun} onChange={setFAkun} options={opt(cascade.akunM)} />
+            {/* Filter strip — grid sejajar:
+                Kol1: Program / Komponen · Kol2: KRO / RO ·
+                Kol3-4: Akun (atas) di atas Sumber+Kategori · Kol5: Reset / Cari */}
+            <div className="grid grid-cols-2 items-end gap-2 border-b border-border bg-muted/40 p-3 lg:grid-cols-[2fr_2fr_0.85fr_0.85fr_minmax(200px,1.4fr)]">
+              <FilterSelect className="lg:col-start-1 lg:row-start-1" label="Program" value={fProg} onChange={onProg} options={opt(cascade.progM)} />
+              <FilterSelect className="lg:col-start-2 lg:row-start-1" label="KRO" value={fKro} onChange={onKro} options={opt(cascade.kroM)} />
+              <FilterSelect className="lg:col-start-3 lg:col-span-2 lg:row-start-1" label="Akun" value={fAkun} onChange={setFAkun} options={opt(cascade.akunM)} />
+
+              <FilterSelect className="lg:col-start-1 lg:row-start-2" label="Komponen" value={fKomponen} onChange={onKomponen} options={opt(cascade.kompM)} />
+              <FilterSelect className="lg:col-start-2 lg:row-start-2" label="RO" value={fRo} onChange={onRo} options={opt(cascade.roM)} />
               <FilterSelect
+                className="lg:col-start-3 lg:row-start-2"
                 label="Sumber"
                 value={fSumber}
                 onChange={setFSumber}
                 options={[["RM", "RM"], ["BLU", "BLU"], ["SBSN", "SBSN"]]}
               />
               <FilterSelect
+                className="lg:col-start-4 lg:row-start-2"
                 label="Kategori"
                 value={fKategori}
                 onChange={setFKategori}
                 options={[["OPS", "Operasional"], ["NON", "Non Operasional"]]}
               />
-              <div className="flex-1" />
+
               {anyFilter && (
                 <button
                   onClick={resetFilters}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-card px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                  className="inline-flex h-8 items-center justify-center gap-1.5 self-end rounded-md border border-input bg-card px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground lg:col-start-5 lg:row-start-1 lg:w-auto lg:justify-self-end"
                 >
                   <RotateCcw className="size-3.5" />
                   Reset
                 </button>
               )}
-              <div className="flex h-9 min-w-[200px] items-center gap-2 rounded-md border border-input bg-card px-2.5 focus-within:ring-2 focus-within:ring-ring">
+              <div className="col-span-2 flex h-9 items-center gap-2 rounded-md border border-input bg-card px-2.5 focus-within:ring-2 focus-within:ring-ring lg:col-span-1 lg:col-start-5 lg:row-start-2">
                 <Search className="size-3.5 shrink-0 text-muted-foreground" />
                 <Input
                   value={q}
@@ -714,19 +719,21 @@ function FilterSelect({
   value,
   onChange,
   options,
+  className,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   options: [string, string][];
+  className?: string;
 }) {
   return (
-    <div>
+    <div className={className}>
       <label className="mb-1 block text-[11px] font-medium text-muted-foreground">{label}</label>
       <Select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-8 min-w-[120px] text-xs"
+        className="h-8 w-full min-w-0 text-xs"
       >
         <option value={ALL}>Semua</option>
         {options.map(([val, lbl]) => (
