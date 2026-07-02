@@ -17,6 +17,7 @@ export async function fetchAllStruktur(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sb: { from: (t: string) => any },
   usulanId: string,
+  columns: string = "*",
 ): Promise<UsulanStruktur[]> {
   const PAGE = 1000;
   let from = 0;
@@ -24,7 +25,7 @@ export async function fetchAllStruktur(
   for (;;) {
     const { data, error } = await sb
       .from("usulan_struktur")
-      .select("*")
+      .select(columns)
       .eq("usulan_id", usulanId)
       .order("urutan", { ascending: true })
       .order("id", { ascending: true })

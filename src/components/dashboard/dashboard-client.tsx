@@ -116,7 +116,13 @@ export function DashboardClient({
     let alive = true;
     setLoading(true);
     setLoadErr(null);
-    fetchAllStruktur(createClient(), usulan.id)
+    // Hanya kolom yang dipakai agregasi dashboard (tanpa volume_rincian JSON &
+    // kolom klaim) → payload jauh lebih kecil untuk usulan besar, muat lebih cepat.
+    fetchAllStruktur(
+      createClient(),
+      usulan.id,
+      "id, parent_id, level, kode, uraian, volume, satuan, harga, jumlah, sumber_dana, jenis_belanja",
+    )
       .then((data) => {
         if (!alive) return;
         setRows(data as UsulanStruktur[]);

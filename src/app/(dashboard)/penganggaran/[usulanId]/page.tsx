@@ -20,11 +20,18 @@ export default async function Page({
     from: (t: string) => any;
   };
 
-  const { data: u, error: uErr } = await supabase
-    .from("usulan_anggaran")
-    .select(
-      `
-      id, tahun_anggaran, status, kegiatan_id,
+  // GET paralel: header usulan + tahap pagu + seluruh struktur dijalankan
+  // BERSAMAAN (ketiganya independen, hanya perlu usulanId) agar memangkas
+  // round-trip beruntun → membuka usulan terasa jauh lebih cepat.
+  // GET paralel: header usulan (termasuk tahap_pagu) + seluruh struktur
+  // dijalankan BERSAMAAN. tahap_pagu digabung ke query utama (tidak lagi query
+  // terpisah ke baris yang sama) → satu round-trip lebih sedikit saat membuka usulan.
+  const [uRes, rows] = await Promise.all([
+    supabase
+      .from("usulan_anggaran")
+      .select(
+        `
+      id, tahun_anggaran, status, kegiatan_id, tahap_pagu,
       satker:master_satker!satker_id ( kode_satker, nama_satker, kppn, lokus,
         unit:master_unit_eselon1!unit_id ( nama,
           kem:master_kementerian!kementerian_id ( nama,
@@ -32,9 +39,12 @@ export default async function Page({
       program:master_program!program_id ( kode_program, nama_program ),
       kegiatan:master_kegiatan!kegiatan_id ( id, kode_kegiatan, nama_kegiatan )
     `,
-    )
-    .eq("id", usulanId)
-    .single();
+      )
+      .eq("id", usulanId)
+      .single(),
+    fetchStrukturServer(usulanId),
+  ]);
+  const { data: u, error: uErr } = uRes;
 
   if (uErr) {
     return (
@@ -59,15 +69,8 @@ export default async function Page({
 
   if (!u) notFound();
 
-  let tahapPagu: string | undefined;
-  {
-    const { data: t } = await supabase
-      .from("usulan_anggaran")
-      .select("tahap_pagu")
-      .eq("id", usulanId)
-      .single();
-    tahapPagu = (t as any)?.tahap_pagu ?? undefined;
-  }
+  const tahapPagu: string | undefined =
+    (u as { tahap_pagu?: string } | null)?.tahap_pagu ?? undefined;
 
   const one = <T,>(v: T | T[] | null): T | null =>
     Array.isArray(v) ? (v[0] ?? null) : (v ?? null);
@@ -98,7 +101,8 @@ export default async function Page({
     lokus: satker?.lokus ?? "19.51-KOTA MAKASSAR",
   };
 
-  const rows = await fetchStrukturServer(usulanId);
+  // rows sudah diambil paralel di atas. getCurrentUser di-cache() (layout sudah
+  // memanggilnya) → praktis tanpa round-trip tambahan.
   const cu = await getCurrentUser();
   const me = { id: cu?.id ?? "", nama: cu?.nama ?? null };
 

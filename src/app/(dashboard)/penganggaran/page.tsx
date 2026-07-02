@@ -12,18 +12,13 @@ export default async function PenganggaranListPage() {
   const user = await requireUser();
   const isAdmin = user.role === 'Administrator';
   const supabase = (await createServerSupabase()) as unknown as { from: (t: string) => any };
+  // Satu query: daftar usulan sudah memuat tahap_pagu (tidak lagi query terpisah).
   const { data: list } = await supabase
     .from('usulan_anggaran')
-    .select(`id, tahun_anggaran, status, total_anggaran,
+    .select(`id, tahun_anggaran, status, total_anggaran, tahap_pagu,
       program:master_program!program_id(kode_program, nama_program),
       kegiatan:master_kegiatan!kegiatan_id(kode_kegiatan, nama_kegiatan)`)
     .order('created_at', { ascending: false });
-
-  const tahapMap: Record<string, string> = {};
-  try {
-    const { data: t } = await supabase.from('usulan_anggaran').select('id, tahap_pagu');
-    (t ?? []).forEach((r: any) => { tahapMap[r.id] = r.tahap_pagu; });
-  } catch { /* kolom belum ada */ }
 
   return (
     <div className="space-y-5">
@@ -41,7 +36,7 @@ export default async function PenganggaranListPage() {
             Belum ada usulan. Klik <span className="font-medium text-primary">Buat Usulan</span> untuk memulai.
           </div>
         ) : (list ?? []).map((u: any) => {
-          const tahapLabel = TAHAP_LABEL[tahapMap[u.id] as TahapPagu] ?? 'Usulan';
+          const tahapLabel = TAHAP_LABEL[u.tahap_pagu as TahapPagu] ?? 'Usulan';
           const canDelete = isAdmin || u.status === 'Draft';
           return (
           <div key={u.id} className="flex items-center hover:bg-accent">
