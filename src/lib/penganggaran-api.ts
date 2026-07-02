@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Level, UsulanStruktur } from "@/types/database";
 import { LEVEL_LABEL } from "@/lib/constants";
 import { refQueryFor, type RefQuery } from "@/lib/ref-query";
-import { remapSubtree } from "@/lib/copy-subtree";
+import { remapSubtreeMerge } from "@/lib/copy-subtree";
 import { fetchAllStruktur } from "@/lib/fetch-struktur";
 
 export { refQueryFor };
@@ -307,8 +307,11 @@ export async function pasteNode(
 ): Promise<void> {
   const rows = await fetchStruktur(usulanId);
   const rootUrutan = await nextUrutan(usulanId, newParentId);
-  const batches = remapSubtree(
-    rows as unknown as Parameters<typeof remapSubtree>[0],
+  // Gunakan versi GABUNG: node struktural berkode sama di induk tujuan dipakai
+  // ulang (mencegah pelanggaran uq_usulan_struktur_sibling_kode), detail tetap
+  // ditambahkan ke dalamnya.
+  const batches = remapSubtreeMerge(
+    rows as unknown as Parameters<typeof remapSubtreeMerge>[0],
     rootId,
     newParentId,
     usulanId,
@@ -317,6 +320,7 @@ export async function pasteNode(
   );
   // Sisipkan dari level dangkal ke dalam (induk sebelum anak) agar FK aman.
   for (const batch of batches) {
+    if (batch.length === 0) continue;
     const { error } = await sb().from("usulan_struktur").insert(batch);
     if (error) throw error;
   }
