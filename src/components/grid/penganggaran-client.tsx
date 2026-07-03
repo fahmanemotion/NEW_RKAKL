@@ -430,6 +430,16 @@ export function PenganggaranClient({
   }, [gridRows, header, total, hasProgramNode]);
 
   const selType = selectedRow?.type ?? null;
+  // Volume RO = Σ volume komponen di bawah RO (komponen = anak langsung RO).
+  const roVolume = React.useMemo(() => {
+    const m = new Map<string, number>();
+    for (const n of rows) {
+      if (n.level === "KOMPONEN" && n.parent_id && n.volume) {
+        m.set(n.parent_id, (m.get(n.parent_id) ?? 0) + Number(n.volume));
+      }
+    }
+    return m;
+  }, [rows]);
   type ClipItem = { id: string; level: Level; label: string };
   const [clip, setClip] = React.useState<{ items: ClipItem[] } | null>(null);
   const [pasting, setPasting] = React.useState(false);
@@ -1261,6 +1271,7 @@ export function PenganggaranClient({
         selectedId={selectedId}
         onSelect={select}
         meId={me.id}
+        roVolume={roVolume}
         collapseActive={visibleKros.size > 0}
         expandedKomp={expandedKomp}
         expandableKomp={komponenWithChildren}
