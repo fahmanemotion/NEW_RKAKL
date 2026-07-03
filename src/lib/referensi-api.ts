@@ -216,16 +216,51 @@ async function buildMap(table: string, kodeCol: string, fkCol?: string): Promise
   return m;
 }
 
+/**
+ * "Upsert" tahan-banting untuk impor kode: alih-alih `upsert(..onConflict)` yang
+ * MEWAJIBKAN ada unique index persis pada kolom konflik (mis. master_program yang
+ * secara aplikasi unik-global by `kode_program`, padahal constraint DB-nya
+ * `(ba_id, kode_program)` → memicu error 42P10 "no unique/exclusion constraint
+ * matching ON CONFLICT" sehingga seluruh impor gagal), fungsi ini:
+ *   1) membaca kunci yang SUDAH ada di tabel (berdasarkan kolom di `onConflict`),
+ *   2) melewati baris yang duplikat (juga dedup di dalam payload itu sendiri),
+ *   3) meng-INSERT hanya baris baru.
+ * Hasilnya: impor tidak pernah error karena ON CONFLICT, "duplikat diabaikan
+ * otomatis" (sesuai teks UI), dan tak bergantung pada SQL/unique index tambahan.
+ */
 async function upsertLevel(
   table: string,
   rows: Record<string, unknown>[],
   onConflict: string,
 ): Promise<void> {
   if (rows.length === 0) return;
-  for (let i = 0; i < rows.length; i += 500) {
-    const { error } = await sb()
-      .from(table)
-      .upsert(rows.slice(i, i + 500), { onConflict, ignoreDuplicates: false });
+  const keyCols = onConflict.split(",").map((s) => s.trim()).filter(Boolean);
+  const keyOf = (r: Record<string, unknown>) =>
+    keyCols.map((c) => String(r[c] ?? "")).join("::");
+
+  // Kunci yang sudah ada di DB.
+  const { data: existing, error: exErr } = await sb()
+    .from(table)
+    .select(keyCols.join(", "))
+    .limit(100000);
+  if (exErr) throw exErr;
+  const seen = new Set<string>();
+  for (const r of (existing ?? []) as unknown as Record<string, unknown>[]) {
+    seen.add(keyOf(r));
+  }
+
+  // Sisakan hanya baris baru (unik terhadap DB & terhadap payload).
+  const toInsert: Record<string, unknown>[] = [];
+  for (const r of rows) {
+    const k = keyOf(r);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    toInsert.push(r);
+  }
+  if (toInsert.length === 0) return;
+
+  for (let i = 0; i < toInsert.length; i += 500) {
+    const { error } = await sb().from(table).insert(toInsert.slice(i, i + 500));
     if (error) throw error;
   }
 }
