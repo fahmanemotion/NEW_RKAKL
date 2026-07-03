@@ -35,6 +35,9 @@ import {
   refQueryFor,
   getAkunMeta,
   resolveKomponenRoIds,
+  resolveProgramIds,
+  resolveKegiatanIds,
+  resolveKroIds,
   setUsulanStatus,
 } from "@/lib/penganggaran-api";
 import type { UsulanStruktur } from "@/types/database";
@@ -721,6 +724,28 @@ export function PenganggaranClient({
 
     const q = refQueryFor(level, parentRef);
     if (!q) return;
+    // Perluas filter induk ke SEMUA id master berkode sama (tahan duplikat master
+    // & referensi_id basi) agar kode hasil impor tetap muncul di picker walau
+    // induknya (mis. program "12.DL") kebetulan terduplikasi dengan id berbeda.
+    if (level === "KEGIATAN" && parentRef) {
+      const ids = await resolveProgramIds(parentRef);
+      if (ids.length) q.parentIds = ids;
+    } else if (level === "KRO") {
+      const kegNode = byId.get(parentId!);
+      const progNode = kegNode?.parent_id ? byId.get(kegNode.parent_id) : undefined;
+      const ids = await resolveKegiatanIds(progNode?.referensi_id ?? null, parentRef);
+      if (ids.length) q.parentIds = ids;
+    } else if (level === "RO") {
+      const kroNode = byId.get(parentId!);
+      const kegNode = kroNode?.parent_id ? byId.get(kroNode.parent_id) : undefined;
+      const progNode = kegNode?.parent_id ? byId.get(kegNode.parent_id) : undefined;
+      const ids = await resolveKroIds(
+        progNode?.referensi_id ?? null,
+        kegNode?.referensi_id ?? null,
+        parentRef,
+      );
+      if (ids.length) q.parentIds = ids;
+    }
     if (level === "KOMPONEN") {
       // Baca komponen dari REFERENSI via jalur kode (kode_kro + kode_ro), bukan
       // hanya referensi_id node yang bisa basi/keliru. RO generik seperti 994

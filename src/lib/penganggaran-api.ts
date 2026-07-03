@@ -486,3 +486,73 @@ export async function resolveKomponenRoIds(
   for (const r of (ros ?? []) as { id: string }[]) ids.add(r.id);
   return [...ids];
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Resolusi ID induk berbasis KODE (tahan duplikat master & referensi_id basi).
+ *
+ * Masalah: master bisa punya DUPLIKAT (mis. dua baris master_program berkode
+ * "12.DL" dengan id berbeda). Picker anak menyaring dengan `parent_id = referensi_id`
+ * node induk — satu id saja — sehingga kode yang ditautkan importir ke id lain
+ * TIDAK muncul. Solusi: untuk tiap level, kumpulkan SEMUA id master yang berbagi
+ * kode (di dalam lingkup induknya) lalu picker memakai IN(parentIds). Presisi
+ * dijaga dengan menelusuri jalur kode (program→kegiatan→kro) memakai referensi_id
+ * node (bukan mem-parse kode gabungan yang bisa mengandung titik seperti "12.DL").
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/** Semua id master_program yang berkode sama dengan program (referensi_id) tsb. */
+export async function resolveProgramIds(programRefId: string | null): Promise<string[]> {
+  if (!programRefId) return [];
+  const { data: one } = await sb()
+    .from("master_program")
+    .select("kode_program")
+    .eq("id", programRefId)
+    .maybeSingle();
+  const kode = (one as { kode_program?: string } | null)?.kode_program;
+  if (!kode) return [programRefId];
+  const { data: all } = await sb().from("master_program").select("id").eq("kode_program", kode);
+  const ids = ((all ?? []) as { id: string }[]).map((r) => r.id);
+  return ids.length ? ids : [programRefId];
+}
+
+/** Semua id master_kegiatan berkode sama, di bawah SEMUA program berkode sama. */
+export async function resolveKegiatanIds(
+  programRefId: string | null,
+  kegiatanRefId: string | null,
+): Promise<string[]> {
+  if (!kegiatanRefId) return [];
+  const { data: one } = await sb()
+    .from("master_kegiatan")
+    .select("kode_kegiatan")
+    .eq("id", kegiatanRefId)
+    .maybeSingle();
+  const kode = (one as { kode_kegiatan?: string } | null)?.kode_kegiatan;
+  if (!kode) return [kegiatanRefId];
+  const progIds = programRefId ? await resolveProgramIds(programRefId) : [];
+  let q = sb().from("master_kegiatan").select("id").eq("kode_kegiatan", kode);
+  if (progIds.length) q = q.in("program_id", progIds);
+  const { data } = await q;
+  const ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
+  return ids.length ? ids : [kegiatanRefId];
+}
+
+/** Semua id master_kro berkode sama, di bawah SEMUA kegiatan berkode sama. */
+export async function resolveKroIds(
+  programRefId: string | null,
+  kegiatanRefId: string | null,
+  kroRefId: string | null,
+): Promise<string[]> {
+  if (!kroRefId) return [];
+  const { data: one } = await sb()
+    .from("master_kro")
+    .select("kode_kro")
+    .eq("id", kroRefId)
+    .maybeSingle();
+  const kode = (one as { kode_kro?: string } | null)?.kode_kro;
+  if (!kode) return [kroRefId];
+  const kegIds = await resolveKegiatanIds(programRefId, kegiatanRefId);
+  let q = sb().from("master_kro").select("id").eq("kode_kro", kode);
+  if (kegIds.length) q = q.in("kegiatan_id", kegIds);
+  const { data } = await q;
+  const ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
+  return ids.length ? ids : [kroRefId];
+}
