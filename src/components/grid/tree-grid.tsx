@@ -22,6 +22,7 @@ export function TreeGrid({
   checkedIds,
   onToggleCheck,
   roVolume,
+  kroVolume,
 }: {
   rows: GridRow[];
   selectedId: string | null;
@@ -35,6 +36,8 @@ export function TreeGrid({
   onToggleCheck?: (row: GridRow) => void;
   /** Volume RO = Σ volume komponen di bawah RO (peta id RO → total). */
   roVolume?: Map<string, number>;
+  /** Volume KRO = Σ Volume RO di bawah KRO (peta id KRO → total). */
+  kroVolume?: Map<string, number>;
 }) {
   const showCheck = !!onToggleCheck;
   return (
@@ -173,15 +176,19 @@ export function TreeGrid({
                   </td>
                   <td className="num">
                     {(() => {
-                      // RO: tampilkan Σ volume komponen (fallback volume sendiri).
+                      // RO: Σ volume komponen. KRO: Σ Volume RO. (fallback volume sendiri)
                       if (r.type === "RO") {
                         const v = roVolume?.get(r.id) || r.volume || 0;
                         return v ? fmtN(v) : "";
                       }
+                      if (r.type === "KRO") {
+                        const v = kroVolume?.get(r.id) || r.volume || 0;
+                        return v ? fmtN(v) : "";
+                      }
                       // KOMPONEN: tampilkan volume yang diinput.
                       if (r.type === "KOMPONEN") return r.volume ? fmtN(r.volume) : "";
-                      // DETAIL (showNum) & KRO: volume sendiri.
-                      if ((showNum || r.type === "KRO") && r.volume) return fmtN(r.volume);
+                      // DETAIL: volume sendiri.
+                      if (showNum && r.volume) return fmtN(r.volume);
                       return "";
                     })()}
                   </td>

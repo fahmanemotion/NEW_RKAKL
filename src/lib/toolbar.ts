@@ -40,7 +40,7 @@ const LABEL: Record<Level, string> = {
 };
 
 // Level yang bisa di-Edit langsung dari toolbar.
-const EDITABLE = new Set<Level>(['KOMPONEN', 'SUB_KOMPONEN', 'AKUN', 'HEADER', 'DETAIL']);
+const EDITABLE = new Set<Level>(['KRO', 'RO', 'KOMPONEN', 'SUB_KOMPONEN', 'AKUN', 'HEADER', 'DETAIL']);
 // Level yang bisa di-Salin (beserta seluruh turunannya).
 const COPYABLE = new Set<Level>(['SUB_KOMPONEN', 'AKUN', 'DETAIL']);
 

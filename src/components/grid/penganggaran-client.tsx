@@ -123,9 +123,11 @@ export function PenganggaranClient({
     initial?: string;
   } | null>(null);
   const [detail, setDetail] = React.useState<DetailState>(null);
-  // Edit volume & satuan pada node KOMPONEN (untuk TOR: Volume RO = Σ volume komponen).
-  const [komponenVol, setKomponenVol] = React.useState<{
+  // Edit volume/satuan pada node terukur: KOMPONEN (volume+satuan), RO & KRO
+  // (satuan saja; volume dihitung otomatis berjenjang).
+  const [measureEdit, setMeasureEdit] = React.useState<{
     id: string;
+    level: "KOMPONEN" | "RO" | "KRO";
     kode: string;
     uraian: string;
     volume: number;
@@ -440,6 +442,17 @@ export function PenganggaranClient({
     }
     return m;
   }, [rows]);
+  // Volume KRO = Σ Volume RO anaknya (berjenjang dari komponen → RO → KRO).
+  const kroVolume = React.useMemo(() => {
+    const m = new Map<string, number>();
+    for (const n of rows) {
+      if (n.level === "RO" && n.parent_id) {
+        const rv = roVolume.get(n.id) ?? 0;
+        if (rv) m.set(n.parent_id, (m.get(n.parent_id) ?? 0) + rv);
+      }
+    }
+    return m;
+  }, [rows, roVolume]);
   type ClipItem = { id: string; level: Level; label: string };
   const [clip, setClip] = React.useState<{ items: ClipItem[] } | null>(null);
   const [pasting, setPasting] = React.useState(false);
@@ -619,6 +632,8 @@ export function PenganggaranClient({
       if (selType === "SUB_KOMPONEN") return onEditSubkomp();
       if (selType === "AKUN") return onEditAkun();
       if (selType === "KOMPONEN") return onEditKomponen();
+      if (selType === "RO") return onEditRo();
+      if (selType === "KRO") return onEditKro();
       if (selType === "HEADER") return openHeaderModal(selectedRow?.ref?.id);
       return;
     }
@@ -887,8 +902,9 @@ export function PenganggaranClient({
   async function onEditKomponen() {
     if (selectedRow?.type !== "KOMPONEN" || !selectedRow.ref) return;
     const r = selectedRow.ref;
-    setKomponenVol({
+    setMeasureEdit({
       id: r.id,
+      level: "KOMPONEN",
       kode: r.kode ?? "",
       uraian: r.uraian ?? "",
       volume: r.volume ?? 0,
@@ -896,10 +912,42 @@ export function PenganggaranClient({
     });
   }
 
-  async function onSubmitKomponenVol(v: { volume: number; satuan: string }) {
-    if (!komponenVol) return;
-    await editNode(komponenVol.id, { volume: v.volume, satuan: v.satuan.trim() || null });
-    setKomponenVol(null);
+  async function onEditRo() {
+    if (selectedRow?.type !== "RO" || !selectedRow.ref) return;
+    const r = selectedRow.ref;
+    setMeasureEdit({
+      id: r.id,
+      level: "RO",
+      kode: r.kode ?? "",
+      uraian: r.uraian ?? "",
+      volume: roVolume.get(r.id) ?? 0, // otomatis (Σ volume komponen)
+      satuan: r.satuan ?? "",
+    });
+  }
+
+  async function onEditKro() {
+    if (selectedRow?.type !== "KRO" || !selectedRow.ref) return;
+    const r = selectedRow.ref;
+    setMeasureEdit({
+      id: r.id,
+      level: "KRO",
+      kode: r.kode ?? "",
+      uraian: r.uraian ?? "",
+      volume: kroVolume.get(r.id) ?? 0, // otomatis (Σ volume RO)
+      satuan: r.satuan ?? "",
+    });
+  }
+
+  async function onSubmitMeasure(v: { volume: number; satuan: string }) {
+    if (!measureEdit) return;
+    const satuan = v.satuan.trim() || null;
+    // KOMPONEN: simpan volume + satuan. RO/KRO: volume otomatis → simpan satuan saja.
+    if (measureEdit.level === "KOMPONEN") {
+      await editNode(measureEdit.id, { volume: v.volume, satuan });
+    } else {
+      await editNode(measureEdit.id, { satuan });
+    }
+    setMeasureEdit(null);
     await refresh();
   }
 
@@ -1272,6 +1320,7 @@ export function PenganggaranClient({
         onSelect={select}
         meId={me.id}
         roVolume={roVolume}
+        kroVolume={kroVolume}
         collapseActive={visibleKros.size > 0}
         expandedKomp={expandedKomp}
         expandableKomp={komponenWithChildren}
@@ -1325,10 +1374,25 @@ export function PenganggaranClient({
         onClose={() => setSubkompParent(null)}
       />
       <KomponenVolForm
-        open={!!komponenVol}
-        initial={komponenVol ?? undefined}
-        onSubmit={onSubmitKomponenVol}
-        onClose={() => setKomponenVol(null)}
+        open={!!measureEdit}
+        initial={measureEdit ?? undefined}
+        satuanOnly={!!measureEdit && measureEdit.level !== "KOMPONEN"}
+        title={
+          measureEdit?.level === "RO"
+            ? "Satuan Volume RO"
+            : measureEdit?.level === "KRO"
+              ? "Satuan Volume KRO"
+              : "Volume & Satuan Komponen"
+        }
+        volumeLabel={
+          measureEdit?.level === "RO"
+            ? "Volume RO"
+            : measureEdit?.level === "KRO"
+              ? "Volume KRO"
+              : "Volume"
+        }
+        onSubmit={onSubmitMeasure}
+        onClose={() => setMeasureEdit(null)}
       />
       <HeaderForm
         open={!!headerModal}
