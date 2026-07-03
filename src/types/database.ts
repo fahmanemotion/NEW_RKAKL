@@ -46,7 +46,7 @@ export type MasterUnitEselon1Row = {
 }
 export type MasterSatkerRow = {
   id: string; unit_id: string | null; kode_satker: string; nama_satker: string;
-  kppn: string | null; lokus: string | null; logo: string | null;
+  kppn: string | null; lokus: string | null; logo: string | null; logo_tor: string | null;
   created_at: string; updated_at: string;
 }
 export type MasterProgramRow = {

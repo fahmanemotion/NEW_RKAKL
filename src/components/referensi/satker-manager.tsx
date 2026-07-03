@@ -13,10 +13,11 @@ interface SatkerRow {
   kppn: string | null;
   lokus: string | null;
   logo: string | null;
+  logo_tor: string | null;
 }
 
 /** Baca file gambar → perkecil (maks 256px) → data URL PNG agar ringan disimpan. */
-async function fileToLogoDataUrl(file: File): Promise<string> {
+async function fileToLogoDataUrl(file: File, MAX = 256): Promise<string> {
   const dataUrl: string = await new Promise((res, rej) => {
     const fr = new FileReader();
     fr.onload = () => res(String(fr.result));
@@ -29,11 +30,11 @@ async function fileToLogoDataUrl(file: File): Promise<string> {
     i.onerror = () => rej(new Error("File bukan gambar yang valid."));
     i.src = dataUrl;
   });
-  const MAX = 256;
+  const MAX_SIZE = MAX;
   let w = img.width;
   let h = img.height;
-  if (w > MAX || h > MAX) {
-    const r = Math.min(MAX / w, MAX / h);
+  if (w > MAX_SIZE || h > MAX_SIZE) {
+    const r = Math.min(MAX_SIZE / w, MAX_SIZE / h);
     w = Math.round(w * r);
     h = Math.round(h * r);
   }
@@ -60,6 +61,7 @@ export function SatkerManager({ satkerId }: { satkerId: string | null }) {
   const [kppn, setKppn] = React.useState("");
   const [lokus, setLokus] = React.useState("");
   const [logo, setLogo] = React.useState<string | null>(null);
+  const [logoTor, setLogoTor] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -70,7 +72,7 @@ export function SatkerManager({ satkerId }: { satkerId: string | null }) {
     (async () => {
       try {
         const sb = createClient();
-        const sel = sb.from("master_satker").select("id, kode_satker, nama_satker, kppn, lokus, logo");
+        const sel = sb.from("master_satker").select("id, kode_satker, nama_satker, kppn, lokus, logo, logo_tor");
         const { data, error } = satkerId
           ? await sel.eq("id", satkerId).maybeSingle()
           : await sel.order("nama_satker").limit(1).maybeSingle();
@@ -84,6 +86,7 @@ export function SatkerManager({ satkerId }: { satkerId: string | null }) {
           setKppn(r.kppn ?? "");
           setLokus(r.lokus ?? "");
           setLogo(r.logo ?? null);
+          setLogoTor(r.logo_tor ?? null);
         }
       } catch (e) {
         if (alive) setErr((e as Error).message);
@@ -112,6 +115,22 @@ export function SatkerManager({ satkerId }: { satkerId: string | null }) {
     }
   }
 
+  async function onPickLogoTor(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setErr("File harus berupa gambar."); return; }
+    if (file.size > 3 * 1024 * 1024) { setErr("Ukuran gambar maksimal 3 MB."); return; }
+    try {
+      const url = await fileToLogoDataUrl(file, 420); // resolusi lebih besar untuk cetak TOR
+      setLogoTor(url);
+      setErr(null);
+      touch();
+    } catch (e2) {
+      setErr((e2 as Error).message);
+    }
+  }
+
   async function save() {
     if (!row) return;
     if (!nama.trim()) { setErr("Nama satker wajib diisi."); return; }
@@ -129,6 +148,7 @@ export function SatkerManager({ satkerId }: { satkerId: string | null }) {
           kppn: kppn.trim() || null,
           lokus: lokus.trim() || null,
           logo: logo,
+          logo_tor: logoTor,
           updated_at: new Date().toISOString(),
         })
         .eq("id", row.id);
@@ -204,6 +224,38 @@ export function SatkerManager({ satkerId }: { satkerId: string | null }) {
                 </div>
                 <p className="text-[11px] text-muted-foreground">
                   PNG/JPG. Tampil di pojok kiri atas aplikasi. Otomatis diperkecil &amp; disimpan saat menekan Simpan.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <ImageIcon className="size-3.5" /> Logo TOR
+            </label>
+            <div className="flex items-center gap-3">
+              <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-xl border border-border bg-muted/40">
+                {logoTor ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoTor} alt="Logo TOR" className="size-full object-contain" />
+                ) : (
+                  <ImageIcon className="size-6 text-muted-foreground" />
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap gap-2">
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-input bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent">
+                    <Upload className="size-4" /> {logoTor ? "Ganti Logo TOR" : "Unggah Logo TOR"}
+                    <input type="file" accept="image/*" className="hidden" onChange={onPickLogoTor} />
+                  </label>
+                  {logoTor && (
+                    <Button variant="outline" size="sm" onClick={() => { setLogoTor(null); touch(); }}>
+                      <Trash2 className="size-4" /> Hapus
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Logo instansi yang dipasang di <strong>sampul dokumen TOR/KAK</strong>. PNG/JPG, otomatis diperkecil saat disimpan.
                 </p>
               </div>
             </div>
