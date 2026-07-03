@@ -334,6 +334,8 @@ export async function editNode(
     uraian?: string | null;
     referensi_id?: string | null;
     sumber_dana?: string | null;
+    volume?: number | null;
+    satuan?: string | null;
   },
 ): Promise<void> {
   const { error } = await sb().from("usulan_struktur").update(patch).eq("id", id);

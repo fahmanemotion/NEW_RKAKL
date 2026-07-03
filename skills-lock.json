@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "auth0-express": {
+      "source": "auth0/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/auth0/skills/auth0-express/SKILL.md",
+      "computedHash": "c3fc85afe761fb28fe4dc1d21542a23e587dc33ef8cd4b2b82c1413516de8030"
+    },
+    "auth0-nextjs": {
+      "source": "auth0/agent-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/auth0/skills/auth0-nextjs/SKILL.md",
+      "computedHash": "12c73cec290862591c5607402242335f78a6fb9143169615df0fa586e8e3a535"
+    },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "computedHash": "4eabc66183767153e404b39d1b839b1c37f2d82d86f0a0d7e880a579d8d62336"
+    }
+  }
+}

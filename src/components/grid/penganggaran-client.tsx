@@ -50,6 +50,7 @@ import {
 import { TreeGrid } from "./tree-grid";
 import { ReferencePicker } from "./reference-picker";
 import { SubKomponenForm } from "./subkomponen-form";
+import { KomponenVolForm } from "./komponen-vol-form";
 import { HeaderForm } from "./header-form";
 import { KroFilterModal, type KroOption } from "./kro-filter-modal";
 import { DetailForm, type DetailValues } from "./detail-form";
@@ -122,6 +123,14 @@ export function PenganggaranClient({
     initial?: string;
   } | null>(null);
   const [detail, setDetail] = React.useState<DetailState>(null);
+  // Edit volume & satuan pada node KOMPONEN (untuk TOR: Volume RO = Σ volume komponen).
+  const [komponenVol, setKomponenVol] = React.useState<{
+    id: string;
+    kode: string;
+    uraian: string;
+    volume: number;
+    satuan: string;
+  } | null>(null);
 
   // Salin Anggaran (mulai cepat saat usulan masih Draft & kosong).
   const [copySources, setCopySources] = React.useState<CopySource[]>([]);
@@ -599,6 +608,7 @@ export function PenganggaranClient({
       if (selType === "DETAIL") return onEditDetail();
       if (selType === "SUB_KOMPONEN") return onEditSubkomp();
       if (selType === "AKUN") return onEditAkun();
+      if (selType === "KOMPONEN") return onEditKomponen();
       if (selType === "HEADER") return openHeaderModal(selectedRow?.ref?.id);
       return;
     }
@@ -862,6 +872,25 @@ export function PenganggaranClient({
       editId: r.id,
       initial: { kode: r.kode ?? "", uraian: r.uraian ?? "" },
     });
+  }
+
+  async function onEditKomponen() {
+    if (selectedRow?.type !== "KOMPONEN" || !selectedRow.ref) return;
+    const r = selectedRow.ref;
+    setKomponenVol({
+      id: r.id,
+      kode: r.kode ?? "",
+      uraian: r.uraian ?? "",
+      volume: r.volume ?? 0,
+      satuan: r.satuan ?? "",
+    });
+  }
+
+  async function onSubmitKomponenVol(v: { volume: number; satuan: string }) {
+    if (!komponenVol) return;
+    await editNode(komponenVol.id, { volume: v.volume, satuan: v.satuan.trim() || null });
+    setKomponenVol(null);
+    await refresh();
   }
 
   async function onEditAkun() {
@@ -1283,6 +1312,12 @@ export function PenganggaranClient({
         initial={subkompParent?.initial}
         onSubmit={onSubmitSubkomp}
         onClose={() => setSubkompParent(null)}
+      />
+      <KomponenVolForm
+        open={!!komponenVol}
+        initial={komponenVol ?? undefined}
+        onSubmit={onSubmitKomponenVol}
+        onClose={() => setKomponenVol(null)}
       />
       <HeaderForm
         open={!!headerModal}

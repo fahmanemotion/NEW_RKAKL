@@ -6,6 +6,7 @@ import { MASTERS, type MasterKey } from '@/lib/referensi';
 import { ReferensiTabs } from '@/components/referensi/tabs';
 import { MasterManager } from '@/components/referensi/master-manager';
 import { KodeManager } from '@/components/referensi/kode-manager';
+import { TorKodeManager } from '@/components/referensi/tor-kode-manager';
 import { PenandatanganManager } from '@/components/referensi/penandatangan-manager';
 import { TempatTanggalManager } from '@/components/referensi/tempat-tanggal-manager';
 import { SatkerManager } from '@/components/referensi/satker-manager';
@@ -56,6 +57,18 @@ export default async function Page({ params }: { params: Promise<{ master: strin
         subtitle="Tambah / perbarui seluruh kode sekaligus (BA, Program, Kegiatan, KRO, RO, Komponen) dari satu file Excel."
       >
         <KodeManager />
+      </Shell>
+    );
+  }
+
+  // Menu "KODE TOR" = master metadata kinerja per komponen untuk generator TOR.
+  if (master === 'kode-tor') {
+    return (
+      <Shell
+        title="Referensi KODE TOR"
+        subtitle="Metadata kinerja per komponen (Sasaran & Indikator Program/Kegiatan, Unit Eselon) untuk mengisi tabel identitas TOR yang tidak otomatis."
+      >
+        <TorKodeManager />
       </Shell>
     );
   }
