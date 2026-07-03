@@ -140,7 +140,10 @@ export function flattenForGrid(
             ? `>> ${n.uraian || ""}`
             : n.uraian || "",
       volume:
-        n.level === "DETAIL" || n.level === "KRO" || n.level === "RO"
+        n.level === "DETAIL" ||
+        n.level === "KRO" ||
+        n.level === "RO" ||
+        n.level === "KOMPONEN"
           ? n.volume
           : null,
       satuan: n.satuan,
