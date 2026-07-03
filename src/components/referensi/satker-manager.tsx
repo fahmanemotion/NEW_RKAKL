@@ -4,6 +4,7 @@ import { Loader2, Save, Building2, CheckCircle2, Upload, Image as ImageIcon, Tra
 import { useRouter } from "next/navigation";
 import { Button, Input, Card } from "@/components/ui";
 import { createClient } from "@/lib/supabase";
+import { revalidateSatkerLogoAction } from "@/app/(dashboard)/referensi/logo-actions";
 
 interface SatkerRow {
   id: string;
@@ -133,6 +134,9 @@ export function SatkerManager({ satkerId }: { satkerId: string | null }) {
         .eq("id", row.id);
       if (error) throw error;
       setSaved(true);
+      // Buang cache logo (server) agar logo baru langsung tampil di topnav,
+      // lalu segarkan render server.
+      try { await revalidateSatkerLogoAction(row.id); } catch { /* non-blocking */ }
       router.refresh(); // segarkan nama & logo satker di shell & halaman server lain
     } catch (e) {
       setErr((e as Error).message);

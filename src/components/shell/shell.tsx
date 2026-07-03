@@ -13,7 +13,7 @@ import { RouteProgress, LinkPendingIcon } from '@/components/ui/loading';
 import type { CurrentUser } from '@/lib/auth';
 import { STATUS_COLOR } from '@/lib/constants';
 
-export function Shell({ user, children }: { user: CurrentUser; children: React.ReactNode }) {
+export function Shell({ user, satkerLogo, children }: { user: CurrentUser; satkerLogo?: string | null; children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -113,10 +113,10 @@ export function Shell({ user, children }: { user: CurrentUser; children: React.R
               <Menu className="size-5" />
             </button>
 
-            {user.satker_logo && (
+            {satkerLogo && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={user.satker_logo}
+                src={satkerLogo}
                 alt="Logo satker"
                 className="h-9 w-auto max-w-[150px] object-contain"
               />
