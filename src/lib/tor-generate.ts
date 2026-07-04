@@ -25,6 +25,10 @@ export interface TorTokens {
   KL: string; UNIT_ESELON: string; PROGRAM: string; SASARAN_PROG: string; IND_PROG: string;
   KEGIATAN: string; SASARAN_KEG: string; IND_KEG: string; KRO_ROW: string; IND_KRO: string;
   RO_ROW: string; IND_RO: string; VOL_RO: string; SATUAN_RO: string; KOMP: string; VOL_KOMP: string;
+  // Biaya + tanda tangan
+  TOTAL: string; TERBILANG: string; TEMPAT_TGL_TTD: string;
+  TTD1_JABATAN: string; TTD1_NAMA: string; TTD1_NIP: string;
+  TTD2_JABATAN: string; TTD2_NAMA: string; TTD2_NIP: string;
 }
 
 /** Baca dimensi PNG (piksel) dari header IHDR. null bila bukan PNG valid. */

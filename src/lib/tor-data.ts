@@ -20,10 +20,21 @@ function volRO(n: number): string {
 function volKomp(n: number, satuan: string): string {
   return n ? `${Math.round(n)} (${ejaAngka(n)})${satuan ? " " + satuan : ""}` : "";
 }
+function fmtRupiah(n: number): string {
+  return `${Math.round(n || 0).toLocaleString("id-ID")},-`;
+}
+/** "Kota, DD Bulan YYYY" (Indonesia). tanggal ISO opsional → default hari ini. */
+function fmtTempatTgl(kota: string, tanggalIso: string | null): string {
+  const bln = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+  const d = tanggalIso ? new Date(tanggalIso + "T00:00:00") : new Date();
+  const tgl = `${d.getDate()} ${bln[d.getMonth()]} ${d.getFullYear()}`;
+  return kota ? `${kota}, ${tgl}` : tgl;
+}
 
 interface StrukturRow {
   id: string; parent_id: string | null; level: string;
   kode: string | null; uraian: string | null; volume: number | null; satuan: string | null;
+  jumlah: number | null;
 }
 interface TorKodeRow {
   komponen: string; unit_eselon: string | null;
@@ -43,7 +54,7 @@ export interface TorKomponenItem {
 }
 
 async function loadContext(usulanId: string) {
-  const [{ data: u }, { data: rows }, { data: tor }] = await Promise.all([
+  const [{ data: u }, { data: rows }, { data: tor }, { data: ttd }, { data: pgr }] = await Promise.all([
     sb()
       .from("usulan_anggaran")
       .select(
@@ -58,16 +69,22 @@ async function loadContext(usulanId: string) {
       .maybeSingle(),
     sb()
       .from("usulan_struktur")
-      .select("id, parent_id, level, kode, uraian, volume, satuan")
+      .select("id, parent_id, level, kode, uraian, volume, satuan, jumlah")
       .eq("usulan_id", usulanId),
     sb().from("master_tor_kode").select(
       "komponen, unit_eselon, sasaran_program, indikator_kinerja_program, sasaran_kegiatan, indikator_kinerja_kegiatan",
     ),
+    sb().from("master_penandatangan").select("nama, jabatan, pangkat_golongan, nip").order("nama"),
+    sb().from("pengaturan_rab").select("kota, tanggal").limit(1).maybeSingle(),
   ]);
   return {
     u,
     rows: (rows ?? []) as StrukturRow[],
     tor: (tor ?? []) as TorKodeRow[],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ttd: (ttd ?? []) as any[],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    pgr: (pgr ?? null) as any,
   };
 }
 
@@ -99,7 +116,7 @@ export async function buildTorForKomponen(
   usulanId: string,
   komponenId: string,
 ): Promise<{ tokens: Partial<TorTokens>; logo: string | null; filename: string }> {
-  const { u, rows, tor } = await loadContext(usulanId);
+  const { u, rows, tor, ttd, pgr } = await loadContext(usulanId);
   const byId = new Map(rows.map((r) => [r.id, r]));
   const komp = byId.get(komponenId);
   const ro = komp?.parent_id ? byId.get(komp.parent_id) : undefined;
@@ -108,6 +125,9 @@ export async function buildTorForKomponen(
   // Volume RO = Σ volume komponen di bawah RO (dari kertas kerja).
   let volRoNum = 0;
   if (ro) for (const r of rows) if (r.level === "KOMPONEN" && r.parent_id === ro.id) volRoNum += Number(r.volume || 0);
+  const totalKomp = Number(komp?.jumlah || 0);
+  const t1 = ttd[0] ?? {};
+  const t2 = ttd[1] ?? {};
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const satker: any = u?.satker ?? {};
@@ -149,6 +169,15 @@ export async function buildTorForKomponen(
     SATUAN_RO: ro?.satuan || komp?.satuan || "",
     KOMP: kompNama,
     VOL_KOMP: volKomp(Number(komp?.volume || 0), komp?.satuan || ""),
+    TOTAL: fmtRupiah(totalKomp),
+    TERBILANG: totalKomp ? titleCase(terbilang(Math.round(totalKomp))) : "",
+    TEMPAT_TGL_TTD: fmtTempatTgl(pgr?.kota || satker?.lokus || "", pgr?.tanggal ?? null),
+    TTD1_JABATAN: t1.jabatan || "",
+    TTD1_NAMA: t1.nama || "",
+    TTD1_NIP: t1.nip || "",
+    TTD2_JABATAN: t2.jabatan || "",
+    TTD2_NAMA: t2.nama || "",
+    TTD2_NIP: t2.nip || "",
   };
 
   const filename = `TOR_${(komp?.kode || "komponen").replace(/[^\w.]+/g, "_")}.docx`;
