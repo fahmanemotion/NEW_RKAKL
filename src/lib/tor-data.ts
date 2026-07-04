@@ -34,6 +34,18 @@ function cityName(s: string): string {
 function eselon1Only(s: string): string {
   return String(s || "").split("/")[0].trim();
 }
+/** Gabung kode berjenjang → path lengkap (program.kegiatan.KRO.RO.komponen),
+ *  tahan bila kode tersimpan penuh ("3996.DCB.011.051") maupun singkat ("051"). */
+function joinKode(parts: (string | null | undefined)[]): string {
+  const segs: string[] = [];
+  for (const raw of parts) {
+    for (const s of String(raw || "").split(".")) {
+      const seg = s.trim();
+      if (seg && !segs.includes(seg)) segs.push(seg);
+    }
+  }
+  return segs.join(".");
+}
 /** "Kota, DD Bulan YYYY" (Indonesia). tanggal ISO opsional → default hari ini. */
 function fmtTempatTgl(kota: string, tanggalIso: string | null): string {
   const bln = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
@@ -191,12 +203,20 @@ export async function buildTorForKomponen(
         ? `${u.kegiatan.nama_kegiatan} (${u.kegiatan.kode_kegiatan})`
         : "";
   const tahun = String(u?.tahun_anggaran ?? "");
+  // Kode lengkap komponen: program.kegiatan.KRO.RO.komponen.
+  const fullKode = joinKode([
+    programNode?.kode || u?.program?.kode_program,
+    kegiatanNode?.kode || u?.kegiatan?.kode_kegiatan,
+    kro?.kode,
+    ro?.kode,
+    komp?.kode,
+  ]);
 
   const tokens: Partial<TorTokens> = {
     KRO_UP: (kro?.uraian || "").toUpperCase(),
     RO_UP: (ro?.uraian || "").toUpperCase(),
     KOMP_UP: kompNama.toUpperCase(),
-    KODE_FULL: komp?.kode || "",
+    KODE_FULL: fullKode,
     TAHUN: tahun,
     SATKER_UP: (satker?.nama_satker || "").toUpperCase(),
     ESELON1_UP: eselon1Only(t?.unit_eselon || unit?.nama || "").toUpperCase(),
@@ -232,8 +252,7 @@ export async function buildTorForKomponen(
   const filename = `TOR_${(komp?.kode || "komponen").replace(/[^\w.]+/g, "_")}.docx`;
 
   // Rincian RAB Bagian E: per sub-komponen (fallback: komponen itu sendiri).
-  const programKode = u?.program?.kode_program || "";
-  const baseKode = [programKode, komp?.kode].filter(Boolean).join(".");
+  const baseKode = fullKode;
   const subs = rows
     .filter((r) => r.level === "SUB_KOMPONEN" && r.parent_id === komponenId)
     .sort((a, b) => (a.kode || "").localeCompare(b.kode || ""));
