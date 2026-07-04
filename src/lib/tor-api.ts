@@ -58,7 +58,7 @@ export async function listTorKode(): Promise<TorKodeRow[]> {
   const { data, error } = await sb()
     .from(TABLE)
     .select(
-      "id, komponen, indikator_kinerja_kegiatan, sasaran_kegiatan, indikator_kinerja_program, sasaran_program, unit_eselon",
+      "id, komponen, indikator_ro, indikator_kro, indikator_kinerja_kegiatan, sasaran_kegiatan, indikator_kinerja_program, sasaran_program, unit_eselon",
     )
     .order("komponen", { ascending: true });
   if (error) throw error;

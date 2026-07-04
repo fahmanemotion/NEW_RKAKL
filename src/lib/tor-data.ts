@@ -49,6 +49,7 @@ interface StrukturRow {
 }
 interface TorKodeRow {
   komponen: string; unit_eselon: string | null;
+  indikator_ro: string | null; indikator_kro: string | null;
   sasaran_program: string | null; indikator_kinerja_program: string | null;
   sasaran_kegiatan: string | null; indikator_kinerja_kegiatan: string | null;
 }
@@ -83,7 +84,7 @@ async function loadContext(usulanId: string) {
       .select("id, parent_id, level, kode, uraian, volume, satuan, jumlah")
       .eq("usulan_id", usulanId),
     sb().from("master_tor_kode").select(
-      "komponen, unit_eselon, sasaran_program, indikator_kinerja_program, sasaran_kegiatan, indikator_kinerja_kegiatan",
+      "komponen, unit_eselon, indikator_ro, indikator_kro, sasaran_program, indikator_kinerja_program, sasaran_kegiatan, indikator_kinerja_kegiatan",
     ),
     sb().from("master_penandatangan").select("nama, jabatan, pangkat_golongan, nip, peran").order("nama"),
     sb().from("pengaturan_rab").select("kota, tanggal").limit(1).maybeSingle(),
@@ -132,6 +133,9 @@ export async function buildTorForKomponen(
   const komp = byId.get(komponenId);
   const ro = komp?.parent_id ? byId.get(komp.parent_id) : undefined;
   const kro = ro?.parent_id ? byId.get(ro.parent_id) : undefined;
+  // Program & Kegiatan diambil dari KERTAS KERJA (naik: KRO → KEGIATAN → PROGRAM).
+  const kegiatanNode = kro?.parent_id ? byId.get(kro.parent_id) : undefined;
+  const programNode = kegiatanNode?.parent_id ? byId.get(kegiatanNode.parent_id) : undefined;
 
   // Volume RO = Σ volume komponen di bawah RO (dari kertas kerja).
   let volRoNum = 0;
@@ -162,8 +166,19 @@ export async function buildTorForKomponen(
   }
 
   const KL = kem?.nama || "Kementerian";
-  const program = u?.program ? `${u.program.nama_program} (${u.program.kode_program})` : "";
-  const kegiatan = u?.kegiatan ? `${u.kegiatan.nama_kegiatan} (${u.kegiatan.kode_kegiatan})` : "";
+  // Utamakan dari kertas kerja (node pohon); fallback ke join usulan_anggaran.
+  const program =
+    programNode && programNode.level === "PROGRAM"
+      ? `${programNode.uraian ?? ""}${programNode.kode ? ` (${programNode.kode})` : ""}`.trim()
+      : u?.program
+        ? `${u.program.nama_program} (${u.program.kode_program})`
+        : "";
+  const kegiatan =
+    kegiatanNode && kegiatanNode.level === "KEGIATAN"
+      ? `${kegiatanNode.uraian ?? ""}${kegiatanNode.kode ? ` (${kegiatanNode.kode})` : ""}`.trim()
+      : u?.kegiatan
+        ? `${u.kegiatan.nama_kegiatan} (${u.kegiatan.kode_kegiatan})`
+        : "";
   const tahun = String(u?.tahun_anggaran ?? "");
 
   const tokens: Partial<TorTokens> = {
@@ -185,9 +200,9 @@ export async function buildTorForKomponen(
     SASARAN_KEG: t?.sasaran_kegiatan || "",
     IND_KEG: t?.indikator_kinerja_kegiatan || "",
     KRO_ROW: kro ? `${kro.uraian} (${kro.kode})` : "",
-    IND_KRO: "", // belum tersedia di KODE TOR
+    IND_KRO: t?.indikator_kro || "",
     RO_ROW: ro ? `${ro.uraian} (${ro.kode})` : "",
-    IND_RO: "", // belum tersedia di KODE TOR
+    IND_RO: t?.indikator_ro || "",
     VOL_RO: volRO(volRoNum),
     SATUAN_RO: ro?.satuan || komp?.satuan || "",
     KOMP: kompNama,

@@ -1,6 +1,7 @@
 // SIPPT — parser sheet KODE TOR (metadata kinerja per KOMPONEN).
-// Kolom Excel (urut): KOMPONEN, INDIKATOR KINERJA KEGIATAN, SASARAN KEGIATAN,
-// INDIKATOR KINERJA PROGRAM, SASARAN PROGRAM, UNIT ESELON I/II.
+// Kolom Excel (urut): KOMPONEN, INDIKATOR RO, INDIKATOR KRO,
+// INDIKATOR KINERJA KEGIATAN, SASARAN KEGIATAN, INDIKATOR KINERJA PROGRAM,
+// SASARAN PROGRAM, UNIT ESELON I/II.
 // Murni & dapat diuji di Node.
 
 function cleanText(v: unknown): string {
@@ -10,6 +11,8 @@ function cleanText(v: unknown): string {
 
 export interface TorKodeRec {
   komponen: string;
+  indikator_ro: string;
+  indikator_kro: string;
   indikator_kinerja_kegiatan: string;
   sasaran_kegiatan: string;
   indikator_kinerja_program: string;
@@ -31,11 +34,13 @@ export function parseTorKodeSheet(raw: unknown[][]): TorKodeRec[] {
     if (HEAD.has(komponen.toLowerCase())) continue;
     map.set(komponen.toLowerCase(), {
       komponen,
-      indikator_kinerja_kegiatan: cleanText(r[1]),
-      sasaran_kegiatan: cleanText(r[2]),
-      indikator_kinerja_program: cleanText(r[3]),
-      sasaran_program: cleanText(r[4]),
-      unit_eselon: cleanText(r[5]),
+      indikator_ro: cleanText(r[1]),
+      indikator_kro: cleanText(r[2]),
+      indikator_kinerja_kegiatan: cleanText(r[3]),
+      sasaran_kegiatan: cleanText(r[4]),
+      indikator_kinerja_program: cleanText(r[5]),
+      sasaran_program: cleanText(r[6]),
+      unit_eselon: cleanText(r[7]),
     });
   }
   return [...map.values()];
@@ -44,6 +49,8 @@ export function parseTorKodeSheet(raw: unknown[][]): TorKodeRec[] {
 /** Urutan kolom header untuk unduh template. */
 export const TOR_KODE_HEADERS = [
   "KOMPONEN",
+  "INDIKATOR RO",
+  "INDIKATOR KRO",
   "INDIKATOR KINERJA KEGIATAN",
   "SASARAN KEGIATAN",
   "INDIKATOR KINERJA PROGRAM",

@@ -25,9 +25,11 @@ import {
   type TorKodeRow,
   type TorKodeImportResult,
 } from "@/lib/tor-api";
-import { TOR_KODE_HEADERS } from "@/lib/tor-kode";
+import { TOR_KODE_HEADERS, type TorKodeRec } from "@/lib/tor-kode";
 
 const FIELDS: { key: keyof TorKodeRow; label: string }[] = [
+  { key: "indikator_ro", label: "Indikator RO" },
+  { key: "indikator_kro", label: "Indikator KRO" },
   { key: "indikator_kinerja_kegiatan", label: "Indikator Kinerja Kegiatan" },
   { key: "sasaran_kegiatan", label: "Sasaran Kegiatan" },
   { key: "indikator_kinerja_program", label: "Indikator Kinerja Program" },
@@ -99,6 +101,8 @@ export function TorKodeManager() {
       TOR_KODE_HEADERS,
       [
         "Basic Safety Training",
+        "Jumlah Lulusan Diklat Teknis Bidang Transportasi Laut",
+        "Jumlah Lulusan Pendidikan dan Pelatihan SDM Transportasi Laut (orang)",
         "Tingkat Pemenuhan SDM Transportasi Program Pelatihan (IKK.6)",
         "Meningkatnya Kompetensi SDM Transportasi Laut (SK.3)",
         "Indeks Peningkatan SDM Transportasi (IKP.1)",
@@ -335,14 +339,7 @@ function TorKodeEditModal({
   state: Exclude<EditState, null>;
   busy: boolean;
   onClose: () => void;
-  onSave: (rec: {
-    komponen: string;
-    indikator_kinerja_kegiatan: string;
-    sasaran_kegiatan: string;
-    indikator_kinerja_program: string;
-    sasaran_program: string;
-    unit_eselon: string;
-  }) => void;
+  onSave: (rec: TorKodeRec) => void;
 }) {
   const init = state.mode === "edit" ? state.row : null;
   const [komponen, setKomponen] = React.useState(init?.komponen ?? "");
@@ -365,16 +362,11 @@ function TorKodeEditModal({
           </Button>
           <Button
             disabled={busy || !komponen.trim()}
-            onClick={() =>
-              onSave({
-                komponen: komponen.trim(),
-                indikator_kinerja_kegiatan: vals.indikator_kinerja_kegiatan.trim(),
-                sasaran_kegiatan: vals.sasaran_kegiatan.trim(),
-                indikator_kinerja_program: vals.indikator_kinerja_program.trim(),
-                sasaran_program: vals.sasaran_program.trim(),
-                unit_eselon: vals.unit_eselon.trim(),
-              })
-            }
+            onClick={() => {
+              const rec: Record<string, string> = { komponen: komponen.trim() };
+              for (const f of FIELDS) rec[f.key as string] = (vals[f.key as string] || "").trim();
+              onSave(rec as unknown as TorKodeRec);
+            }}
           >
             {busy && <Loader2 className="size-4 animate-spin" />} Simpan
           </Button>
