@@ -1,9 +1,129 @@
 "use client";
 import * as React from "react";
-import { FileText, Download, Loader2, Inbox, ChevronRight } from "lucide-react";
+import { FileText, Download, Loader2, Inbox, ChevronRight, ChevronsUpDown, Check, Search } from "lucide-react";
 import { Button, Card, Select } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import { listTorKomponen, buildTorForKomponen, type TorKomponenItem } from "@/lib/tor-data";
 import { generateTorDocx, downloadBlob } from "@/lib/tor-generate";
+
+interface ComboOpt {
+  value: string;
+  label: string;
+}
+
+/**
+ * Dropdown pencari generik (combobox): kotak cari + daftar digulir + centang
+ * pilihan + footer jumlah. Baris "Semua" selalu di atas untuk mereset.
+ */
+function SearchCombo({
+  options,
+  value,
+  onChange,
+  allLabel,
+}: {
+  options: ComboOpt[];
+  value: string; // "" = semua
+  onChange: (v: string) => void;
+  allLabel: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [q, setQ] = React.useState("");
+  const wrapRef = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onEsc);
+    setTimeout(() => inputRef.current?.focus(), 0);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [open]);
+
+  const filtered = React.useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return options;
+    return options.filter((o) => o.label.toLowerCase().includes(s));
+  }, [options, q]);
+
+  const current = options.find((o) => o.value === value);
+  const pick = (v: string) => {
+    onChange(v);
+    setOpen(false);
+    setQ("");
+  };
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-left text-sm shadow-sm hover:bg-accent/40 focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        <span className="truncate">{current ? current.label : allLabel}</span>
+        <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
+      </button>
+      {open && (
+        <div className="absolute left-0 z-50 mt-1 w-[min(560px,92vw)] overflow-hidden rounded-md border bg-card text-card-foreground shadow-lg">
+          <div className="flex items-center gap-2 border-b px-2.5 py-1.5">
+            <Search className="size-4 shrink-0 opacity-50" />
+            <input
+              ref={inputRef}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Cari kode / uraian…"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+          <ul className="max-h-64 overflow-y-auto py-1">
+            <li>
+              <button
+                type="button"
+                onClick={() => pick("")}
+                className={cn(
+                  "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent",
+                  value === "" && "bg-accent/60 font-medium",
+                )}
+              >
+                <Check className={cn("size-3.5 shrink-0", value === "" ? "opacity-100" : "opacity-0")} />
+                <span className="truncate">{allLabel}</span>
+              </button>
+            </li>
+            {filtered.length === 0 && (
+              <li className="px-3 py-2 text-sm text-muted-foreground">Tidak ditemukan.</li>
+            )}
+            {filtered.map((o) => (
+              <li key={o.value}>
+                <button
+                  type="button"
+                  onClick={() => pick(o.value)}
+                  className={cn(
+                    "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent",
+                    o.value === value && "bg-accent/60 font-medium",
+                  )}
+                >
+                  <Check className={cn("size-3.5 shrink-0", o.value === value ? "opacity-100" : "opacity-0")} />
+                  <span className="truncate">{o.label}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="border-t px-3 py-1 text-[11px] text-muted-foreground">
+            {filtered.length} dari {options.length} item
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export interface TorUsulanOpt {
   id: string;
@@ -111,32 +231,27 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
         <div className="mb-3 grid gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-muted-foreground">Filter KRO</span>
-            <Select
+            <SearchCombo
+              options={kroOptions.map((k) => ({ value: k.id, label: `${k.kode} — ${k.uraian}` }))}
               value={kroFilter}
-              onChange={(e) => {
-                setKroFilter(e.target.value);
+              onChange={(v) => {
+                setKroFilter(v);
                 setKompFilter(""); // reset komponen saat KRO berubah
               }}
-              className="w-full"
-            >
-              <option value="">Semua KRO</option>
-              {kroOptions.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.kode} — {k.uraian}
-                </option>
-              ))}
-            </Select>
+              allLabel="Semua KRO"
+            />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-muted-foreground">Filter Komponen</span>
-            <Select value={kompFilter} onChange={(e) => setKompFilter(e.target.value)} className="w-full">
-              <option value="">Semua Komponen</option>
-              {kompOptions.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.kode} — {k.uraian}
-                </option>
-              ))}
-            </Select>
+            <SearchCombo
+              options={kompOptions.map((k) => ({
+                value: k.id,
+                label: `${k.roKode} · ${k.kode} — ${k.uraian}`,
+              }))}
+              value={kompFilter}
+              onChange={setKompFilter}
+              allLabel="Semua Komponen"
+            />
           </label>
         </div>
       )}

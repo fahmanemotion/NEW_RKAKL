@@ -35,6 +35,7 @@ export interface TorKomponenItem {
   id: string;
   kode: string;
   uraian: string;
+  roKode: string;
   roUraian: string;
   kroId: string;
   kroKode: string;
@@ -83,6 +84,7 @@ export async function listTorKomponen(usulanId: string): Promise<TorKomponenItem
         id: k.id,
         kode: k.kode ?? "",
         uraian: k.uraian ?? "",
+        roKode: ro?.kode ?? "",
         roUraian: ro?.uraian ?? "",
         kroId: kro?.id ?? "",
         kroKode: kro?.kode ?? "",
