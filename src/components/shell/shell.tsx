@@ -42,7 +42,7 @@ export function Shell({ user, satkerLogo, children }: { user: CurrentUser; satke
               <Building2 className="size-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[15px] font-bold leading-tight tracking-wide text-white">SIPPT</div>
+              <div className="text-[15px] font-bold leading-tight tracking-wide text-white">SIRANGGA</div>
               <div className="truncate text-[11px] leading-tight text-sidebar-foreground/55">
                 {user.satker_nama ?? 'Satuan Kerja'}
               </div>

@@ -3,7 +3,7 @@ import './globals.css';
 import { ThemeProvider } from '@/components/theme';
 
 export const metadata: Metadata = {
-  title: 'SIPPT — Perencanaan & Penganggaran Terintegrasi',
+  title: 'SIRANGGA — Perencanaan & Penganggaran Terintegrasi',
   description: 'Sistem penyusunan usulan anggaran hierarkis ala SAKTI Kemenkeu.',
 };
 

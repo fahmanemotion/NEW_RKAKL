@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 
 // Modul Referensi disederhanakan menjadi beberapa menu.
 const TABS: { key: string; label: string }[] = [
-  { key: 'kode', label: 'KODE' },
+  { key: 'kode', label: 'KODE KK' },
   { key: 'kode-tor', label: 'KODE TOR' },
   { key: 'akun', label: 'Akun' },
   { key: 'satker', label: 'Satker' },

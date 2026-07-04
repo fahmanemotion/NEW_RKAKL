@@ -143,7 +143,7 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
 
       {err && <p className="mb-2 text-xs text-destructive">{err}</p>}
 
-      <div className="overflow-hidden rounded-xl border border-border">
+      <div className="rounded-xl border border-border">
         {loading ? (
           <div className="grid place-items-center py-10 text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
@@ -151,27 +151,33 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
         ) : filtered.length === 0 ? (
           <div className="grid place-items-center gap-2 py-10 text-center text-sm text-muted-foreground">
             <Inbox className="size-6" />
-            {usulanId ? "Belum ada komponen pada usulan ini." : "Pilih usulan untuk menampilkan komponen."}
+            {usulanId ? "Tidak ada komponen sesuai filter." : "Pilih usulan untuk menampilkan komponen."}
           </div>
         ) : (
-          <ul className="divide-y divide-border">
+          <ul className="max-h-80 divide-y divide-border overflow-y-auto">
             {filtered.map((k) => (
-              <li key={k.id} className="flex items-center gap-3 px-3 py-2.5">
+              <li key={k.id} className="flex items-center gap-2 px-3 py-1.5">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 text-sm font-medium">
-                    <span className="font-mono text-xs text-muted-foreground">{k.kode}</span>
-                    <span className="truncate">{k.uraian}</span>
+                  <div className="flex items-center gap-1.5 text-[13px]">
+                    <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{k.kode}</span>
+                    <span className="truncate font-medium">{k.uraian}</span>
                   </div>
                   {(k.kroUraian || k.roUraian) && (
-                    <div className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                    <div className="flex items-center gap-1 truncate text-[10px] leading-tight text-muted-foreground">
                       <span className="truncate">{k.kroUraian}</span>
-                      {k.roUraian && <ChevronRight className="size-3 shrink-0" />}
+                      {k.roUraian && <ChevronRight className="size-2.5 shrink-0" />}
                       <span className="truncate">{k.roUraian}</span>
                     </div>
                   )}
                 </div>
-                <Button size="sm" variant="outline" onClick={() => onDownload(k)} disabled={busyId === k.id}>
-                  {busyId === k.id ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 shrink-0 px-2"
+                  onClick={() => onDownload(k)}
+                  disabled={busyId === k.id}
+                >
+                  {busyId === k.id ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
                   TOR
                 </Button>
               </li>
@@ -179,6 +185,9 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
           </ul>
         )}
       </div>
+      {filtered.length > 0 && (
+        <p className="mt-1.5 text-[11px] text-muted-foreground">{filtered.length} komponen ditampilkan.</p>
+      )}
       <p className="mt-2 text-[11px] text-muted-foreground">
         Catatan: hal. 1–2 sudah otomatis. Bagian yang belum terisi (mis. Indikator KRO/RO, narasi hal. 3+) akan kita
         lengkapi bertahap.

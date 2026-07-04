@@ -53,8 +53,8 @@ export default async function Page({ params }: { params: Promise<{ master: strin
   if (master === 'kode') {
     return (
       <Shell
-        title="Referensi Kode"
-        subtitle="Tambah / perbarui seluruh kode sekaligus (BA, Program, Kegiatan, KRO, RO, Komponen) dari satu file Excel."
+        title="Referensi KODE KK"
+        subtitle="Kode Kertas Kerja. Tambah / perbarui seluruh kode sekaligus (BA, Program, Kegiatan, KRO, RO, Komponen) dari satu file Excel."
       >
         <KodeManager />
       </Shell>

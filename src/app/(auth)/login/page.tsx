@@ -98,7 +98,7 @@ export default function LoginPage() {
             <Building2 className="size-6" />
           </div>
           <div>
-            <div className="text-lg font-bold tracking-wide">SIPPT</div>
+            <div className="text-lg font-bold tracking-wide">SIRANGGA</div>
             <div className="text-[11px] text-white/70">Politeknik Ilmu Pelayaran Makassar</div>
           </div>
         </div>
@@ -154,7 +154,7 @@ export default function LoginPage() {
                 <Building2 className="size-6" />
               </div>
               <div>
-                <div className="text-lg font-bold leading-tight">SIPPT</div>
+                <div className="text-lg font-bold leading-tight">SIRANGGA</div>
                 <p className="text-xs text-muted-foreground">Perencanaan &amp; Penganggaran</p>
               </div>
             </div>
