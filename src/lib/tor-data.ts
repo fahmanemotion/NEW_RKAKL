@@ -31,6 +31,17 @@ function fmtTempatTgl(kota: string, tanggalIso: string | null): string {
   return kota ? `${kota}, ${tgl}` : tgl;
 }
 
+/** Normalisasi nama komponen agar pencocokan KODE TOR longgar:
+ *  huruf kecil, buang "(...)" (mis. "(BST)"), buang tanda baca, rapikan spasi. */
+function normKomp(s: string): string {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
 interface StrukturRow {
   id: string; parent_id: string | null; level: string;
   kode: string | null; uraian: string | null; volume: number | null; satuan: string | null;
@@ -139,9 +150,16 @@ export async function buildTorForKomponen(
   const unit = satker?.unit ?? {};
   const kem = unit?.kem ?? {};
   const kompNama = komp?.uraian ?? "";
-  const t = tor.find(
-    (x) => String(x.komponen).trim().toLowerCase() === kompNama.trim().toLowerCase(),
-  );
+  // Cocokkan KODE TOR ke komponen: normalisasi dulu; bila belum ketemu, coba
+  // salah satu memuat yang lain (menangani sufiks "(BST)" / prefiks kode).
+  const kompKey = normKomp(kompNama);
+  let t = kompKey ? tor.find((x) => normKomp(x.komponen) === kompKey) : undefined;
+  if (!t && kompKey.length >= 5) {
+    t = tor.find((x) => {
+      const k = normKomp(x.komponen);
+      return k.length >= 5 && (k.includes(kompKey) || kompKey.includes(k));
+    });
+  }
 
   const KL = kem?.nama || "Kementerian";
   const program = u?.program ? `${u.program.nama_program} (${u.program.kode_program})` : "";
