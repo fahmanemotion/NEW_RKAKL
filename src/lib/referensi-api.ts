@@ -84,7 +84,42 @@ export async function updateMaster(
   if (error) throw refError(error);
 }
 
+/**
+ * Apakah sebuah kode master (id) sudah DIPAKAI pada kertas kerja/usulan
+ * (dirujuk oleh usulan_struktur.referensi_id)? Dipakai untuk mencegah
+ * penghapusan kode yang sedang digunakan → menghindari referensi menggantung.
+ */
+export async function isRefUsed(masterId: string): Promise<boolean> {
+  const { data, error } = await sb()
+    .from("usulan_struktur")
+    .select("id")
+    .eq("referensi_id", masterId)
+    .limit(1);
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
+/** Himpunan id master yang SUDAH dipakai, di antara daftar id (untuk menandai baris di UI). */
+export async function listUsedRefIds(ids: string[]): Promise<Set<string>> {
+  const used = new Set<string>();
+  const uniq = [...new Set(ids.filter(Boolean))];
+  for (let i = 0; i < uniq.length; i += 300) {
+    const chunk = uniq.slice(i, i + 300);
+    const { data, error } = await sb()
+      .from("usulan_struktur")
+      .select("referensi_id")
+      .in("referensi_id", chunk);
+    if (error) throw error;
+    for (const r of (data ?? []) as { referensi_id: string | null }[]) {
+      if (r.referensi_id) used.add(r.referensi_id);
+    }
+  }
+  return used;
+}
+
 export async function deleteMaster(def: MasterDef, id: string): Promise<void> {
+  if (await isRefUsed(id))
+    throw new Error("KODE_DIPAKAI: Kode ini sudah dipakai pada kertas kerja/usulan dan tidak dapat dihapus.");
   const { error } = await sb().from(def.table).delete().eq("id", id);
   if (error) throw refError(error);
 }
@@ -98,8 +133,10 @@ export async function updateKomponen(
   if (error) throw refError(error);
 }
 
-/** Hapus satu Komponen pada jalur KODE. */
+/** Hapus satu Komponen pada jalur KODE. Ditolak bila sudah dipakai di kertas kerja. */
 export async function deleteKomponen(id: string): Promise<void> {
+  if (await isRefUsed(id))
+    throw new Error("KODE_DIPAKAI: Komponen ini sudah dipakai pada kertas kerja/usulan dan tidak dapat dihapus.");
   const { error } = await sb().from("master_komponen").delete().eq("id", id);
   if (error) throw refError(error);
 }
@@ -113,6 +150,17 @@ export async function deleteKomponen(id: string): Promise<void> {
  * hanya di-set null oleh aturan ON DELETE SET NULL).
  */
 export async function deleteAllKode(): Promise<void> {
+  // Aman: tolak bila ADA kode yang masih dipakai pada kertas kerja/usulan.
+  const { data: used, error: usedErr } = await sb()
+    .from("usulan_struktur")
+    .select("id")
+    .not("referensi_id", "is", null)
+    .limit(1);
+  if (usedErr) throw usedErr;
+  if ((used ?? []).length > 0)
+    throw new Error(
+      "KODE_DIPAKAI: Sebagian kode sudah dipakai pada kertas kerja/usulan. Hapus atau rapikan usulan terkait lebih dulu sebelum menghapus semua kode.",
+    );
   const ZERO = "00000000-0000-0000-0000-000000000000";
   const tables = [
     "master_sub_komponen",

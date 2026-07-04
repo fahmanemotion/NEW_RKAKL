@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { loadXLSXPlain } from "@/lib/xlsx-lazy";
-import { Upload, Download, Search, Loader2, CheckCircle2, AlertTriangle, Pencil, Trash2, FolderTree, Inbox } from "lucide-react";
+import { Upload, Download, Search, Loader2, CheckCircle2, AlertTriangle, Pencil, Trash2, FolderTree, Inbox, Lock } from "lucide-react";
 import { Button, Input, Card } from "@/components/ui";
 import { Modal } from "@/components/ui/modal";
 import {
@@ -10,6 +10,7 @@ import {
   updateKomponen,
   deleteKomponen,
   deleteAllKode,
+  listUsedRefIds,
   type KodeImportResult,
   type KodePathRow,
 } from "@/lib/referensi-api";
@@ -19,8 +20,12 @@ const HEADERS = [
   "KRO", "URAIAN KRO", "RO", "URAIAN RO", "KOMP", "URAIAN KOMP",
 ];
 
-export function KodeManager() {
-  const [rows, setRows] = React.useState<KodePathRow[]>([]);
+/** Buang prefix pesan internal agar ramah dibaca pengguna. */
+function cleanMsg(m: string): string {
+  return m.replace("KODE_DUPLIKAT: ", "").replace("KODE_DIPAKAI: ", "");
+}
+
+export function KodeManager() {  const [rows, setRows] = React.useState<KodePathRow[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState<string | null>(null);
   const [q, setQ] = React.useState("");
@@ -32,6 +37,8 @@ export function KodeManager() {
   const [confirmDelAll, setConfirmDelAll] = React.useState(false);
   const [delAllText, setDelAllText] = React.useState("");
   const [delAllBusy, setDelAllBusy] = React.useState(false);
+  // Komponen yang sudah dipakai di kertas kerja/usulan → tak boleh dihapus.
+  const [usedIds, setUsedIds] = React.useState<Set<string>>(new Set());
 
   async function onDeleteAll() {
     setDelAllBusy(true);
@@ -42,13 +49,19 @@ export function KodeManager() {
       setResult(null);
       await load();
     } catch (e) {
-      alert("Gagal menghapus semua kode: " + (e as Error).message.replace("KODE_DUPLIKAT: ", ""));
+      alert("Gagal menghapus semua kode: " + cleanMsg((e as Error).message));
     } finally {
       setDelAllBusy(false);
     }
   }
 
   async function onDelete(r: KodePathRow) {
+    if (usedIds.has(r.komponenId)) {
+      alert(
+        `Komponen "${r.komponen} — ${r.komponenNama}" sudah dipakai pada kertas kerja/usulan, sehingga tidak dapat dihapus.`,
+      );
+      return;
+    }
     if (
       !confirm(
         `Hapus Komponen "${r.komponen} — ${r.komponenNama}" pada ${r.ro}?\n\n` +
@@ -60,7 +73,7 @@ export function KodeManager() {
       await deleteKomponen(r.komponenId);
       await load();
     } catch (e) {
-      alert("Gagal menghapus: " + (e as Error).message.replace("KODE_DUPLIKAT: ", ""));
+      alert("Gagal menghapus: " + cleanMsg((e as Error).message));
     }
   }
 
@@ -87,7 +100,14 @@ export function KodeManager() {
     setLoading(true);
     setErr(null);
     try {
-      setRows(await listKodePaths());
+      const paths = await listKodePaths();
+      setRows(paths);
+      // Tandai komponen yang sudah dipakai (agar tombol hapus dinonaktifkan).
+      try {
+        setUsedIds(await listUsedRefIds(paths.map((p) => p.komponenId)));
+      } catch {
+        setUsedIds(new Set());
+      }
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -276,13 +296,22 @@ export function KodeManager() {
                         >
                           <Pencil className="size-4" />
                         </button>
-                        <button
-                          className="rounded-md p-1.5 text-destructive hover:bg-destructive/10"
-                          title="Hapus komponen"
-                          onClick={() => onDelete(r)}
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
+                        {usedIds.has(r.komponenId) ? (
+                          <span
+                            className="cursor-not-allowed rounded-md p-1.5 text-muted-foreground/60"
+                            title="Kode sudah dipakai di kertas kerja/usulan — tidak dapat dihapus"
+                          >
+                            <Lock className="size-4" />
+                          </span>
+                        ) : (
+                          <button
+                            className="rounded-md p-1.5 text-destructive hover:bg-destructive/10"
+                            title="Hapus komponen"
+                            onClick={() => onDelete(r)}
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
