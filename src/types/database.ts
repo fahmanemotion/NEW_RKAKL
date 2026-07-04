@@ -80,7 +80,7 @@ export type MasterAkunRow = {
 }
 export type MasterPenandatanganRow = {
   id: string; nama: string; jabatan: string | null;
-  pangkat_golongan: string | null; nip: string | null;
+  pangkat_golongan: string | null; nip: string | null; peran: string | null;
   created_at: string; updated_at: string;
 }
 export type RoleRow = {

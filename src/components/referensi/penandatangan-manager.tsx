@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { Plus, Pencil, Trash2, Loader2, Stamp, Inbox } from "lucide-react";
-import { Button, Input, Card } from "@/components/ui";
+import { Button, Input, Card, Select } from "@/components/ui";
 import { Modal } from "@/components/ui/modal";
 import { createClient } from "@/lib/supabase";
 
@@ -11,9 +11,12 @@ interface Penandatangan {
   jabatan: string | null;
   pangkat_golongan: string | null;
   nip: string | null;
+  peran: string | null;
 }
 
 const TABLE = "master_penandatangan";
+/** Peran penentu penempatan tanda tangan pada dokumen (TOR/RAB). */
+const PERAN_OPTS = ["Mengetahui", "KPA"] as const;
 
 export function PenandatanganManager() {
   const [rows, setRows] = React.useState<Penandatangan[]>([]);
@@ -28,7 +31,7 @@ export function PenandatanganManager() {
       const sb = createClient();
       const { data, error } = await sb
         .from(TABLE)
-        .select("id, nama, jabatan, pangkat_golongan, nip")
+        .select("id, nama, jabatan, pangkat_golongan, nip, peran")
         .order("nama", { ascending: true });
       if (error) throw error;
       setRows((data ?? []) as Penandatangan[]);
@@ -85,6 +88,7 @@ export function PenandatanganManager() {
             <thead>
               <tr className="border-b border-border bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground [&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-muted">
                 <th className="px-3 py-2.5 font-semibold">Nama</th>
+                <th className="px-3 py-2.5 font-semibold">Peran</th>
                 <th className="px-3 py-2.5 font-semibold">Jabatan</th>
                 <th className="px-3 py-2.5 font-semibold">Pangkat/Golongan</th>
                 <th className="px-3 py-2.5 font-semibold">NIP</th>
@@ -93,14 +97,23 @@ export function PenandatanganManager() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} className="py-10 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></td></tr>
+                <tr><td colSpan={6} className="py-10 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></td></tr>
               ) : err ? (
-                <tr><td colSpan={5} className="py-6 text-center text-destructive">{err}</td></tr>
+                <tr><td colSpan={6} className="py-6 text-center text-destructive">{err}</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={5} className="py-10 text-center text-muted-foreground"><Inbox className="mx-auto mb-2 size-6" /> Belum ada penandatangan. Klik <strong>Tambah Penandatangan</strong>.</td></tr>
+                <tr><td colSpan={6} className="py-10 text-center text-muted-foreground"><Inbox className="mx-auto mb-2 size-6" /> Belum ada penandatangan. Klik <strong>Tambah Penandatangan</strong>.</td></tr>
               ) : rows.map((r) => (
                 <tr key={r.id} className="border-b border-border transition-colors last:border-0 hover:bg-accent/40">
                   <td className="px-3 py-2 font-medium">{r.nama}</td>
+                  <td className="px-3 py-2">
+                    {r.peran ? (
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                        {r.peran}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2">{r.jabatan ?? ""}</td>
                   <td className="px-3 py-2">{r.pangkat_golongan ?? ""}</td>
                   <td className="px-3 py-2 font-mono text-xs">{r.nip ?? ""}</td>
@@ -140,6 +153,7 @@ function PenandatanganForm({
     jabatan: initial?.jabatan ?? "",
     pangkat_golongan: initial?.pangkat_golongan ?? "",
     nip: initial?.nip ?? "",
+    peran: initial?.peran ?? "",
   });
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -156,6 +170,7 @@ function PenandatanganForm({
         jabatan: v.jabatan.trim() || null,
         pangkat_golongan: v.pangkat_golongan.trim() || null,
         nip: v.nip.trim() || null,
+        peran: v.peran.trim() || null,
       };
       const { error } = initial?.id
         ? await sb.from(TABLE).update(payload).eq("id", initial.id)
@@ -182,6 +197,16 @@ function PenandatanganForm({
       <div className="space-y-3">
         <Field label="Nama *">
           <Input value={v.nama} onChange={(e) => set("nama", e.target.value)} placeholder="mis. Capt. RUDY SUSANTO, M.Pd." />
+        </Field>
+        <Field label="Peran (penempatan tanda tangan)">
+          <Select value={v.peran} onChange={(e) => set("peran", e.target.value)}>
+            <option value="">— tidak ditentukan —</option>
+            {PERAN_OPTS.map((p) => (
+              <option key={p} value={p}>
+                {p === "Mengetahui" ? "Mengetahui (kiri)" : "KPA — Kuasa Pengguna Anggaran (kanan)"}
+              </option>
+            ))}
+          </Select>
         </Field>
         <Field label="Jabatan">
           <Input value={v.jabatan} onChange={(e) => set("jabatan", e.target.value)} placeholder="mis. KUASA PENGGUNA ANGGARAN POLITEKNIK ILMU PELAYARAN MAKASSAR" />

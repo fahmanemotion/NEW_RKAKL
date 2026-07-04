@@ -74,7 +74,7 @@ async function loadContext(usulanId: string) {
     sb().from("master_tor_kode").select(
       "komponen, unit_eselon, sasaran_program, indikator_kinerja_program, sasaran_kegiatan, indikator_kinerja_kegiatan",
     ),
-    sb().from("master_penandatangan").select("nama, jabatan, pangkat_golongan, nip").order("nama"),
+    sb().from("master_penandatangan").select("nama, jabatan, pangkat_golongan, nip, peran").order("nama"),
     sb().from("pengaturan_rab").select("kota, tanggal").limit(1).maybeSingle(),
   ]);
   return {
@@ -126,8 +126,13 @@ export async function buildTorForKomponen(
   let volRoNum = 0;
   if (ro) for (const r of rows) if (r.level === "KOMPONEN" && r.parent_id === ro.id) volRoNum += Number(r.volume || 0);
   const totalKomp = Number(komp?.jumlah || 0);
-  const t1 = ttd[0] ?? {};
-  const t2 = ttd[1] ?? {};
+  // Penempatan tanda tangan: kiri = peran "Mengetahui", kanan = "KPA".
+  // Bila peran belum diisi, pakai dua penandatangan pertama.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const byPeran = (p: string) => ttd.find((x: any) => String(x?.peran || "").trim().toLowerCase() === p);
+  const t1 = byPeran("mengetahui") ?? ttd[0] ?? {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const t2 = byPeran("kpa") ?? ttd.find((x: any) => x !== t1) ?? ttd[1] ?? {};
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const satker: any = u?.satker ?? {};
