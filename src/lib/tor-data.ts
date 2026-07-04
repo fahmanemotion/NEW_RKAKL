@@ -1,7 +1,7 @@
 // SIPPT — penyiapan data TOR per komponen (untuk generator hal. 1-2).
 import { createClient } from "@/lib/supabase";
 import { terbilang } from "./rab-data";
-import type { TorTokens } from "./tor-generate";
+import type { TorTokens, RabRow } from "./tor-generate";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb = (): any => createClient();
@@ -111,11 +111,11 @@ export async function listTorKomponen(usulanId: string): Promise<TorKomponenItem
     .sort((a, b) => a.kode.localeCompare(b.kode));
 }
 
-/** Bangun token + logo + nama file untuk satu komponen. */
+/** Bangun token + logo + nama file + baris RAB untuk satu komponen. */
 export async function buildTorForKomponen(
   usulanId: string,
   komponenId: string,
-): Promise<{ tokens: Partial<TorTokens>; logo: string | null; filename: string }> {
+): Promise<{ tokens: Partial<TorTokens>; logo: string | null; filename: string; rab: RabRow[] }> {
   const { u, rows, tor, ttd, pgr } = await loadContext(usulanId);
   const byId = new Map(rows.map((r) => [r.id, r]));
   const komp = byId.get(komponenId);
@@ -181,5 +181,22 @@ export async function buildTorForKomponen(
   };
 
   const filename = `TOR_${(komp?.kode || "komponen").replace(/[^\w.]+/g, "_")}.docx`;
-  return { tokens, logo: satker?.logo_tor ?? null, filename };
+
+  // Rincian RAB Bagian E: per sub-komponen (fallback: komponen itu sendiri).
+  const programKode = u?.program?.kode_program || "";
+  const baseKode = [programKode, komp?.kode].filter(Boolean).join(".");
+  const subs = rows
+    .filter((r) => r.level === "SUB_KOMPONEN" && r.parent_id === komponenId)
+    .sort((a, b) => (a.kode || "").localeCompare(b.kode || ""));
+  const rab: RabRow[] = subs.length
+    ? subs.map((s) => ({
+        kode: baseKode + (s.kode || ""),
+        uraian: s.uraian || "",
+        nominal: fmtRupiah(Number(s.jumlah || 0)),
+      }))
+    : komp
+      ? [{ kode: baseKode, uraian: komp.uraian || "", nominal: fmtRupiah(totalKomp) }]
+      : [];
+
+  return { tokens, logo: satker?.logo_tor ?? null, filename, rab };
 }

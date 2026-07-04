@@ -47,18 +47,77 @@ const LOGO_BOX_H = 908050;
 const LOGO_POS_H = 2438400; // offset kiri asli (menengahkan logo selebar kotak)
 const LOGO_CENTER_X = LOGO_POS_H + LOGO_BOX_W / 2;
 
+/** Satu baris rincian RAB pada Bagian E. */
+export interface RabRow {
+  kode: string;
+  uraian: string;
+  nominal: string; // sudah terformat, mis. "691.195.000,-"
+}
+
+const AR = '<w:rFonts w:ascii="Arial" w:eastAsia="Arial" w:hAnsi="Arial" w:cs="Arial"/>';
+function tcell(text: string, w: number, opt: { bold?: boolean; jc?: string } = {}): string {
+  const jc = opt.jc ? `<w:jc w:val="${opt.jc}"/>` : "";
+  const b = opt.bold ? "<w:b/>" : "";
+  return (
+    `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>` +
+    `<w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/>${jc}</w:pPr>` +
+    `<w:r><w:rPr>${AR}${b}<w:sz w:val="22"/></w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p></w:tc>`
+  );
+}
+const COLS = [640, 2560, 4160, 2240];
+/** Bangun XML tabel rincian RAB (No | Kode | Uraian | Anggaran) + baris Total. */
+function buildRabTableXml(rows: RabRow[], total: string): string {
+  const bd = (s: string) => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="000000"/>`;
+  const borders = `<w:tblBorders>${bd("top")}${bd("left")}${bd("bottom")}${bd("right")}${bd("insideH")}${bd("insideV")}</w:tblBorders>`;
+  const grid = COLS.map((w) => `<w:gridCol w:w="${w}"/>`).join("");
+  const header =
+    "<w:tr>" +
+    tcell("No.", COLS[0], { bold: true, jc: "center" }) +
+    tcell("Kode", COLS[1], { bold: true, jc: "center" }) +
+    tcell("Uraian", COLS[2], { bold: true, jc: "center" }) +
+    tcell("Anggaran (Rp)", COLS[3], { bold: true, jc: "center" }) +
+    "</w:tr>";
+  const body = rows
+    .map(
+      (r, i) =>
+        "<w:tr>" +
+        tcell(String(i + 1), COLS[0], { jc: "center" }) +
+        tcell(r.kode, COLS[1]) +
+        tcell(r.uraian, COLS[2]) +
+        tcell(r.nominal, COLS[3], { jc: "right" }) +
+        "</w:tr>",
+    )
+    .join("");
+  const totalRow =
+    "<w:tr>" +
+    tcell("", COLS[0]) +
+    tcell("", COLS[1]) +
+    tcell("Total Anggaran", COLS[2], { bold: true }) +
+    tcell(total, COLS[3], { bold: true, jc: "right" }) +
+    "</w:tr>";
+  return `<w:tbl><w:tblPr><w:tblW w:w="9600" w:type="dxa"/>${borders}</w:tblPr><w:tblGrid>${grid}</w:tblGrid>${header}${body}${totalRow}</w:tbl>`;
+}
+
 /**
- * Bangun blob .docx TOR dari token + logo (data URL PNG opsional).
- * Mengganti token teks di word/document.xml & menukar word/media/image1.png.
- * Ukuran tampil logo disesuaikan dengan RASIO asli (contain, tanpa distorsi)
- * dan diposisikan tetap di tengah.
+ * Bangun blob .docx TOR dari token + logo + rincian RAB (Bagian E).
  */
-export function generateTorDocx(tokens: Partial<TorTokens>, logoDataUrl?: string | null): Blob {
+export function generateTorDocx(
+  tokens: Partial<TorTokens>,
+  logoDataUrl?: string | null,
+  rab?: RabRow[],
+): Blob {
   const zip = new PizZip(b64ToU8(TOR_TEMPLATE_B64));
   let xml = zip.file("word/document.xml")!.asText();
   for (const [k, v] of Object.entries(tokens)) {
     xml = xml.split(`{{${k}}}`).join(escapeXml(String(v ?? "")));
   }
+
+  // Sisipkan tabel rincian RAB menggantikan paragraf penanda {{RAB_TABLE}}.
+  const rabXml = rab && rab.length ? buildRabTableXml(rab, String(tokens.TOTAL ?? "")) : "";
+  xml = xml.replace(
+    /<w:p\b[^>]*>(?:(?!<\/w:p>)[\s\S])*?\{\{RAB_TABLE\}\}(?:(?!<\/w:p>)[\s\S])*?<\/w:p>/,
+    () => rabXml,
+  );
 
   // Siapkan logo bila ada (data URL gambar).
   let logoU8: Uint8Array | null = null;
