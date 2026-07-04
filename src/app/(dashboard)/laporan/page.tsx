@@ -5,6 +5,7 @@ import {
   type LaporanUsulan,
 } from "@/components/laporan/laporan-client";
 import { KertasKerjaImport } from "@/components/laporan/kertas-kerja-import";
+import { TorSection } from "@/components/laporan/tor-section";
 
 export default async function LaporanPage() {
   await requireUser();
@@ -43,6 +44,14 @@ export default async function LaporanPage() {
   return (
     <div className="space-y-5">
       <LaporanClient usulanList={usulanList} />
+      <TorSection
+        usulanList={usulanList.map((u) => ({
+          id: u.id,
+          tahun: u.tahun,
+          tahap: u.tahap,
+          satkerNama: u.satkerNama,
+        }))}
+      />
       <KertasKerjaImport usulanList={usulanList} />
     </div>
   );
