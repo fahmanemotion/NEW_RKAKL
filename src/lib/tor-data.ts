@@ -23,6 +23,17 @@ function volKomp(n: number, satuan: string): string {
 function fmtRupiah(n: number): string {
   return `${Math.round(n || 0).toLocaleString("id-ID")},-`;
 }
+/** Ambil nama kota dari lokus: buang kode "19.51 - " & prefiks "Kota/Kabupaten". */
+function cityName(s: string): string {
+  return String(s || "")
+    .replace(/^\s*[\d.]+\s*[-–—]\s*/, "")
+    .replace(/^(kota|kabupaten|kab\.?)\s+/i, "")
+    .trim();
+}
+/** Ambil hanya Eselon I (bagian sebelum "/") dari teks unit eselon I/II. */
+function eselon1Only(s: string): string {
+  return String(s || "").split("/")[0].trim();
+}
 /** "Kota, DD Bulan YYYY" (Indonesia). tanggal ISO opsional → default hari ini. */
 function fmtTempatTgl(kota: string, tanggalIso: string | null): string {
   const bln = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
@@ -188,9 +199,9 @@ export async function buildTorForKomponen(
     KODE_FULL: komp?.kode || "",
     TAHUN: tahun,
     SATKER_UP: (satker?.nama_satker || "").toUpperCase(),
-    ESELON1_UP: (t?.unit_eselon || unit?.nama || "").toUpperCase(),
+    ESELON1_UP: eselon1Only(t?.unit_eselon || unit?.nama || "").toUpperCase(),
     KL_UP: KL.toUpperCase(),
-    TEMPAT_TAHUN: `${(satker?.lokus || "").toUpperCase() || "…"}, ${tahun}`,
+    TEMPAT_TAHUN: `${cityName(satker?.lokus || "").toUpperCase() || "…"}, ${tahun}`,
     KL,
     UNIT_ESELON: t?.unit_eselon || unit?.nama || "",
     PROGRAM: program,
@@ -209,7 +220,7 @@ export async function buildTorForKomponen(
     VOL_KOMP: volKomp(Number(komp?.volume || 0), komp?.satuan || ""),
     TOTAL: fmtRupiah(totalKomp),
     TERBILANG: totalKomp ? titleCase(terbilang(Math.round(totalKomp))) : "",
-    TEMPAT_TGL_TTD: fmtTempatTgl(pgr?.kota || satker?.lokus || "", pgr?.tanggal ?? null),
+    TEMPAT_TGL_TTD: fmtTempatTgl(cityName(pgr?.kota || satker?.lokus || ""), pgr?.tanggal ?? null),
     TTD1_JABATAN: t1.jabatan || "",
     TTD1_NAMA: t1.nama || "",
     TTD1_NIP: t1.nip || "",
