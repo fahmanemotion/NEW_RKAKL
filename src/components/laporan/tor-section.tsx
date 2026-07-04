@@ -18,6 +18,8 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
   const [loading, setLoading] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
   const [busyId, setBusyId] = React.useState<string | null>(null);
+  const [kroFilter, setKroFilter] = React.useState<string>(""); // "" = semua
+  const [kompFilter, setKompFilter] = React.useState<string>(""); // "" = semua
 
   React.useEffect(() => {
     if (!usulanId) {
@@ -27,6 +29,8 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
     let alive = true;
     setLoading(true);
     setErr(null);
+    setKroFilter("");
+    setKompFilter("");
     listTorKomponen(usulanId)
       .then((rows) => {
         if (alive) setItems(rows);
@@ -51,6 +55,31 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
       setBusyId(null);
     }
   }
+
+  // Opsi KRO unik (induk filter).
+  const kroOptions = React.useMemo(() => {
+    const seen = new Map<string, { id: string; kode: string; uraian: string }>();
+    for (const it of items) {
+      if (it.kroId && !seen.has(it.kroId))
+        seen.set(it.kroId, { id: it.kroId, kode: it.kroKode, uraian: it.kroUraian });
+    }
+    return [...seen.values()].sort((a, b) => a.kode.localeCompare(b.kode));
+  }, [items]);
+
+  // Opsi Komponen mengikuti KRO terpilih.
+  const kompOptions = React.useMemo(
+    () => items.filter((it) => !kroFilter || it.kroId === kroFilter),
+    [items, kroFilter],
+  );
+
+  // Daftar TOR akhir = tersaring oleh KRO + Komponen.
+  const filtered = React.useMemo(
+    () =>
+      items.filter(
+        (it) => (!kroFilter || it.kroId === kroFilter) && (!kompFilter || it.id === kompFilter),
+      ),
+    [items, kroFilter, kompFilter],
+  );
 
   return (
     <Card className="p-4">
@@ -78,6 +107,40 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
         </Select>
       </label>
 
+      {items.length > 0 && (
+        <div className="mb-3 grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-muted-foreground">Filter KRO</span>
+            <Select
+              value={kroFilter}
+              onChange={(e) => {
+                setKroFilter(e.target.value);
+                setKompFilter(""); // reset komponen saat KRO berubah
+              }}
+              className="w-full"
+            >
+              <option value="">Semua KRO</option>
+              {kroOptions.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.kode} — {k.uraian}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-muted-foreground">Filter Komponen</span>
+            <Select value={kompFilter} onChange={(e) => setKompFilter(e.target.value)} className="w-full">
+              <option value="">Semua Komponen</option>
+              {kompOptions.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.kode} — {k.uraian}
+                </option>
+              ))}
+            </Select>
+          </label>
+        </div>
+      )}
+
       {err && <p className="mb-2 text-xs text-destructive">{err}</p>}
 
       <div className="overflow-hidden rounded-xl border border-border">
@@ -85,14 +148,14 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
           <div className="grid place-items-center py-10 text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
           </div>
-        ) : items.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="grid place-items-center gap-2 py-10 text-center text-sm text-muted-foreground">
             <Inbox className="size-6" />
             {usulanId ? "Belum ada komponen pada usulan ini." : "Pilih usulan untuk menampilkan komponen."}
           </div>
         ) : (
           <ul className="divide-y divide-border">
-            {items.map((k) => (
+            {filtered.map((k) => (
               <li key={k.id} className="flex items-center gap-3 px-3 py-2.5">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 text-sm font-medium">

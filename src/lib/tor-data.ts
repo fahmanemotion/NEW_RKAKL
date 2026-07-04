@@ -36,6 +36,8 @@ export interface TorKomponenItem {
   kode: string;
   uraian: string;
   roUraian: string;
+  kroId: string;
+  kroKode: string;
   kroUraian: string;
 }
 
@@ -82,6 +84,8 @@ export async function listTorKomponen(usulanId: string): Promise<TorKomponenItem
         kode: k.kode ?? "",
         uraian: k.uraian ?? "",
         roUraian: ro?.uraian ?? "",
+        kroId: kro?.id ?? "",
+        kroKode: kro?.kode ?? "",
         kroUraian: kro?.uraian ?? "",
       };
     })
