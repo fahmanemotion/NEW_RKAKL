@@ -31,14 +31,21 @@ export function KomponenVolForm({
   onSubmit: (v: { volume: number; satuan: string }) => Promise<void> | void;
   onClose: () => void;
 }) {
-  const [volume, setVolume] = React.useState('');
+  const [volume, setVolume] = React.useState(0);
   const [satuan, setSatuan] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
+  // Format ribuan seperti modal detail (mis. 1.000), input tanpa spinner.
+  const onlyDigits = (s: string) => s.replace(/\D/g, '');
+  const grp = (v: number | string) => {
+    const n = Number(String(v).replace(/\D/g, ''));
+    return n > 0 ? n.toLocaleString('id-ID') : '';
+  };
+
   React.useEffect(() => {
     if (open) {
-      setVolume(initial && initial.volume ? String(initial.volume) : '');
+      setVolume(initial?.volume ?? 0);
       setSatuan(initial?.satuan ?? '');
       setErr(null);
     }
@@ -46,7 +53,7 @@ export function KomponenVolForm({
 
   async function submit() {
     // Untuk RO/KRO volume otomatis (tidak diubah); untuk komponen ambil dari input.
-    const vol = satuanOnly ? (initial?.volume ?? 0) : Number(volume);
+    const vol = satuanOnly ? (initial?.volume ?? 0) : volume;
     if (!satuanOnly && (!Number.isFinite(vol) || vol < 0))
       return setErr('Volume harus berupa angka ≥ 0.');
     setBusy(true);
@@ -92,10 +99,10 @@ export function KomponenVolForm({
               </div>
             ) : (
               <Input
-                type="number"
-                min={0}
-                value={volume}
-                onChange={(e) => setVolume(e.target.value)}
+                inputMode="numeric"
+                value={grp(volume)}
+                onChange={(e) => setVolume(Number(onlyDigits(e.target.value)) || 0)}
+                className="text-right"
                 placeholder="mis. 980"
               />
             )}
