@@ -1,10 +1,11 @@
 "use client";
 import * as React from "react";
-import { FileText, Download, Loader2, Inbox, ChevronRight, ChevronsUpDown, Check, Search } from "lucide-react";
+import { FileText, Download, Loader2, Inbox, ChevronRight, ChevronsUpDown, Check, Search, Pencil } from "lucide-react";
 import { Button, Card, Select } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { listTorKomponen, buildTorForKomponen, type TorKomponenItem } from "@/lib/tor-data";
 import { generateTorDocx, downloadBlob } from "@/lib/tor-generate";
+import { TorEditor } from "@/components/laporan/tor-editor";
 
 interface ComboOpt {
   value: string;
@@ -140,6 +141,7 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [kroFilter, setKroFilter] = React.useState<string>(""); // "" = semua
   const [kompFilter, setKompFilter] = React.useState<string>(""); // "" = semua
+  const [editKomp, setEditKomp] = React.useState<TorKomponenItem | null>(null);
 
   React.useEffect(() => {
     if (!usulanId) {
@@ -289,6 +291,14 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
                   size="sm"
                   variant="outline"
                   className="h-7 shrink-0 px-2"
+                  onClick={() => setEditKomp(k)}
+                >
+                  <Pencil className="size-3.5" /> Isi
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 shrink-0 px-2"
                   onClick={() => onDownload(k)}
                   disabled={busyId === k.id}
                 >
@@ -304,9 +314,15 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
         <p className="mt-1.5 text-[11px] text-muted-foreground">{filtered.length} komponen ditampilkan.</p>
       )}
       <p className="mt-2 text-[11px] text-muted-foreground">
-        Catatan: hal. 1–2 sudah otomatis. Bagian yang belum terisi (mis. Indikator KRO/RO, narasi hal. 3+) akan kita
-        lengkapi bertahap.
+        Catatan: hal. 1–2 otomatis. Klik <span className="font-medium">Isi</span> untuk mengetik narasi tiap bagian,
+        mengatur matriks Kurun Waktu, dan memilih sumber dana (RM/BLU) sebelum mengunduh TOR.
       </p>
+      <TorEditor
+        open={!!editKomp}
+        onClose={() => setEditKomp(null)}
+        usulanId={usulanId}
+        komponen={editKomp ? { id: editKomp.id, kode: editKomp.kode, uraian: editKomp.uraian } : null}
+      />
     </Card>
   );
 }
