@@ -166,8 +166,8 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
     setBusyId(k.id);
     setErr(null);
     try {
-      const { tokens, logo, filename, rab } = await buildTorForKomponen(usulanId, k.id);
-      const blob = generateTorDocx(tokens, logo, rab);
+      const { tokens, logo, filename, rab, narasi, tahapan } = await buildTorForKomponen(usulanId, k.id);
+      const blob = generateTorDocx(tokens, logo, rab, narasi, tahapan);
       downloadBlob(blob, filename);
     } catch (e) {
       setErr((e as Error).message);

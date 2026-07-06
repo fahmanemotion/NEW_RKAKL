@@ -1,7 +1,7 @@
 // SIPPT — penyiapan data TOR per komponen (untuk generator hal. 1-2).
 import { createClient } from "@/lib/supabase";
 import { terbilang } from "./rab-data";
-import type { TorTokens, RabRow } from "./tor-generate";
+import type { TorTokens, RabRow, TahapanRow } from "./tor-generate";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb = (): any => createClient();
@@ -89,7 +89,7 @@ export interface TorKomponenItem {
 }
 
 async function loadContext(usulanId: string) {
-  const [{ data: u }, { data: rows }, { data: tor }, { data: ttd }, { data: pgr }] = await Promise.all([
+  const [{ data: u }, { data: rows }, { data: tor }, { data: ttd }, { data: pgr }, { data: narasiRows }, { data: tahapanRows }, { data: opsiRows }] = await Promise.all([
     sb()
       .from("usulan_anggaran")
       .select(
@@ -111,6 +111,9 @@ async function loadContext(usulanId: string) {
     ),
     sb().from("master_penandatangan").select("nama, jabatan, pangkat_golongan, nip, peran").order("nama"),
     sb().from("pengaturan_rab").select("kota, tanggal").limit(1).maybeSingle(),
+    sb().from("tor_narasi").select("komponen_id, section_id, teks").eq("usulan_id", usulanId),
+    sb().from("tor_tahapan").select("komponen_id, nama, urutan, bulan_mulai, bulan_selesai").eq("usulan_id", usulanId).order("urutan"),
+    sb().from("tor_komponen_opsi").select("komponen_id, sumber_dana").eq("usulan_id", usulanId),
   ]);
   return {
     u,
@@ -120,6 +123,12 @@ async function loadContext(usulanId: string) {
     ttd: (ttd ?? []) as any[],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     pgr: (pgr ?? null) as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    narasiRows: (narasiRows ?? []) as any[],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tahapanRows: (tahapanRows ?? []) as any[],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    opsiRows: (opsiRows ?? []) as any[],
   };
 }
 
@@ -150,8 +159,15 @@ export async function listTorKomponen(usulanId: string): Promise<TorKomponenItem
 export async function buildTorForKomponen(
   usulanId: string,
   komponenId: string,
-): Promise<{ tokens: Partial<TorTokens>; logo: string | null; filename: string; rab: RabRow[] }> {
-  const { u, rows, tor, ttd, pgr } = await loadContext(usulanId);
+): Promise<{
+  tokens: Partial<TorTokens>;
+  logo: string | null;
+  filename: string;
+  rab: RabRow[];
+  narasi: Record<string, string>;
+  tahapan: TahapanRow[];
+}> {
+  const { u, rows, tor, ttd, pgr, narasiRows, tahapanRows, opsiRows } = await loadContext(usulanId);
   const byId = new Map(rows.map((r) => [r.id, r]));
   const komp = byId.get(komponenId);
   const ro = komp?.parent_id ? byId.get(komp.parent_id) : undefined;
@@ -164,6 +180,14 @@ export async function buildTorForKomponen(
   let volRoNum = 0;
   if (ro) for (const r of rows) if (r.level === "KOMPONEN" && r.parent_id === ro.id) volRoNum += Number(r.volume || 0);
   const totalKomp = Number(komp?.jumlah || 0);
+  // Isi TOR tersimpan untuk komponen ini (narasi, matriks tahapan, sumber dana).
+  const narasi: Record<string, string> = {};
+  for (const r of narasiRows) if (r.komponen_id === komponenId && r.teks) narasi[r.section_id] = r.teks;
+  const tahapan: TahapanRow[] = tahapanRows
+    .filter((r) => r.komponen_id === komponenId)
+    .map((r) => ({ nama: r.nama, bulanMulai: Number(r.bulan_mulai || 0), bulanSelesai: Number(r.bulan_selesai || 0) }));
+  const opsi = opsiRows.find((r) => r.komponen_id === komponenId);
+  const sumberDana = (opsi?.sumber_dana as string) || "RM";
   // Penempatan tanda tangan: kiri = peran "Mengetahui", kanan = "KPA".
   // Bila peran belum diisi, pakai dua penandatangan pertama.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -241,6 +265,7 @@ export async function buildTorForKomponen(
     VOL_KOMP: volKomp(Number(komp?.volume || 0), komp?.satuan || ""),
     TOTAL: fmtRupiah(totalKomp),
     TERBILANG: totalKomp ? titleCase(terbilang(Math.round(totalKomp))) : "",
+    SUMBER_DANA: sumberDana,
     TEMPAT_TGL_TTD: fmtTempatTgl(cityName(pgr?.kota || satker?.lokus || ""), pgr?.tanggal ?? null),
     TTD1_JABATAN: t1.jabatan || "",
     TTD1_NAMA: t1.nama || "",
@@ -267,5 +292,5 @@ export async function buildTorForKomponen(
       ? [{ kode: baseKode, uraian: komp.uraian || "", nominal: fmtRupiah(totalKomp) }]
       : [];
 
-  return { tokens, logo: satker?.logo_tor ?? null, filename, rab };
+  return { tokens, logo: satker?.logo_tor ?? null, filename, rab, narasi, tahapan };
 }

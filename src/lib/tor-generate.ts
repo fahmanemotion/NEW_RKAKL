@@ -26,7 +26,7 @@ export interface TorTokens {
   KEGIATAN: string; SASARAN_KEG: string; IND_KEG: string; KRO_ROW: string; IND_KRO: string;
   RO_ROW: string; IND_RO: string; VOL_RO: string; SATUAN_RO: string; KOMP: string; VOL_KOMP: string;
   // Biaya + tanda tangan
-  TOTAL: string; TERBILANG: string; TEMPAT_TGL_TTD: string;
+  TOTAL: string; TERBILANG: string; TEMPAT_TGL_TTD: string; SUMBER_DANA: string;
   TTD1_JABATAN: string; TTD1_NAMA: string; TTD1_NIP: string;
   TTD2_JABATAN: string; TTD2_NAMA: string; TTD2_NIP: string;
 }
@@ -98,13 +98,91 @@ function buildRabTableXml(rows: RabRow[], total: string): string {
   return `<w:tbl><w:tblPr><w:tblW w:w="9600" w:type="dxa"/>${borders}</w:tblPr><w:tblGrid>${grid}</w:tblGrid>${header}${body}${totalRow}</w:tbl>`;
 }
 
+/** Ganti paragraf penanda {{TOKEN}} dengan XML pengganti (tabel/paragraf). */
+function replaceMarker(xml: string, token: string, content: string): string {
+  const re = new RegExp(
+    `<w:p\\b[^>]*>(?:(?!</w:p>)[\\s\\S])*?\\{\\{${token}\\}\\}(?:(?!</w:p>)[\\s\\S])*?</w:p>`,
+  );
+  return xml.replace(re, () => content);
+}
+
+/** Ubah teks narasi (multi-baris) menjadi paragraf .docx. Baris berhuruf/angka/strip di-indentasi. */
+function narasiToXml(text: string): string {
+  const t = (text || "").trim();
+  if (!t) return "";
+  return t
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line) => {
+      if (/^##\s+/.test(line)) {
+        const s = line.replace(/^##\s+/, "");
+        return `<w:p><w:pPr><w:spacing w:before="120" w:after="60"/></w:pPr><w:r><w:rPr>${AR}<w:b/><w:sz w:val="24"/></w:rPr><w:t xml:space="preserve">${escapeXml(s)}</w:t></w:r></w:p>`;
+      }
+      const isList = /^([a-z]\.|\d+[.)]|[-•])\s/i.test(line);
+      const ind = isList ? '<w:ind w:left="360"/>' : "";
+      return `<w:p><w:pPr><w:spacing w:after="80" w:line="360" w:lineRule="auto"/>${ind}<w:jc w:val="both"/></w:pPr><w:r><w:rPr>${AR}<w:sz w:val="24"/></w:rPr><w:t xml:space="preserve">${escapeXml(line)}</w:t></w:r></w:p>`;
+    })
+    .join("");
+}
+
+/** Satu baris tahapan pada matriks Kurun Waktu (bulan 1-12). */
+export interface TahapanRow {
+  nama: string;
+  bulanMulai: number;
+  bulanSelesai: number;
+}
+/** Bangun matriks 12 bulan; sel bulan aktif tiap tahapan diarsir. */
+function buildMatriksXml(rows: TahapanRow[]): string {
+  const LW = 2400;
+  const MW = Math.floor((9600 - LW) / 12);
+  const SH = "A6A6A6";
+  const bd = (s: string) => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="000000"/>`;
+  const borders = `<w:tblBorders>${bd("top")}${bd("left")}${bd("bottom")}${bd("right")}${bd("insideH")}${bd("insideV")}</w:tblBorders>`;
+  const grid = `<w:gridCol w:w="${LW}"/>` + Array.from({ length: 12 }, () => `<w:gridCol w:w="${MW}"/>`).join("");
+  const mc = (t: string, w: number, o: { b?: boolean; jc?: string; shade?: string } = {}) =>
+    `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${o.shade ? `<w:shd w:val="clear" w:color="auto" w:fill="${o.shade}"/>` : ""}<w:vAlign w:val="center"/></w:tcPr>` +
+    `<w:p><w:pPr><w:spacing w:after="0" w:line="240"/><w:jc w:val="${o.jc || "center"}"/></w:pPr>` +
+    (t ? `<w:r><w:rPr>${AR}${o.b ? "<w:b/>" : ""}<w:sz w:val="20"/></w:rPr><w:t xml:space="preserve">${escapeXml(t)}</w:t></w:r>` : "") +
+    "</w:p></w:tc>";
+  const header =
+    "<w:tr>" + mc("Tahap Kegiatan", LW, { b: true }) + Array.from({ length: 12 }, (_, i) => mc(String(i + 1), MW, { b: true })).join("") + "</w:tr>";
+  const list =
+    rows.length > 0
+      ? rows
+      : [
+          { nama: "Persiapan", bulanMulai: 0, bulanSelesai: 0 },
+          { nama: "Pelaksanaan", bulanMulai: 0, bulanSelesai: 0 },
+          { nama: "Evaluasi dan Pelaporan", bulanMulai: 0, bulanSelesai: 0 },
+        ];
+  const body = list
+    .map((r) => {
+      const cells = Array.from({ length: 12 }, (_, i) => {
+        const m = i + 1;
+        const on = m >= r.bulanMulai && m <= r.bulanSelesai;
+        return mc("", MW, { shade: on ? SH : "" });
+      }).join("");
+      return "<w:tr>" + mc(r.nama, LW, { jc: "left" }) + cells + "</w:tr>";
+    })
+    .join("");
+  return `<w:tbl><w:tblPr><w:tblW w:w="9600" w:type="dxa"/>${borders}</w:tblPr><w:tblGrid>${grid}</w:tblGrid>${header}${body}</w:tbl>`;
+}
+
+/** Kunci bagian narasi yang punya penanda di template. */
+const NARR_SECTIONS = [
+  "DASAR_HUKUM", "GAMBARAN_UMUM", "MAKSUD_TUJUAN", "OUTPUT_OUTCOME", "LINGKUP",
+  "PENERIMA_MANFAAT", "METODE", "TAHAPAN", "PELAKSANA",
+];
+
 /**
- * Bangun blob .docx TOR dari token + logo + rincian RAB (Bagian E).
+ * Bangun blob .docx TOR dari token + logo + rincian RAB + narasi + matriks.
  */
 export function generateTorDocx(
   tokens: Partial<TorTokens>,
   logoDataUrl?: string | null,
   rab?: RabRow[],
+  narasi?: Record<string, string>,
+  tahapan?: TahapanRow[],
 ): Blob {
   const zip = new PizZip(b64ToU8(TOR_TEMPLATE_B64));
   let xml = zip.file("word/document.xml")!.asText();
@@ -112,12 +190,16 @@ export function generateTorDocx(
     xml = xml.split(`{{${k}}}`).join(escapeXml(String(v ?? "")));
   }
 
+  // Narasi tiap bagian: ganti penanda dengan paragraf (kosong bila belum diisi).
+  for (const sec of NARR_SECTIONS) {
+    xml = replaceMarker(xml, sec, narasiToXml(narasi?.[sec] ?? ""));
+  }
+  // Matriks Kurun Waktu.
+  xml = replaceMarker(xml, "MATRIKS_TABLE", buildMatriksXml(tahapan ?? []));
+
   // Sisipkan tabel rincian RAB menggantikan paragraf penanda {{RAB_TABLE}}.
   const rabXml = rab && rab.length ? buildRabTableXml(rab, String(tokens.TOTAL ?? "")) : "";
-  xml = xml.replace(
-    /<w:p\b[^>]*>(?:(?!<\/w:p>)[\s\S])*?\{\{RAB_TABLE\}\}(?:(?!<\/w:p>)[\s\S])*?<\/w:p>/,
-    () => rabXml,
-  );
+  xml = replaceMarker(xml, "RAB_TABLE", rabXml);
 
   // Siapkan logo bila ada (data URL gambar).
   let logoU8: Uint8Array | null = null;
