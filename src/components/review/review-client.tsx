@@ -3,8 +3,9 @@ import * as React from "react";
 import type XLSXTypes from "xlsx-js-style";
 type XLSXModule = typeof import("xlsx-js-style");
 import { loadXLSXStyle } from "@/lib/xlsx-lazy";
-import { Loader2, Inbox, Download, ClipboardCheck } from "lucide-react";
+import { Loader2, Inbox, Download, ClipboardCheck, Eye } from "lucide-react";
 import { Card, Select, Button, Badge } from "@/components/ui";
+import { RabPreviewModal } from "@/components/laporan/rab-preview";
 import { createClient } from "@/lib/supabase";
 import { fetchAllStruktur } from "@/lib/fetch-struktur";
 import { fmtN, fmtRp } from "@/lib/constants";
@@ -34,6 +35,8 @@ export function ReviewClient({ usulanList }: { usulanList: ReviewUsulan[] }) {
     [usulanList],
   );
   const [tahun, setTahun] = React.useState<number | null>(years[0] ?? null);
+  const [preview, setPreview] = React.useState<{ html: string; filename: string } | null>(null);
+  const [previewBusy, setPreviewBusy] = React.useState(false);
 
   const tahapList = React.useMemo(
     () => usulanList.filter((u) => u.tahun === tahun),
@@ -82,17 +85,23 @@ export function ReviewClient({ usulanList }: { usulanList: ReviewUsulan[] }) {
 
   const kk = React.useMemo(() => buildKertasKerja(rows), [rows]);
 
+  function buildWbAndName(XLSX: XLSXModule) {
+    const tahapLabel = TAHAP_LABEL[usulan!.tahap as TahapPagu] ?? usulan!.tahap;
+    const unitKode = unitKodeFromRows(kk.rows);
+    const wb = buildWorkbook(XLSX, kk.rows, kk.total, kk.totalJumlah, {
+      tahun: usulan!.tahun,
+      tahapLabel,
+      satkerNama: usulan!.satkerNama,
+      unitKode,
+    });
+    const filename = `Kertas_Kerja_${usulan!.satkerKode || "Satker"}_${tahapLabel.replace(/\s+/g, "_")}_TA${usulan!.tahun}.xlsx`;
+    return { wb, filename };
+  }
+
   async function download() {
     if (!usulan) return;
     const XLSX = await loadXLSXStyle();
-    const tahapLabel = TAHAP_LABEL[usulan.tahap as TahapPagu] ?? usulan.tahap;
-    const unitKode = unitKodeFromRows(kk.rows);
-    const wb = buildWorkbook(XLSX, kk.rows, kk.total, kk.totalJumlah, {
-      tahun: usulan.tahun,
-      tahapLabel,
-      satkerNama: usulan.satkerNama,
-      unitKode,
-    });
+    const { wb, filename } = buildWbAndName(XLSX);
     const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([out], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -100,9 +109,29 @@ export function ReviewClient({ usulanList }: { usulanList: ReviewUsulan[] }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Kertas_Kerja_${usulan.satkerKode || "Satker"}_${tahapLabel.replace(/\s+/g, "_")}_TA${usulan.tahun}.xlsx`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function onPreview() {
+    if (!usulan) return;
+    setPreviewBusy(true);
+    try {
+      const XLSX = await loadXLSXStyle();
+      const { wb, filename } = buildWbAndName(XLSX);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const table = XLSX.utils.sheet_to_html(ws, { header: "", footer: "" });
+      const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+        body{margin:14px;font-family:Arial,Helvetica,sans-serif;color:#111}
+        table{border-collapse:collapse}
+        td{border:1px solid #cbd5e1;padding:2px 6px;font-size:11px;vertical-align:top;white-space:nowrap}
+        tr:first-child td{background:#e2e8f0;font-weight:700;text-align:center}
+      </style></head><body>${table}</body></html>`;
+      setPreview({ html, filename });
+    } finally {
+      setPreviewBusy(false);
+    }
   }
 
   const noData = usulanList.length === 0;
@@ -161,6 +190,13 @@ export function ReviewClient({ usulanList }: { usulanList: ReviewUsulan[] }) {
                 ))}
               </Select>
             </div>
+            <Button
+              onClick={onPreview}
+              disabled={!ready || previewBusy}
+              className="border-white/25 bg-white/15 text-white hover:bg-white/25"
+            >
+              {previewBusy ? <Loader2 className="size-4 animate-spin" /> : <Eye className="size-4" />} Pratinjau
+            </Button>
             <Button
               onClick={download}
               disabled={!ready}
@@ -272,6 +308,14 @@ export function ReviewClient({ usulanList }: { usulanList: ReviewUsulan[] }) {
           </div>
         </Card>
       )}
+      <RabPreviewModal
+        open={!!preview}
+        onClose={() => setPreview(null)}
+        html={preview?.html ?? null}
+        heading="Pratinjau Kertas Kerja"
+        title={preview?.filename}
+        onDownload={preview ? download : undefined}
+      />
     </div>
   );
 }

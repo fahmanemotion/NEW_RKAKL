@@ -10,12 +10,14 @@ export function RabPreviewModal({
   onClose,
   html,
   title,
+  heading,
   onDownload,
 }: {
   open: boolean;
   onClose: () => void;
   html: string | null;
   title?: string;
+  heading?: string;
   onDownload?: () => void;
 }) {
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
@@ -33,7 +35,7 @@ export function RabPreviewModal({
       open={open}
       onClose={onClose}
       className="max-w-5xl"
-      title="Pratinjau RAB"
+      title={heading ?? "Pratinjau RAB"}
       footer={
         <div className="flex w-full items-center justify-between gap-3">
           <span className="max-w-[40%] truncate text-xs text-muted-foreground">{title ?? ""}</span>
