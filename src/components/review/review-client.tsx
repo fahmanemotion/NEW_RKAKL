@@ -6,6 +6,7 @@ import { loadXLSXStyle } from "@/lib/xlsx-lazy";
 import { Loader2, Inbox, Download, ClipboardCheck, Eye } from "lucide-react";
 import { Card, Select, Button, Badge } from "@/components/ui";
 import { RabPreviewModal } from "@/components/laporan/rab-preview";
+import { sheetToStyledHtml } from "@/lib/xlsx-preview";
 import { createClient } from "@/lib/supabase";
 import { fetchAllStruktur } from "@/lib/fetch-struktur";
 import { fmtN, fmtRp } from "@/lib/constants";
@@ -121,13 +122,7 @@ export function ReviewClient({ usulanList }: { usulanList: ReviewUsulan[] }) {
       const XLSX = await loadXLSXStyle();
       const { wb, filename } = buildWbAndName(XLSX);
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const table = XLSX.utils.sheet_to_html(ws, { header: "", footer: "" });
-      const html = `<!doctype html><html><head><meta charset="utf-8"><style>
-        body{margin:14px;font-family:Arial,Helvetica,sans-serif;color:#111}
-        table{border-collapse:collapse}
-        td{border:1px solid #cbd5e1;padding:2px 6px;font-size:11px;vertical-align:top;white-space:nowrap}
-        tr:first-child td{background:#e2e8f0;font-weight:700;text-align:center}
-      </style></head><body>${table}</body></html>`;
+      const html = sheetToStyledHtml(XLSX, ws);
       setPreview({ html, filename });
     } finally {
       setPreviewBusy(false);

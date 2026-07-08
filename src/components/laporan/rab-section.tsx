@@ -6,6 +6,7 @@ import { loadXLSXStyle } from "@/lib/xlsx-lazy";
 import { Eye, Download, Layers, ChevronsUpDown, Check, Search } from "lucide-react";
 import { Card, Select, Button } from "@/components/ui";
 import { RabPreviewModal } from "@/components/laporan/rab-preview";
+import { sheetToStyledHtml } from "@/lib/xlsx-preview";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase";
 import { fmtN } from "@/lib/constants";
@@ -790,11 +791,5 @@ function esc(s: unknown): string {
 // dengan file .xlsx yang diunduh (bukan lagi HTML terpisah).
 function buildRabPreviewHtml(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signers): string {
   const ws = buildRabSheet(XLSX, unit, ctx, signers);
-  const table = XLSX.utils.sheet_to_html(ws, { header: "", footer: "" });
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
-    body{margin:14px;font-family:Arial,Helvetica,sans-serif;color:#111}
-    table{border-collapse:collapse}
-    td{border:1px solid #cbd5e1;padding:2px 6px;font-size:11px;vertical-align:top;white-space:nowrap}
-    tr:first-child td{background:#e2e8f0;font-weight:700;text-align:center}
-  </style></head><body>${table}</body></html>`;
+  return sheetToStyledHtml(XLSX, ws);
 }
