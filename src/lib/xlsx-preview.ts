@@ -86,6 +86,7 @@ export function sheetToStyledHtml(XLSX: XLSXModule, ws: XLSXTypes.WorkSheet): st
         if (!(r === m.s.r && c === m.s.c)) covered.add(`${r},${c}`);
   }
 
+  const rowsMeta = (ws["!rows"] as { hpt?: number; hpx?: number }[]) || [];
   let rows = "";
   for (let r = range.s.r; r <= range.e.r; r++) {
     let tds = "";
@@ -98,7 +99,9 @@ export function sheetToStyledHtml(XLSX: XLSXModule, ws: XLSXTypes.WorkSheet): st
       const css = cellCss(cell);
       tds += `<td${cs}${rs}${css ? ` style="${css}"` : ""}>${esc(cellText(XLSX, cell))}</td>`;
     }
-    rows += `<tr>${tds}</tr>`;
+    const rm = rowsMeta[r];
+    const h = rm ? (rm.hpx != null ? rm.hpx : rm.hpt != null ? Math.round((rm.hpt * 96) / 72) : null) : null;
+    rows += `<tr${h ? ` style="height:${h}px"` : ""}>${tds}</tr>`;
   }
 
   return `<!doctype html><html><head><meta charset="utf-8"><style>

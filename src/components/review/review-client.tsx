@@ -665,7 +665,7 @@ function buildWorkbook(
   for (let i = 0; i < 3; i++) {
     const a = ref(i + 1, C.KODE);
     ws[a] = ws[a] || { t: "s", v: "" };
-    ws[a].s = { font: { bold: true, sz: i === 0 ? 12 : 10 } };
+    ws[a].s = { font: { bold: true, sz: i === 0 ? 20 : 10 }, alignment: { vertical: "center" } };
   }
   // Header tabel (baris 5–8)
   for (let row1 = 5; row1 <= 8; row1++) {
@@ -673,7 +673,7 @@ function buildWorkbook(
       const a = ref(row1, c);
       ws[a] = ws[a] || { t: "s", v: "" };
       ws[a].s = {
-        font: { bold: true, sz: 9, color: { rgb: "FFFFFF" } },
+        font: { bold: true, sz: 11, color: { rgb: "FFFFFF" } },
         fill: { patternType: "solid", fgColor: { rgb: "44546A" } },
         alignment: { horizontal: "center", vertical: "center", wrapText: true },
         border: ALL_BORDERS,
@@ -706,6 +706,9 @@ function buildWorkbook(
     30: 12, 31: 14, 32: 9.5,
   };
   ws["!cols"] = Array.from({ length: 33 }, (_, i) => ({ wch: widths[i] ?? 10 }));
+  ws["!rows"] = [];
+  ws["!rows"][0] = { hpt: 36 };
+  for (let rr = 4; rr <= 7; rr++) ws["!rows"][rr] = { hpt: 18 };
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "DETAIL");

@@ -629,7 +629,7 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
     ws[ref] = ws[ref] || { t: "s", v: "" };
     (ws[ref] as { s?: unknown }).s = s;
   };
-  setStyle(enc(1, A), { font: { bold: true, sz: 12 }, alignment: { horizontal: "center" } });
+  setStyle(enc(1, A), { font: { bold: true, sz: 20 }, alignment: { horizontal: "center", vertical: "center" } });
   setStyle(enc(2, A), { font: { bold: true, sz: 10 }, alignment: { horizontal: "center" } });
   for (let i = 0; i < hdrCount; i++) {
     const rr = hdrFirst + i;
@@ -644,7 +644,7 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
   }
   for (let c = 0; c < NC; c++) {
     setStyle(enc(headRow + 1, c), {
-      font: { bold: true, sz: 9, color: { rgb: "FFFFFF" } },
+      font: { bold: true, sz: 11, color: { rgb: "FFFFFF" } },
       fill: { patternType: "solid", fgColor: { rgb: "44546A" } },
       alignment: { horizontal: "center", vertical: "center", wrapText: true },
       border: BORDER,
@@ -723,6 +723,8 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
   ws["!merges"] = merges;
 
   ws["!rows"] = [];
+  ws["!rows"][0] = { hpt: 36 };
+  ws["!rows"][headRow] = { hpt: 26 };
   ws["!rows"][terbilangRow - 1] = { hpt: 26 };
   ws["!rows"][sig + 1] = { hpt: 28 };
 
