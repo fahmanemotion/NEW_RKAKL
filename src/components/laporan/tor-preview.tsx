@@ -5,6 +5,55 @@ import { Button } from "@/components/ui";
 import { Download, Loader2, AlertTriangle } from "lucide-react";
 import { downloadBlob } from "@/lib/tor-generate";
 
+/**
+ * docx-preview tidak merender grup drawing (wpg) pada cover, sehingga logo &
+ * bingkai/garis cover tak muncul. Fungsi ini menambalnya KHUSUS untuk pratinjau:
+ * mengambil logo dari berkas .docx lalu menempelkannya di halaman pertama beserta
+ * bingkai. Tidak mengubah dokumen yang diunduh.
+ */
+async function decorateCover(host: HTMLElement, blob: Blob) {
+  try {
+    const PizZip = (await import("pizzip")).default;
+    const zip = new PizZip(await blob.arrayBuffer());
+    // Pilih gambar terbesar di media sebagai logo (abaikan placeholder mungil).
+    let logoName = "";
+    let logoSize = 0;
+    for (const path of Object.keys(zip.files)) {
+      if (/^word\/media\/.*\.(png|jpe?g)$/i.test(path)) {
+        const f = zip.file(path);
+        const sz = f ? f.asBinary().length : 0;
+        if (sz > logoSize) {
+          logoSize = sz;
+          logoName = path;
+        }
+      }
+    }
+    const page = host.querySelector("section") as HTMLElement | null;
+    if (!page) return;
+    page.style.position = "relative";
+
+    // Bingkai cover (garis).
+    const frame = document.createElement("div");
+    frame.style.cssText =
+      "position:absolute;inset:26px;border:1.5px solid #111;border-radius:10px;pointer-events:none;z-index:0;";
+    page.insertBefore(frame, page.firstChild);
+
+    // Logo (di atas-tengah).
+    if (logoName && logoSize > 200) {
+      const ext = /\.png$/i.test(logoName) ? "png" : "jpeg";
+      const url = `data:image/${ext};base64,` + btoa(zip.file(logoName)!.asBinary());
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = "Logo";
+      img.style.cssText =
+        "position:absolute;top:46px;left:50%;transform:translateX(-50%);width:92px;height:auto;z-index:1;";
+      page.appendChild(img);
+    }
+  } catch {
+    /* jika gagal, pratinjau tetap tampil tanpa logo */
+  }
+}
+
 /** Modal pratinjau dokumen TOR: merender blob .docx menjadi HTML (docx-preview). */
 export function TorPreviewModal({
   open,
@@ -40,6 +89,7 @@ export function TorPreviewModal({
           ignoreWidth: false,
           ignoreHeight: false,
         });
+        if (!cancelled && el) await decorateCover(el, blob);
       } catch (e) {
         if (!cancelled) setErr((e as Error).message || "Gagal merender pratinjau.");
       } finally {
