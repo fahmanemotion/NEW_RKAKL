@@ -1,11 +1,12 @@
 "use client";
 import * as React from "react";
-import { FileText, Download, Loader2, Inbox, ChevronRight, ChevronsUpDown, Check, Search, Pencil } from "lucide-react";
+import { FileText, Download, Loader2, Inbox, ChevronRight, ChevronsUpDown, Check, Search, Pencil, Eye } from "lucide-react";
 import { Button, Card, Select } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { listTorKomponen, buildTorForKomponen, type TorKomponenItem } from "@/lib/tor-data";
 import { generateTorDocx, downloadBlob } from "@/lib/tor-generate";
 import { TorEditor } from "@/components/laporan/tor-editor";
+import { TorPreviewModal } from "@/components/laporan/tor-preview";
 
 interface ComboOpt {
   value: string;
@@ -142,6 +143,8 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
   const [kroFilter, setKroFilter] = React.useState<string>(""); // "" = semua
   const [kompFilter, setKompFilter] = React.useState<string>(""); // "" = semua
   const [editKomp, setEditKomp] = React.useState<TorKomponenItem | null>(null);
+  const [preview, setPreview] = React.useState<{ blob: Blob; filename: string } | null>(null);
+  const [previewBusy, setPreviewBusy] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!usulanId) {
@@ -163,6 +166,20 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
       alive = false;
     };
   }, [usulanId]);
+
+  async function onPreview(k: TorKomponenItem) {
+    setPreviewBusy(k.id);
+    setErr(null);
+    try {
+      const { tokens, logo, filename, rab, narasi, tahapan } = await buildTorForKomponen(usulanId, k.id);
+      const blob = generateTorDocx(tokens, logo, rab, narasi, tahapan);
+      setPreview({ blob, filename });
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setPreviewBusy(null);
+    }
+  }
 
   async function onDownload(k: TorKomponenItem) {
     setBusyId(k.id);
@@ -299,6 +316,16 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
                   size="sm"
                   variant="outline"
                   className="h-7 shrink-0 px-2"
+                  onClick={() => onPreview(k)}
+                  disabled={previewBusy === k.id}
+                >
+                  {previewBusy === k.id ? <Loader2 className="size-3.5 animate-spin" /> : <Eye className="size-3.5" />}
+                  Pratinjau
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 shrink-0 px-2"
                   onClick={() => onDownload(k)}
                   disabled={busyId === k.id}
                 >
@@ -322,6 +349,12 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
         onClose={() => setEditKomp(null)}
         usulanId={usulanId}
         komponen={editKomp ? { id: editKomp.id, kode: editKomp.kode, uraian: editKomp.uraian } : null}
+      />
+      <TorPreviewModal
+        open={!!preview}
+        onClose={() => setPreview(null)}
+        blob={preview?.blob ?? null}
+        filename={preview?.filename ?? "TOR.docx"}
       />
     </Card>
   );
