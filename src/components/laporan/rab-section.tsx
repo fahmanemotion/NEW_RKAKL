@@ -329,7 +329,10 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setPreview({ html: buildRabHtml(unit, ctx, signers), title: unit.sheetName, unit })}
+            onClick={async () => {
+              const XLSX = await loadXLSXStyle();
+              setPreview({ html: buildRabPreviewHtml(XLSX, unit, ctx, signers), title: unit.sheetName, unit });
+            }}
           >
             <Eye className="size-4" /> Pratinjau
           </Button>
@@ -782,72 +785,16 @@ function esc(s: unknown): string {
   return String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!);
 }
 
-function buildRabHtml(unit: RabUnit, ctx: Ctx, signers: Signers): string {
-  const now = signers.tanggal ?? new Date();
-  const tgl = `${signers.kota}, ${now.getDate()} ${BULAN[now.getMonth()]} ${now.getFullYear()}`;
-  const ctxRow = (kode: string, ur: string, ind: number, b: boolean) =>
-    `<tr style="${b ? "font-weight:bold" : ""}"><td class="mono">${esc(kode)}</td><td style="padding-left:${ind * 14}px">${esc(ur)}</td><td colspan="4"></td><td class="r">${fmtN(unit.total)}</td></tr>`;
-  const lineRows = unit.lines.map((l) => {
-    const ind = ({ SUB_KOMPONEN: 3, AKUN: 4, DETAIL: 5 }[l.level] ?? 3) * 14;
-    const bold = l.level === "SUB_KOMPONEN" || l.level === "AKUN" ? "font-weight:bold" : "";
-    return `<tr style="${bold}">
-      <td class="mono">${esc(l.kode)}</td>
-      <td style="padding-left:${ind}px">${l.isDetail ? "- " : ""}${esc(l.uraian)}</td>
-      <td>${l.isDetail ? esc(rincianText(l)) : ""}</td>
-      <td class="r">${l.isDetail && l.vol != null ? fmtN(l.vol) : ""}</td>
-      <td>${l.isDetail ? esc(l.satuan ?? "") : ""}</td>
-      <td class="r">${l.isDetail && l.harga != null ? fmtN(l.harga) : ""}</td>
-      <td class="r">${fmtN(l.jumlah)}</td></tr>`;
-  }).join("");
-  const subHdr = unit.level === "SUB_KOMPONEN"
-    ? `<tr><td>Sub Komponen</td><td>:</td><td>${esc(unit.subKode)} ${esc(unit.subUraian)}</td></tr>` : "";
-  const subCtx = unit.level === "SUB_KOMPONEN" ? ctxRow(unit.subKode ?? "", unit.subUraian ?? "", 3, true) : "";
-  const k = signers.kiri, n = signers.kanan;
-
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>RAB ${esc(unit.sheetName)}</title>
-<style>
-  *{font-family:Arial,sans-serif;font-size:11px}
-  h1{font-size:13px;text-align:center;margin:0}
-  h2{font-size:11px;text-align:center;margin:0 0 8px}
-  table{border-collapse:collapse;width:100%;margin-top:8px}
-  th,td{border:1px solid #999;padding:3px 5px;vertical-align:top}
-  th{background:#44546a;color:#fff;text-align:center}
-  .r{text-align:right;white-space:nowrap}
-  .mono{font-family:'Courier New',monospace}
-  .hdr td{border:none;padding:1px 4px}
-  .sig{margin-top:24px;width:100%;border:none}
-  .sig td{border:none;text-align:center;vertical-align:top;padding:2px}
-  @media print{button{display:none}}
-</style></head><body>
-<h1>RINCIAN ANGGARAN BELANJA</h1>
-<h2>KELUARAN (OUTPUT) KEGIATAN T.A. ${ctx.tahun}</h2>
-<table class="hdr">
-  <tr><td style="width:200px">Kementerian Negara/Lembaga</td><td style="width:10px">:</td><td>Kementerian Perhubungan</td></tr>
-  <tr><td>Unit Eselon II/Satker</td><td>:</td><td>${esc(ctx.satker)}</td></tr>
-  <tr><td>Program</td><td>:</td><td>${esc(unit.programUraian)}</td></tr>
-  <tr><td>Keluaran (Output)</td><td>:</td><td>${esc(unit.roKode)} ${esc(unit.roUraian)}</td></tr>
-  <tr><td>Komponen</td><td>:</td><td>${esc(unit.komponenKode)} ${esc(unit.komponenUraian)}</td></tr>
-  ${subHdr}
-  <tr><td>Alokasi Anggaran</td><td>:</td><td>Rp ${fmtN(unit.total)}</td></tr>
-</table>
-<table>
-  <tr><th>Kode</th><th>Uraian</th><th>Rincian Perhitungan</th><th>Volume</th><th>Satuan</th><th>Harga Satuan</th><th>Jumlah</th></tr>
-  ${ctxRow(unit.kroKode, unit.kroUraian, 0, false)}
-  ${ctxRow(unit.roKode, unit.roUraian, 1, false)}
-  ${ctxRow(unit.komponenKode, unit.komponenUraian, 2, true)}
-  ${subCtx}
-  ${lineRows}
-  <tr style="font-weight:bold;background:#eee"><td colspan="6">JUMLAH BIAYA</td><td class="r">${fmtN(unit.total)}</td></tr>
-</table>
-<p><strong>Terbilang:</strong> <em>${esc(titleCase(terbilang(unit.total)))}</em></p>
-<table class="sig">
-  <tr><td>Mengetahui</td><td></td><td>${esc(tgl)}</td></tr>
-  <tr><td>${esc(k.jabatan)}</td><td></td><td>${esc(n.jabatan)}</td></tr>
-  <tr><td style="height:60px"></td><td></td><td></td></tr>
-  <tr><td style="font-weight:bold;text-decoration:underline">${esc(k.nama)}</td><td></td><td style="font-weight:bold;text-decoration:underline">${esc(n.nama)}</td></tr>
-  <tr><td>${esc(k.pangkat)}</td><td></td><td>${esc(n.pangkat)}</td></tr>
-  <tr><td>NIP. ${esc(k.nip)}</td><td></td><td>NIP. ${esc(n.nip)}</td></tr>
-</table>
-</body></html>`;
-  return html;
+// Pratinjau RAB dibangun dari workbook yang SAMA dengan unduhan (buildRabSheet),
+// lalu dirender via sheet_to_html — sehingga isi & tata letak pratinjau identik
+// dengan file .xlsx yang diunduh (bukan lagi HTML terpisah).
+function buildRabPreviewHtml(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signers): string {
+  const ws = buildRabSheet(XLSX, unit, ctx, signers);
+  const table = XLSX.utils.sheet_to_html(ws, { header: "", footer: "" });
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+    body{margin:14px;font-family:Arial,Helvetica,sans-serif;color:#111}
+    table{border-collapse:collapse}
+    td{border:1px solid #cbd5e1;padding:2px 6px;font-size:11px;vertical-align:top;white-space:nowrap}
+    tr:first-child td{background:#e2e8f0;font-weight:700;text-align:center}
+  </style></head><body>${table}</body></html>`;
 }
