@@ -32,13 +32,13 @@ async function decorateCover(host: HTMLElement, blob: Blob) {
     if (!page) return;
     page.style.position = "relative";
 
-    // Bingkai cover (garis).
+    // Bingkai cover (garis) — inset disamakan dgn dokumen unduhan (~12% sisi, ~8% atas, ~11% bawah).
     const frame = document.createElement("div");
     frame.style.cssText =
-      "position:absolute;inset:26px;border:1.5px solid #111;border-radius:10px;pointer-events:none;z-index:0;";
+      "position:absolute;top:8%;left:12%;right:12%;bottom:11%;border:1.5px solid #111;border-radius:14px;pointer-events:none;z-index:0;";
     page.insertBefore(frame, page.firstChild);
 
-    // Logo (di atas-tengah).
+    // Logo (atas-tengah) — posisi & ukuran disamakan dgn dokumen unduhan.
     if (logoName && logoSize > 200) {
       const ext = /\.png$/i.test(logoName) ? "png" : "jpeg";
       const url = `data:image/${ext};base64,` + btoa(zip.file(logoName)!.asBinary());
@@ -46,7 +46,7 @@ async function decorateCover(host: HTMLElement, blob: Blob) {
       img.src = url;
       img.alt = "Logo";
       img.style.cssText =
-        "position:absolute;top:46px;left:50%;transform:translateX(-50%);width:92px;height:auto;z-index:1;";
+        "position:absolute;top:12%;left:50%;transform:translateX(-50%);width:10%;height:auto;z-index:1;";
       page.appendChild(img);
     }
   } catch {
