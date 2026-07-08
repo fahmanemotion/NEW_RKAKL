@@ -310,9 +310,9 @@ export function LaporanClient({
           </div>
 
           {/* ── Rekap per Akun (BAS) ──────────────────────────────────── */}
-          <Card className="overflow-hidden">
-            <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-              <span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary">
+          <Card className="overflow-hidden border-t-4 border-t-sky-400 bg-sky-50/50 dark:border-t-sky-500 dark:bg-sky-950/20">
+            <div className="flex items-center gap-2 border-b border-sky-200/70 px-4 py-3 dark:border-sky-900">
+              <span className="grid size-7 place-items-center rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-900/40 dark:text-sky-300">
                 <ListTree className="size-4" />
               </span>
               <h2 className="text-sm font-semibold">Rekap per Akun (BAS)</h2>
@@ -354,9 +354,9 @@ export function LaporanClient({
           </Card>
 
           {/* ── Ringkasan struktur ────────────────────────────────────── */}
-          <Card className="overflow-hidden">
-            <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-              <span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary">
+          <Card className="overflow-hidden border-t-4 border-t-emerald-400 bg-emerald-50/50 dark:border-t-emerald-500 dark:bg-emerald-950/20">
+            <div className="flex items-center gap-2 border-b border-emerald-200/70 px-4 py-3 dark:border-emerald-900">
+              <span className="grid size-7 place-items-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300">
                 <FolderTree className="size-4" />
               </span>
               <h2 className="text-sm font-semibold">

@@ -76,9 +76,11 @@ export function KertasKerjaImport({ usulanList }: { usulanList: ImportUsulan[] }
   }
 
   return (
-    <Card className="space-y-4 p-4">
+    <Card className="space-y-4 border-t-4 border-t-rose-400 bg-rose-50/50 p-4 dark:border-t-rose-500 dark:bg-rose-950/20">
       <div className="flex items-center gap-2">
-        <FileSpreadsheet className="size-5 text-primary" />
+        <span className="grid size-9 place-items-center rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
+          <FileSpreadsheet className="size-5" />
+        </span>
         <div>
           <h2 className="text-sm font-semibold">Import Kertas Kerja</h2>
           <p className="text-xs text-muted-foreground">

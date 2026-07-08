@@ -252,8 +252,8 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
   };
 
   return (
-    <Card className="overflow-hidden">
-      <div className="flex flex-col gap-2 border-b border-border px-4 py-2.5">
+    <Card className="overflow-hidden border-t-4 border-t-violet-400 bg-violet-50/50 dark:border-t-violet-500 dark:bg-violet-950/20">
+      <div className="flex flex-col gap-2 border-b border-violet-200/70 px-4 py-2.5 dark:border-violet-900">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold">RAB</div>
           <div className="inline-flex overflow-hidden rounded-md border border-border text-xs">

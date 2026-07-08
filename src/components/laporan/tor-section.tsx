@@ -204,9 +204,9 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
   );
 
   return (
-    <Card className="p-4">
+    <Card className="border-t-4 border-t-amber-400 bg-amber-50/50 p-4 dark:border-t-amber-500 dark:bg-amber-950/20">
       <div className="mb-3 flex items-center gap-2">
-        <div className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
+        <div className="grid size-9 place-items-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300">
           <FileText className="size-5" />
         </div>
         <div>
