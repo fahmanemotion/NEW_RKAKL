@@ -3,8 +3,9 @@ import * as React from "react";
 import type XLSXTypes from "xlsx-js-style";
 type XLSXModule = typeof import("xlsx-js-style");
 import { loadXLSXStyle } from "@/lib/xlsx-lazy";
-import { Printer, Download, Layers, ChevronsUpDown, Check, Search } from "lucide-react";
+import { Eye, Download, Layers, ChevronsUpDown, Check, Search } from "lucide-react";
 import { Card, Select, Button } from "@/components/ui";
+import { RabPreviewModal } from "@/components/laporan/rab-preview";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase";
 import { fmtN } from "@/lib/constants";
@@ -182,6 +183,7 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
   );
   const [sel, setSel] = React.useState(0);
   const [zipping, setZipping] = React.useState(false);
+  const [preview, setPreview] = React.useState<{ html: string; title: string; unit: RabUnit } | null>(null);
   React.useEffect(() => setSel(0), [filteredUnits]);
 
   interface PersonRow { id: string; nama: string; jabatan: string; pangkat: string; nip: string }
@@ -324,8 +326,12 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
               placeholder="— pilih —"
             />
           </label>
-          <Button size="sm" variant="outline" onClick={() => printRab(unit, ctx, signers)}>
-            <Printer className="size-4" /> Cetak
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setPreview({ html: buildRabHtml(unit, ctx, signers), title: unit.sheetName, unit })}
+          >
+            <Eye className="size-4" /> Pratinjau
           </Button>
           <Button size="sm" variant="outline" onClick={async () => { const XLSX = await loadXLSXStyle(); downloadOne(XLSX, unit, ctx, signers); }}>
             <Download className="size-4" /> Unduh ini
@@ -402,6 +408,20 @@ export function RabSection({ rows, ctx }: { rows: KKRow[]; ctx: Ctx }) {
           Terbilang: <em>{titleCase(terbilang(unit.total))}</em>
         </p>
       </div>
+      <RabPreviewModal
+        open={!!preview}
+        onClose={() => setPreview(null)}
+        html={preview?.html ?? null}
+        title={preview?.title}
+        onDownload={
+          preview
+            ? async () => {
+                const XLSX = await loadXLSXStyle();
+                downloadOne(XLSX, preview.unit, ctx, signers);
+              }
+            : undefined
+        }
+      />
     </Card>
   );
 }
@@ -762,7 +782,7 @@ function esc(s: unknown): string {
   return String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!);
 }
 
-function printRab(unit: RabUnit, ctx: Ctx, signers: Signers) {
+function buildRabHtml(unit: RabUnit, ctx: Ctx, signers: Signers): string {
   const now = signers.tanggal ?? new Date();
   const tgl = `${signers.kota}, ${now.getDate()} ${BULAN[now.getMonth()]} ${now.getFullYear()}`;
   const ctxRow = (kode: string, ur: string, ind: number, b: boolean) =>
@@ -799,7 +819,6 @@ function printRab(unit: RabUnit, ctx: Ctx, signers: Signers) {
   .sig td{border:none;text-align:center;vertical-align:top;padding:2px}
   @media print{button{display:none}}
 </style></head><body>
-<button onclick="window.print()" style="margin-bottom:10px;padding:6px 12px">Cetak / Simpan PDF</button>
 <h1>RINCIAN ANGGARAN BELANJA</h1>
 <h2>KELUARAN (OUTPUT) KEGIATAN T.A. ${ctx.tahun}</h2>
 <table class="hdr">
@@ -830,6 +849,5 @@ function printRab(unit: RabUnit, ctx: Ctx, signers: Signers) {
   <tr><td>NIP. ${esc(k.nip)}</td><td></td><td>NIP. ${esc(n.nip)}</td></tr>
 </table>
 </body></html>`;
-  const w = window.open("", "_blank");
-  if (w) { w.document.write(html); w.document.close(); }
+  return html;
 }
