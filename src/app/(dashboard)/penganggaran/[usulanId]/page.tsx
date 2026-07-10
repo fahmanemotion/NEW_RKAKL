@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -8,6 +9,7 @@ import {
   PenganggaranClient,
   type UsulanHeader,
 } from "@/components/grid/penganggaran-client";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
 
 export default async function Page({
@@ -20,17 +22,13 @@ export default async function Page({
     from: (t: string) => any;
   };
 
-  // GET paralel: header usulan + tahap pagu + seluruh struktur dijalankan
-  // BERSAMAAN (ketiganya independen, hanya perlu usulanId) agar memangkas
-  // round-trip beruntun → membuka usulan terasa jauh lebih cepat.
-  // GET paralel: header usulan (termasuk tahap_pagu) + seluruh struktur
-  // dijalankan BERSAMAAN. tahap_pagu digabung ke query utama (tidak lagi query
-  // terpisah ke baris yang sama) → satu round-trip lebih sedikit saat membuka usulan.
-  const [uRes, rows] = await Promise.all([
-    supabase
-      .from("usulan_anggaran")
-      .select(
-        `
+  // Hanya HEADER usulan (satu baris — cepat) yang ditunggu di sini agar breadcrumb
+  // + judul + tahap pagu tampil SEKETIKA. Struktur (bisa ribuan baris & jadi biang
+  // "loading") dialirkan lewat <Suspense> di bawah (streaming #2).
+  const { data: u, error: uErr } = await supabase
+    .from("usulan_anggaran")
+    .select(
+      `
       id, tahun_anggaran, status, kegiatan_id, tahap_pagu,
       satker:master_satker!satker_id ( kode_satker, nama_satker, kppn, lokus,
         unit:master_unit_eselon1!unit_id ( nama,
@@ -39,12 +37,9 @@ export default async function Page({
       program:master_program!program_id ( kode_program, nama_program ),
       kegiatan:master_kegiatan!kegiatan_id ( id, kode_kegiatan, nama_kegiatan )
     `,
-      )
-      .eq("id", usulanId)
-      .single(),
-    fetchStrukturServer(usulanId),
-  ]);
-  const { data: u, error: uErr } = uRes;
+    )
+    .eq("id", usulanId)
+    .single();
 
   if (uErr) {
     return (
@@ -101,11 +96,6 @@ export default async function Page({
     lokus: satker?.lokus ?? "19.51-KOTA MAKASSAR",
   };
 
-  // rows sudah diambil paralel di atas. getCurrentUser di-cache() (layout sudah
-  // memanggilnya) → praktis tanpa round-trip tambahan.
-  const cu = await getCurrentUser();
-  const me = { id: cu?.id ?? "", nama: cu?.nama ?? null };
-
   return (
     <div className="space-y-2">
       {/* Satu baris: tombol kembali (kiri) + judul RUH Belanja & tahap pagu (kanan, di bawah toggle tema) */}
@@ -125,7 +115,29 @@ export default async function Page({
           </span>
         </div>
       </div>
-      <PenganggaranClient header={header} initialRows={rows} me={me} />
+
+      {/* Grid (struktur berat) dialirkan terpisah — breadcrumb & judul di atas
+          sudah tampil lebih dulu. */}
+      <Suspense fallback={<TableSkeleton rows={14} />}>
+        <GridLoader header={header} usulanId={usulanId} />
+      </Suspense>
     </div>
   );
+}
+
+// Server Component yang MENUNGGU data berat (struktur + identitas pengguna) lalu
+// merender editor. Dipisah agar bisa dibungkus <Suspense> → streaming.
+async function GridLoader({
+  header,
+  usulanId,
+}: {
+  header: UsulanHeader;
+  usulanId: string;
+}) {
+  const [rows, cu] = await Promise.all([
+    fetchStrukturServer(usulanId),
+    getCurrentUser(),
+  ]);
+  const me = { id: cu?.id ?? "", nama: cu?.nama ?? null };
+  return <PenganggaranClient header={header} initialRows={rows} me={me} />;
 }

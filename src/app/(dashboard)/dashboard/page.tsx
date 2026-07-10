@@ -1,13 +1,23 @@
+import { Suspense } from "react";
 import { requireUser } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase-server";
 import {
   DashboardClient,
   type UsulanRingkas,
 } from "@/components/dashboard/dashboard-client";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
-// Dashboard — pemilih Tahun & Tahap Pagu + tabel "Daftar Usulan Kegiatan"
-// (Kode / Uraian-Akun / Pagu Usulan / Sumber / Kategori) dengan filter.
-export default async function DashboardPage() {
+// Dashboard — pemilih Tahun & Tahap Pagu + tabel "Daftar Usulan Kegiatan".
+// Streaming (#2): skeleton konten tampil seketika; daftar usulan mengalir masuk.
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <DashboardData />
+    </Suspense>
+  );
+}
+
+async function DashboardData() {
   const user = await requireUser();
   const sb = (await createServerSupabase()) as unknown as {
     from: (t: string) => any;

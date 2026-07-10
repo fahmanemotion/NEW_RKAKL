@@ -1,11 +1,22 @@
+import { Suspense } from "react";
 import { requireUser } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase-server";
 import {
   MonitoringClient,
   type MonUsulanInput,
 } from "@/components/monitoring/monitoring-client";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
-export default async function MonitoringPage() {
+// Streaming (#2): skeleton konten tampil seketika; data monitoring mengalir masuk.
+export default function MonitoringPage() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <MonitoringData />
+    </Suspense>
+  );
+}
+
+async function MonitoringData() {
   await requireUser();
   const sb = (await createServerSupabase()) as unknown as {
     from: (t: string) => any;

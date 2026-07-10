@@ -1,11 +1,23 @@
+import { Suspense } from "react";
 import { requireUser } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase-server";
 import {
   ReviewClient,
   type ReviewUsulan,
 } from "@/components/review/review-client";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
-export default async function ReviewPage() {
+// Streaming (#2): halaman langsung menampilkan skeleton berbentuk konten
+// (hero + filter + tabel) sementara daftar usulan diambil dari database.
+export default function ReviewPage() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <ReviewData />
+    </Suspense>
+  );
+}
+
+async function ReviewData() {
   await requireUser();
   const sb = (await createServerSupabase()) as unknown as {
     from: (t: string) => any;

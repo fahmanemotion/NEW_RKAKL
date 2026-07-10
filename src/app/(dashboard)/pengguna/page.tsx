@@ -1,8 +1,20 @@
+import { Suspense } from "react";
 import { requireUser } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { PenggunaClient } from "@/components/pengguna/pengguna-client";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
-export default async function PenggunaPage() {
+// Streaming (#2): skeleton konten tampil seketika; data ringan (roles/satker)
+// mengalir masuk. Daftar pengguna sendiri diambil di sisi klien.
+export default function PenggunaPage() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <PenggunaData />
+    </Suspense>
+  );
+}
+
+async function PenggunaData() {
   const user = await requireUser();
   const isAdmin = user.role === "Administrator";
 

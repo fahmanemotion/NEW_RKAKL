@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { requireUser } from "@/lib/auth";
 import { createServerSupabase } from "@/lib/supabase-server";
 import {
@@ -6,8 +7,19 @@ import {
 } from "@/components/laporan/laporan-client";
 import { KertasKerjaImport } from "@/components/laporan/kertas-kerja-import";
 import { TorSection } from "@/components/laporan/tor-section";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
-export default async function LaporanPage() {
+// Streaming (#2): skeleton konten tampil seketika; daftar usulan (untuk RAB/TOR/
+// impor Kertas Kerja) mengalir masuk setelah query DB selesai.
+export default function LaporanPage() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <LaporanData />
+    </Suspense>
+  );
+}
+
+async function LaporanData() {
   await requireUser();
   const sb = (await createServerSupabase()) as unknown as {
     from: (t: string) => any;
