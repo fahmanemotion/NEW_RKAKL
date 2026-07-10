@@ -199,6 +199,19 @@ export function PenganggaranClient({
     }
   }
 
+  // Revalidate-on-open (#4): saat editor dibuka — termasuk ketika halaman
+  // DISAJIKAN DARI ROUTER CACHE yang mungkin basi (mis. kembali ke usulan dalam
+  // 30 dtk) — tarik sekali kondisi DB terkini. `initialRows` dipakai untuk paint
+  // pertama (INSTAN), lalu diselaraskan agar grid tak pernah menampilkan data
+  // tertinggal (mis. suntingan sendiri yang belum tercermin di cache). Guard ref
+  // mencegah pemanggilan ganda di React StrictMode (dev).
+  const didOpenSync = React.useRef(false);
+  React.useEffect(() => {
+    if (didOpenSync.current) return;
+    didOpenSync.current = true;
+    void refresh();
+  }, [refresh]);
+
   // Realtime: segarkan grid saat struktur usulan ini berubah.
   React.useEffect(() => {
     const ch = createClient()
