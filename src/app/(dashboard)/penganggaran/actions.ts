@@ -241,28 +241,34 @@ export async function listCopySourcesAction(
       .eq("satker_id", target.satker_id)
       .neq("id", targetUsulanId);
 
-    const sources: CopySource[] = [];
-    for (const c of (cands ?? []) as {
+    const candList = (cands ?? []) as {
       id: string;
       tahun_anggaran: number;
       tahap_pagu: string | null;
       status: string;
       total_anggaran: number | null;
-    }[]) {
-      const { count } = await sb
-        .from("usulan_struktur")
-        .select("id", { count: "exact", head: true })
-        .eq("usulan_id", c.id);
-      if ((count ?? 0) > 0)
-        sources.push({
-          id: c.id,
-          tahun: c.tahun_anggaran,
-          tahap: c.tahap_pagu ?? "KEBUTUHAN",
-          status: c.status,
-          total: c.total_anggaran ?? 0,
-          nodes: count ?? 0,
-        });
-    }
+    }[];
+    // Hitung jumlah node tiap kandidat SECARA PARALEL (bukan beruntun) agar
+    // panel "Salin Anggaran" muncul cepat walau satker punya banyak usulan.
+    const counted = await Promise.all(
+      candList.map(async (c) => {
+        const { count } = await sb
+          .from("usulan_struktur")
+          .select("id", { count: "exact", head: true })
+          .eq("usulan_id", c.id);
+        return { c, count: count ?? 0 };
+      }),
+    );
+    const sources: CopySource[] = counted
+      .filter(({ count }) => count > 0)
+      .map(({ c, count }) => ({
+        id: c.id,
+        tahun: c.tahun_anggaran,
+        tahap: c.tahap_pagu ?? "KEBUTUHAN",
+        status: c.status,
+        total: c.total_anggaran ?? 0,
+        nodes: count,
+      }));
 
     sources.sort(
       (a, b) =>

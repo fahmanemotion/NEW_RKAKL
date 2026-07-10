@@ -27,6 +27,13 @@ function jenisBelanjaFromKode(kode: string | null | undefined): string {
   if (k.startsWith("53")) return "MODAL";
   return "LAINNYA";
 }
+// Suffix output "Layanan Perkantoran" (belanja operasional). Disalin dari
+// constants (SUFIKS_OUTPUT_OPERASIONAL = ".994") agar modul ini tetap bebas
+// dependensi runtime & mudah diuji. Jaga tetap sinkron dengan constants.ts.
+const SUFIKS_OPERASIONAL = ".994";
+function isKodeOperasional(kode: string | null | undefined): boolean {
+  return !!kode && kode.endsWith(SUFIKS_OPERASIONAL);
+}
 
 export interface KKBuckets {
   pegRM: number; // Operasional · Pegawai (RM)
@@ -173,13 +180,41 @@ export function buildKertasKerja(rows: UsulanStruktur[]): {
     return "";
   };
 
+  // Apakah node berada DI BAWAH output operasional (Layanan Perkantoran, kode
+  // RO berakhiran ".994"). Dipakai untuk menentukan kategori OPS/NON secara
+  // STRUKTURAL — bukan semata dari flag `jenis_belanja` tersimpan yang bisa
+  // BASI (mis. baris hasil impor Kertas Kerja atau dibuat sebelum logika flag
+  // ada), agar Belanja Barang Operasional tidak "hilang" (bernilai 0) di rekap
+  // Per Jenis Belanja padahal detailnya ada di bawah Layanan Perkantoran.
+  const isUnderOperasional = (n: Node): boolean => {
+    let cur: Node | undefined = n;
+    while (cur) {
+      if (isKodeOperasional(cur.kode)) return true;
+      cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+    }
+    return false;
+  };
+
   // Pass 1: agregasi bucket & jumlah (post-order).
   const compute = (n: Node): { b: KKBuckets; j: number } => {
     if (n.level === "DETAIL") {
+      // Kategori OPS/NON untuk BELANJA BARANG.
+      // Sesuai invariant aplikasi, "Operasional" = detail di bawah output
+      // Layanan Perkantoran (kode ".994"), dan flag `jenis_belanja` semestinya
+      // OTOMATIS mengikuti struktur tsb (bukan input manual). Namun flag yang
+      // tersimpan bisa BASI/keliru (mis. hasil impor). Karena itu barang
+      // diperlakukan OPERASIONAL bila SALAH SATU sinyal menyatakannya:
+      //   • struktur .994 (Layanan Perkantoran), ATAU
+      //   • flag tersimpan TIDAK secara eksplisit "Non Operasional".
+      // Aturan ini hanya MENANGKAP kembali operasional yang terlewat; ia tidak
+      // pernah memindahkan barang yang sudah benar ter-OPS menjadi NON.
+      const flagEksplisitNon = normKategori(n.jenis_belanja) === "NON";
+      const kategoriDetail =
+        isUnderOperasional(n) || !flagEksplisitNon ? "OPS" : "NON_OPS";
       const b = detailBuckets(
         Number(n.jumlah) || 0,
         n.sumber_dana,
-        n.jenis_belanja,
+        kategoriDetail,
         akunKodeOf(n),
       );
       n._b = b;

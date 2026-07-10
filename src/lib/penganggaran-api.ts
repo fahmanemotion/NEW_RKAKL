@@ -144,7 +144,7 @@ export async function upsertDetail(input: {
   sumber_dana?: string | null; // diwarisi dari akun
   jenis_belanja?: string | null; // 'OPS' | 'NON_OPS'
   segments?: { qty: number; sat: string }[] | null; // rincian volume bertingkat
-}): Promise<void> {
+}): Promise<UsulanStruktur> {
   const payload = {
     usulan_id: input.usulan_id,
     parent_id: input.parent_id,
@@ -158,19 +158,27 @@ export async function upsertDetail(input: {
     volume_rincian:
       input.segments && input.segments.length > 0 ? input.segments : null,
   };
+  // RETURNING baris hasil: `jumlah` sudah dihitung trigger DB (round(vol*harga,2))
+  // sehingga pemanggil bisa memperbarui state lokal TANPA menarik ulang seluruh
+  // struktur — agregasi induk & Pagu dihitung ulang di klien.
   if (input.id) {
-    const { error } = await sb()
+    const { data, error } = await sb()
       .from("usulan_struktur")
       .update(payload)
-      .eq("id", input.id);
+      .eq("id", input.id)
+      .select("*")
+      .single();
     if (error) throw error;
-  } else {
-    const urutan = await nextUrutan(input.usulan_id, input.parent_id);
-    const { error } = await sb()
-      .from("usulan_struktur")
-      .insert({ ...payload, urutan });
-    if (error) throw error;
+    return data as UsulanStruktur;
   }
+  const urutan = await nextUrutan(input.usulan_id, input.parent_id);
+  const { data, error } = await sb()
+    .from("usulan_struktur")
+    .insert({ ...payload, urutan })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as UsulanStruktur;
 }
 
 /** Metadata akun (sumber dana & kategori) untuk diwariskan ke detail. */
@@ -326,7 +334,11 @@ export async function pasteNode(
   }
 }
 
-/** Ubah field sebuah node (mis. kode/uraian Sub Komponen, atau ganti referensi Akun). */
+/**
+ * Ubah field sebuah node (mis. kode/uraian Sub Komponen, atau ganti referensi
+ * Akun). Mengembalikan baris terbaru (RETURNING) agar pemanggil dapat memperbarui
+ * state lokal tanpa refetch penuh.
+ */
 export async function editNode(
   id: string,
   patch: {
@@ -337,9 +349,15 @@ export async function editNode(
     volume?: number | null;
     satuan?: string | null;
   },
-): Promise<void> {
-  const { error } = await sb().from("usulan_struktur").update(patch).eq("id", id);
+): Promise<UsulanStruktur> {
+  const { data, error } = await sb()
+    .from("usulan_struktur")
+    .update(patch)
+    .eq("id", id)
+    .select("*")
+    .single();
   if (error) throw error;
+  return data as UsulanStruktur;
 }
 
 /** Setel sumber dana seluruh anak langsung sebuah node (mis. saat akun diganti). */

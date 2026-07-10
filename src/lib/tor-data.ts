@@ -1,5 +1,6 @@
 // SIPPT — penyiapan data TOR per komponen (untuk generator hal. 1-2).
 import { createClient } from "@/lib/supabase";
+import { fetchAllStruktur } from "@/lib/fetch-struktur";
 import { terbilang } from "./rab-data";
 import type { TorTokens, RabRow, TahapanRow } from "./tor-generate";
 
@@ -102,10 +103,16 @@ async function loadContext(usulanId: string) {
       )
       .eq("id", usulanId)
       .maybeSingle(),
-    sb()
-      .from("usulan_struktur")
-      .select("id, parent_id, level, kode, uraian, volume, satuan, jumlah")
-      .eq("usulan_id", usulanId),
+    // PAGINASI: usulan besar (>1000 node, mis. hasil impor Kertas Kerja) akan
+    // TERPOTONG diam-diam pada query biasa (batas 1000 baris PostgREST) sehingga
+    // sebagian Komponen/Detail HILANG dari dokumen TOR. Pakai helper paginasi
+    // yang sama dengan RAB agar TOR utuh. Bentuk hasil disamakan ({ data }) agar
+    // pola destrukturisasi Promise.all di bawah tetap berlaku.
+    fetchAllStruktur(
+      sb(),
+      usulanId,
+      "id, parent_id, level, kode, uraian, volume, satuan, jumlah",
+    ).then((rows) => ({ data: rows })),
     sb().from("master_tor_kode").select(
       "komponen, unit_eselon, indikator_ro, indikator_kro, sasaran_program, indikator_kinerja_program, sasaran_kegiatan, indikator_kinerja_kegiatan",
     ),

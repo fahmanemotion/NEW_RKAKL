@@ -109,7 +109,10 @@ export function PenganggaranClient({
   const [finalizing, setFinalizing] = React.useState(false);
   const [reopening, setReopening] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
-  const [lastSavedAt, setLastSavedAt] = React.useState<Date | null>(null);
+  // Menyala saat grid sedang menarik ulang data dari database (usai tambah/ubah/
+  // hapus/tempel). Memberi umpan-balik "Menyinkronkan…" agar aksi tidak terasa
+  // "diam" pada usulan besar yang butuh beberapa ratus ms untuk memuat ulang.
+  const [syncing, setSyncing] = React.useState(false);
   const { selectedId, selectedRow, select } = usePenganggaran();
   const [picker, setPicker] = React.useState<PickerState>(null);
   const [subkompParent, setSubkompParent] = React.useState<{
@@ -139,12 +142,50 @@ export function PenganggaranClient({
   const [copySourceId, setCopySourceId] = React.useState<string>("");
   const [copying, setCopying] = React.useState(false);
 
-  // Setiap penyegaran = data sudah tersinkron dengan database → tandai waktu tersimpan.
+  // Setiap penyegaran = data sudah tersinkron dengan database. `syncing` dinyala-
+  // kan selama pemuatan agar SEMUA aksi (bukan hanya Simpan manual) menampilkan
+  // indikator sinkronisasi.
   const refresh = React.useCallback(async () => {
-    const data = await fetchStruktur(header.id);
-    setRows(data);
-    setLastSavedAt(new Date());
+    setSyncing(true);
+    try {
+      const data = await fetchStruktur(header.id);
+      setRows(data);
+    } finally {
+      setSyncing(false);
+    }
   }, [header.id]);
+
+  // ── Update lokal (inkremental) ─────────────────────────────────────────────
+  // Untuk aksi yang memengaruhi SATU baris (tambah/ubah node) atau menghapus
+  // subtree, state grid diperbarui langsung dari baris hasil server (RETURNING)
+  // tanpa menarik ulang SELURUH struktur. Agregasi (jumlah induk & Pagu) dihitung
+  // ulang di klien oleh flattenForGrid — yang memang selalu mengagregasi dari
+  // DETAIL, bukan dari `jumlah` induk tersimpan — sehingga hasilnya SAMA PERSIS
+  // dengan refetch penuh namun terasa seketika. Operasi massal (tempel subtree,
+  // salin anggaran, klaim/lepas KRO) tetap memakai refresh() penuh.
+  const upsertRowLocal = React.useCallback((row: UsulanStruktur) => {
+    setRows((prev) => {
+      const i = prev.findIndex((r) => r.id === row.id);
+      if (i === -1) return [...prev, row];
+      const next = prev.slice();
+      next[i] = row;
+      return next;
+    });
+  }, []);
+  const removeRowsLocal = React.useCallback((ids: Iterable<string>) => {
+    const set = ids instanceof Set ? (ids as Set<string>) : new Set(ids);
+    setRows((prev) => prev.filter((r) => !set.has(r.id)));
+  }, []);
+  const patchChildrenSumberLocal = React.useCallback(
+    (parentId: string, sumber: string | null) => {
+      setRows((prev) =>
+        prev.map((r) =>
+          r.parent_id === parentId ? { ...r, sumber_dana: sumber } : r,
+        ),
+      );
+    },
+    [],
+  );
 
   // Simpan manual: paksa sinkron dari database & perbarui indikator "tersimpan".
   async function onSave() {
@@ -668,12 +709,17 @@ export function PenganggaranClient({
     const u = uraian.trim();
     if (!headerModal || !u) return setHeaderModal(null);
     if (headerModal.editId) {
-      await editNode(headerModal.editId, { uraian: u });
+      upsertRowLocal(await editNode(headerModal.editId, { uraian: u }));
     } else if (headerModal.parentId) {
-      await addHeader({ usulan_id: header.id, parent_id: headerModal.parentId, uraian: u });
+      upsertRowLocal(
+        await addHeader({
+          usulan_id: header.id,
+          parent_id: headerModal.parentId,
+          uraian: u,
+        }),
+      );
     }
     setHeaderModal(null);
-    await refresh();
   }
 
   // Peta level anak → tipe parent yang harus dipilih + judul modal.
@@ -832,20 +878,23 @@ export function PenganggaranClient({
     // Mode GANTI (mis. ganti Akun): ubah node yang ada, jangan tambah baru.
     if (picker.editId) {
       try {
-        await editNode(picker.editId, {
+        const updated = await editNode(picker.editId, {
           referensi_id: row.id,
           kode,
           uraian: row.nama,
           sumber_dana,
         });
+        upsertRowLocal(updated);
         // Sumber dana detail anak ikut akun yang baru.
-        if (level === "AKUN") await setChildrenSumber(picker.editId, sumber_dana);
+        if (level === "AKUN") {
+          await setChildrenSumber(picker.editId, sumber_dana);
+          patchChildrenSumberLocal(picker.editId, sumber_dana);
+        }
       } catch (e) {
         alert((e as Error).message);
         return;
       }
       setPicker(null);
-      await refresh();
       return;
     }
 
@@ -859,7 +908,9 @@ export function PenganggaranClient({
         uraian: row.nama,
         sumber_dana,
       });
-      // KRO baru: tandai agar langsung ditampilkan di daftar setelah refresh.
+      upsertRowLocal(created);
+      // KRO baru: tandai agar langsung ditampilkan di daftar (efek pemantau
+      // kroOptions akan menambah & mengklaimnya setelah state lokal terbarui).
       if (level === "KRO") pendingNewKroRef.current = created.id;
     } catch (e) {
       // Mis. duplikat — beri tahu & biarkan picker tetap terbuka.
@@ -867,27 +918,29 @@ export function PenganggaranClient({
       return;
     }
     setPicker(null);
-    await refresh();
   }
 
   async function onSubmitSubkomp(v: { kode: string; uraian: string }) {
     if (!subkompParent) return;
     if (subkompParent.editId) {
-      await editNode(subkompParent.editId, {
-        kode: v.kode === "-" ? "-" : v.kode,
-        uraian: v.uraian,
-      });
+      upsertRowLocal(
+        await editNode(subkompParent.editId, {
+          kode: v.kode === "-" ? "-" : v.kode,
+          uraian: v.uraian,
+        }),
+      );
     } else if (subkompParent.parentId) {
-      await addNode({
-        usulan_id: header.id,
-        parent_id: subkompParent.parentId,
-        level: "SUB_KOMPONEN",
-        kode: v.kode === "-" ? "-" : v.kode,
-        uraian: v.uraian,
-      });
+      upsertRowLocal(
+        await addNode({
+          usulan_id: header.id,
+          parent_id: subkompParent.parentId,
+          level: "SUB_KOMPONEN",
+          kode: v.kode === "-" ? "-" : v.kode,
+          uraian: v.uraian,
+        }),
+      );
     }
     setSubkompParent(null);
-    await refresh();
   }
 
   function onEditSubkomp() {
@@ -942,13 +995,12 @@ export function PenganggaranClient({
     if (!measureEdit) return;
     const satuan = v.satuan.trim() || null;
     // KOMPONEN: simpan volume + satuan. RO/KRO: volume otomatis → simpan satuan saja.
-    if (measureEdit.level === "KOMPONEN") {
-      await editNode(measureEdit.id, { volume: v.volume, satuan });
-    } else {
-      await editNode(measureEdit.id, { satuan });
-    }
+    const updated =
+      measureEdit.level === "KOMPONEN"
+        ? await editNode(measureEdit.id, { volume: v.volume, satuan })
+        : await editNode(measureEdit.id, { satuan });
+    upsertRowLocal(updated);
     setMeasureEdit(null);
-    await refresh();
   }
 
   async function onEditAkun() {
@@ -971,7 +1023,7 @@ export function PenganggaranClient({
     if (!detail) return;
     // Jenis belanja OTOMATIS: OPS bila berada di bawah output Layanan Perkantoran
     // (kode RO .994), selain itu NON_OPS.
-    await upsertDetail({
+    const row = await upsertDetail({
       id: v.id,
       usulan_id: header.id,
       parent_id: detail.parentId,
@@ -983,8 +1035,8 @@ export function PenganggaranClient({
       jenis_belanja: isUnderOperasional(detail.parentId) ? "OPS" : "NON_OPS",
       segments: v.segments,
     });
+    upsertRowLocal(row); // `jumlah` sudah dihitung trigger; Pagu diagregasi ulang di klien
     setDetail(null);
-    await refresh();
   }
 
   function onEditDetail() {
@@ -1027,9 +1079,10 @@ export function PenganggaranClient({
     try {
       // Hapus node ini beserta seluruh turunannya (anak terdalam dulu).
       const ids = subtreeIds(rows, selectedRow.ref.id);
-      await deleteNodes(ids.length ? ids : [selectedRow.ref.id]);
+      const toDelete = ids.length ? ids : [selectedRow.ref.id];
+      await deleteNodes(toDelete);
       select(null);
-      await refresh();
+      removeRowsLocal(toDelete); // buang subtree dari state; Pagu diagregasi ulang
     } catch (e) {
       alert("Gagal menghapus: " + (e as Error).message);
     }
@@ -1237,8 +1290,8 @@ export function PenganggaranClient({
             Pagu {fmtN(total)}
           </span>
           <span className="hidden items-center gap-1 text-xs text-muted-foreground md:flex">
-            {saving ? (
-              <><Loader2 className="size-3.5 animate-spin" /> Menyimpan…</>
+            {saving || syncing ? (
+              <><Loader2 className="size-3.5 animate-spin" /> Menyinkronkan…</>
             ) : (
               <><CheckCircle2 className="size-3.5 text-emerald-600" /> Tersimpan</>
             )}
@@ -1424,13 +1477,4 @@ export function PenganggaranClient({
 function labelSource(s: CopySource): string {
   const tahap = TAHAP_LABEL[s.tahap as TahapPagu] ?? s.tahap;
   return `TA ${s.tahun} · ${tahap} · ${s.status} — Pagu ${fmtN(s.total)}`;
-}
-
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex gap-2">
-      <span className="w-32 shrink-0 text-muted-foreground">{label}</span>
-      <span className="font-medium">{value}</span>
-    </div>
-  );
 }

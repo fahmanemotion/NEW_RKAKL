@@ -20,16 +20,42 @@ export async function fetchAllStruktur(
   columns: string = "*",
 ): Promise<UsulanStruktur[]> {
   const PAGE = 1000;
-  let from = 0;
-  const all: UsulanStruktur[] = [];
-  for (;;) {
-    const { data, error } = await sb
+  // Satu halaman [from..from+PAGE-1], terurut stabil (urutan, id).
+  const page = (from: number, withCount: boolean) =>
+    sb
       .from("usulan_struktur")
-      .select(columns)
+      .select(columns, withCount ? { count: "exact" } : undefined)
       .eq("usulan_id", usulanId)
       .order("urutan", { ascending: true })
       .order("id", { ascending: true })
       .range(from, from + PAGE - 1);
+
+  // Halaman pertama SEKALIGUS ambil COUNT total. Bila ada sisa halaman, semuanya
+  // diambil PARALEL (bukan beruntun) — memangkas refresh usulan besar dari N
+  // round-trip berantai menjadi 1 + paralel, sehingga tiap aksi terasa cepat.
+  const first = await page(0, true);
+  if (first.error) throw first.error;
+  const firstBatch = (first.data ?? []) as UsulanStruktur[];
+  if (firstBatch.length < PAGE) return firstBatch; // cukup satu halaman
+
+  const total: number | null = first.count ?? null;
+  if (total != null) {
+    const rest = [];
+    for (let from = PAGE; from < total; from += PAGE) rest.push(page(from, false));
+    const results = await Promise.all(rest);
+    const all = [...firstBatch];
+    for (const r of results) {
+      if (r.error) throw r.error;
+      all.push(...((r.data ?? []) as UsulanStruktur[]));
+    }
+    return all;
+  }
+
+  // Fallback aman bila COUNT tak tersedia: paginasi beruntun (perilaku lama).
+  const all = [...firstBatch];
+  let from = PAGE;
+  for (;;) {
+    const { data, error } = await page(from, false);
     if (error) throw error;
     const batch = (data ?? []) as UsulanStruktur[];
     all.push(...batch);
