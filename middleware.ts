@@ -9,6 +9,12 @@ type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
 const PUBLIC = ["/login", "/auth"];
 
+// Throttle cek sesi-tunggal: penanda "cek terakhir lolos" beserta jendelanya.
+// BUKAN kontrol akses data (itu RLS) — hanya membatasi frekuensi query
+// user_sessions agar navigasi beruntun tidak menambah round-trip DB tiap langkah.
+const SS_COOKIE = "ss_ck";
+const SS_CHECK_TTL_MS = 15_000;
+
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
   const mod = moduleFromPath(path);
@@ -75,9 +81,23 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // 2) Single-session (READ-ONLY) — hanya rute terlindungi. Tidak pernah menulis/
-  //    menghapus/meregenerasi sesi di sini (destroyed & regenerated selalu false).
+  // 2) Single-session (READ-ONLY, best-effort) — hanya rute terlindungi. Tidak
+  //    pernah menulis/menghapus/meregenerasi sesi di sini.
+  //    Query user_sessions di-THROTTLE: dijalankan paling sering tiap
+  //    SS_CHECK_TTL_MS agar navigasi beruntun tidak menambah round-trip DB tiap
+  //    langkah. Konsisten dg sifat fitur ini yang fail-OPEN (lihat session.ts);
+  //    deteksi "tertendang" tertunda ≤TTL detik — akses DATA tetap dijaga RLS.
   if (!isPublic) {
+    const lastOk = Number(req.cookies.get(SS_COOKIE)?.value);
+    const now = Date.now();
+    if (Number.isFinite(lastOk) && now - lastOk < SS_CHECK_TTL_MS) {
+      // Masih dalam jendela → lewati query DB (throttled). Log ringan saja.
+      logSession({ decision: "allow", reason: "throttled", userId: user!.id,
+        username: user!.email, module: mod, route: path, method, ip,
+        userAgent: ua, sessionLimit: "on", found: true });
+      return res;
+    }
+
     const { data: sess } = await supabase.auth.getSession();
     const chk = await checkActiveSessionDetailed(supabase, {
       userId: user!.id,
@@ -93,6 +113,18 @@ export async function middleware(req: NextRequest) {
       url.pathname = "/login";
       url.search = "?reason=superseded";
       return NextResponse.redirect(url);
+    }
+
+    // Stempel waktu HANYA saat sesi terkonfirmasi terdaftar & tidak superseded
+    // (found + ok). Sesi belum-terdaftar / verdikt "unknown" TIDAK di-throttle
+    // agar tetap dicek tiap langkah sampai benar-benar terkonfirmasi.
+    if (chk.found && chk.verdict === "ok") {
+      res.cookies.set(SS_COOKIE, String(now), {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60,
+      });
     }
 
     logSession({ decision: "allow",
