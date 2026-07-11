@@ -20,6 +20,13 @@ export interface ImportResult {
   error?: string;
 }
 
+/** Normalisasi kode BA ke 3 digit ("22" → "022") agar tak tercipta BA ganda
+ *  (Kertas Kerja memakai "022", impor KODE dulu memakai "22"). */
+function normBaKode(k: string | undefined): string {
+  const s = (k || "").trim();
+  return /^\d+$/.test(s) ? s.padStart(3, "0") : s;
+}
+
 /** Kategori belanja (enum master_akun) diturunkan dari prefiks kode akun (BAS). */
 function akunKategori(kode: string): string {
   const k = (kode || "").replace(/\D/g, "");
@@ -134,7 +141,7 @@ export async function importKertasKerjaAction(
         if (n.level === "PROGRAM" && kode) {
           // "022.12.DL" → BA "022" + kode_program "12.DL"
           const parts = kode.split(".");
-          const baKode = parts[0] || "022";
+          const baKode = normBaKode(parts[0]) || "022";
           const progKode = parts.slice(1).join(".") || kode;
           const ba = await getOrCreate(
             "master_ba",

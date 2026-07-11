@@ -174,7 +174,7 @@ export function KodeManager() {  const [rows, setRows] = React.useState<KodePath
     const XLSX = await loadXLSXPlain();
     const ws = XLSX.utils.aoa_to_sheet([
       HEADERS,
-      ["22", "KEMENTERIAN PERHUBUNGAN", "12.DL", "Program Pendidikan dan Pelatihan", "1975",
+      ["022", "KEMENTERIAN PERHUBUNGAN", "12.DL", "Program Pendidikan dan Pelatihan", "1975",
         "Pengembangan SDM Perhubungan", "DAB", "Pendidikan Vokasi", "2", "Diklat Pembentukan",
         "051", "Diploma IV Nautika"],
     ]);

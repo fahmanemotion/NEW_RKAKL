@@ -53,7 +53,7 @@ export function parseKodeSheet(raw: unknown[][]): KodeParsed {
     const b = cleanText(r[1]).toLowerCase();
     if (HEAD.has(a) || HEAD.has(b)) continue;
 
-    const baK = cleanCode(r[0]);
+    const baK = cleanCode(r[0], 3); // BA dinormalisasi 3 digit ("22" → "022")
     const baN = cleanText(r[1]) || baK;
     const progK = cleanCode(r[2]);
     const progN = cleanText(r[3]) || progK;
