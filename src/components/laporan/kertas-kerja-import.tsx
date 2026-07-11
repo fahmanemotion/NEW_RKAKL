@@ -27,7 +27,13 @@ export function KertasKerjaImport({ usulanList }: { usulanList: ImportUsulan[] }
   const [fileName, setFileName] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
-  const [done, setDone] = React.useState<{ inserted: number; total: number } | null>(null);
+  const [done, setDone] = React.useState<{
+    inserted: number;
+    total: number;
+    refLinked: number;
+    refCreated: number;
+    refFailed: number;
+  } | null>(null);
   const fileRef = React.useRef<HTMLInputElement | null>(null);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -44,7 +50,7 @@ export function KertasKerjaImport({ usulanList }: { usulanList: ImportUsulan[] }
       const sheet = wb.Sheets["DETAIL"] ?? wb.Sheets[wb.SheetNames[0]];
       const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, blankrows: false, defval: "" });
       const res = parseKertasKerja(aoa);
-      if (res.nodes.length === 0) throw new Error("Tidak ada baris struktur yang dikenali. Pastikan format kertas kerja SAKTI.");
+      if (res.nodes.length === 0) throw new Error("Tidak ada baris struktur yang dikenali. Pastikan file berformat Kertas Kerja (sama dengan unduhan modul Review).");
       setParsed(res);
       setFileName(file.name);
     } catch (e2) {
@@ -65,7 +71,13 @@ export function KertasKerjaImport({ usulanList }: { usulanList: ImportUsulan[] }
     try {
       const res = await importKertasKerjaAction(target, parsed.nodes, parsed.fileTotal);
       if (!res.ok) throw new Error(res.error || "Gagal mengimpor.");
-      setDone({ inserted: res.inserted ?? 0, total: res.total ?? 0 });
+      setDone({
+        inserted: res.inserted ?? 0,
+        total: res.total ?? 0,
+        refLinked: res.refLinked ?? 0,
+        refCreated: res.refCreated ?? 0,
+        refFailed: res.refFailed ?? 0,
+      });
       setParsed(null);
       setFileName("");
     } catch (e) {
@@ -84,7 +96,9 @@ export function KertasKerjaImport({ usulanList }: { usulanList: ImportUsulan[] }
         <div>
           <h2 className="text-sm font-semibold">Import Kertas Kerja</h2>
           <p className="text-xs text-muted-foreground">
-            Unggah kertas kerja SAKTI (.xlsx) dan jadikan rincian usulan — lengkap sampai detail.
+            Unggah Kertas Kerja (.xlsx) — <strong>format sama dengan unduhan di modul Review</strong>.
+            Kode (Program s/d Komponen &amp; Akun) otomatis dicocokkan ke Referensi: yang sudah ada
+            dipakai ulang, yang baru dibuat otomatis.
           </p>
         </div>
       </div>
@@ -165,8 +179,11 @@ export function KertasKerjaImport({ usulanList }: { usulanList: ImportUsulan[] }
         <div className="flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/30">
           <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
           <span>
-            Berhasil — {done.inserted} baris diimpor, total {fmtN(done.total)}. Buka modul Penganggaran
-            atau pilih usulan di bawah untuk melihat kertas kerja & RAB-nya.
+            Berhasil — {done.inserted} baris diimpor, total {fmtN(done.total)}.
+            {" "}Referensi: <strong>{done.refLinked}</strong> kode dipakai ulang,{" "}
+            <strong>{done.refCreated}</strong> kode baru dibuat
+            {done.refFailed > 0 && <> · {done.refFailed} gagal ditautkan</>}.
+            {" "}Buka modul Penganggaran atau pilih usulan di bawah untuk melihat kertas kerja &amp; RAB-nya.
           </span>
         </div>
       )}

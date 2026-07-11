@@ -13,12 +13,31 @@ export interface ImportResult {
   inserted?: number;
   counts?: Record<string, number>;
   total?: number;
+  /** Referensi: berapa node ditautkan ke master yang SUDAH ada vs master BARU dibuat. */
+  refLinked?: number;
+  refCreated?: number;
+  refFailed?: number;
   error?: string;
+}
+
+/** Kategori belanja (enum master_akun) diturunkan dari prefiks kode akun (BAS). */
+function akunKategori(kode: string): string {
+  const k = (kode || "").replace(/\D/g, "");
+  if (k.startsWith("51")) return "Belanja Pegawai";
+  if (k.startsWith("53")) return "Belanja Modal";
+  return "Belanja Barang"; // 52x & lainnya
 }
 
 /**
  * Ganti seluruh rincian sebuah usulan dengan hasil parse Kertas Kerja.
  * Menghapus struktur lama lalu menyisipkan struktur baru (service-role).
+ *
+ * REKONSILIASI REFERENSI: tiap node struktural (PROGRAM→KOMPONEN + AKUN)
+ * dicocokkan ke tabel master. Kode yang SUDAH ada dipakai ulang (dedup, tak
+ * membuat duplikat) dan yang BELUM ada dibuat otomatis, lalu `referensi_id`
+ * ditautkan — sehingga struktur hasil impor bisa langsung diedit (picker anak
+ * berfungsi) & konsisten dengan Referensi. Pencocokan ber-scope induk sehingga
+ * deterministik walau master global memuat kode duplikat.
  */
 export async function importKertasKerjaAction(
   usulanId: string,
@@ -50,7 +69,152 @@ export async function importKertasKerjaAction(
       .eq("usulan_id", usulanId);
     if (delErr) throw new Error(delErr.message);
 
-    // 2) Petakan tempId → uuid, urutan per induk.
+    // 2) Rekonsiliasi REFERENSI (get-or-create, top-down). ---------------------
+    let refLinked = 0;
+    let refCreated = 0;
+    let refFailed = 0;
+    const cache = new Map<string, string>(); // cacheKey → masterId (hindari query berulang)
+
+    /** Cari master by kolom pencocok; bila tak ada, BUAT. Kembalikan id master. */
+    async function getOrCreate(
+      table: string,
+      match: Record<string, string | null>,
+      insertRow: Record<string, unknown>,
+      cacheKey: string,
+    ): Promise<{ id: string; created: boolean }> {
+      const hit = cache.get(cacheKey);
+      if (hit) return { id: hit, created: false };
+
+      const sel = () => {
+        let q = sb.from(table).select("id");
+        for (const [c, v] of Object.entries(match))
+          q = v === null ? q.is(c, null) : q.eq(c, v);
+        return q.limit(1);
+      };
+
+      const { data: found } = await sel();
+      if (found && found[0]?.id) {
+        cache.set(cacheKey, found[0].id);
+        return { id: found[0].id, created: false };
+      }
+
+      const { data: created, error } = await sb
+        .from(table)
+        .insert(insertRow)
+        .select("id")
+        .single();
+      if (!error && created?.id) {
+        cache.set(cacheKey, created.id);
+        return { id: created.id, created: true };
+      }
+
+      // Konflik unik (mis. balapan) → ambil ulang yang sudah ada.
+      const { data: again } = await sel();
+      if (again && again[0]?.id) {
+        cache.set(cacheKey, again[0].id);
+        return { id: again[0].id, created: false };
+      }
+      throw new Error(error?.message || `Gagal resolusi ${table}`);
+    }
+
+    // Nodes dari parser sudah PRE-ORDER (induk sebelum anak) → refId induk siap
+    // saat memproses anak.
+    const refIdByTempId = new Map<string, string | null>();
+    const lastSeg = (k: string) => k.split(".").pop() || k;
+
+    for (const n of nodes) {
+      const parentRef = n.parentTempId
+        ? refIdByTempId.get(n.parentTempId) ?? null
+        : null;
+      const kode = (n.kode ?? "").trim();
+      const uraian = (n.uraian ?? "").trim();
+      let refId: string | null = null;
+
+      try {
+        if (n.level === "PROGRAM" && kode) {
+          // "022.12.DL" → BA "022" + kode_program "12.DL"
+          const parts = kode.split(".");
+          const baKode = parts[0] || "022";
+          const progKode = parts.slice(1).join(".") || kode;
+          const ba = await getOrCreate(
+            "master_ba",
+            { kode_ba: baKode },
+            { kode_ba: baKode, nama_ba: baKode },
+            `ba|${baKode}`,
+          );
+          const r = await getOrCreate(
+            "master_program",
+            { ba_id: ba.id, kode_program: progKode },
+            { ba_id: ba.id, kode_program: progKode, nama_program: uraian || progKode },
+            `prog|${ba.id}|${progKode}`,
+          );
+          refId = r.id;
+          r.created ? refCreated++ : refLinked++;
+        } else if (n.level === "KEGIATAN" && kode && parentRef) {
+          const r = await getOrCreate(
+            "master_kegiatan",
+            { program_id: parentRef, kode_kegiatan: kode },
+            { program_id: parentRef, kode_kegiatan: kode, nama_kegiatan: uraian || kode },
+            `keg|${parentRef}|${kode}`,
+          );
+          refId = r.id;
+          r.created ? refCreated++ : refLinked++;
+        } else if (n.level === "KRO" && kode && parentRef) {
+          const kk = lastSeg(kode); // "3996.BMA" → "BMA"
+          const r = await getOrCreate(
+            "master_kro",
+            { kegiatan_id: parentRef, kode_kro: kk },
+            { kegiatan_id: parentRef, kode_kro: kk, nama_kro: uraian || kk },
+            `kro|${parentRef}|${kk}`,
+          );
+          refId = r.id;
+          r.created ? refCreated++ : refLinked++;
+        } else if (n.level === "RO" && kode && parentRef) {
+          const rk = lastSeg(kode); // "3996.BMA.005" → "005"
+          const r = await getOrCreate(
+            "master_ro",
+            { kro_id: parentRef, kode_ro: rk },
+            { kro_id: parentRef, kode_ro: rk, nama_ro: uraian || rk },
+            `ro|${parentRef}|${rk}`,
+          );
+          refId = r.id;
+          r.created ? refCreated++ : refLinked++;
+        } else if (n.level === "KOMPONEN" && kode && parentRef) {
+          const ck = lastSeg(kode); // "051"
+          const r = await getOrCreate(
+            "master_komponen",
+            { ro_id: parentRef, kode_komponen: ck },
+            { ro_id: parentRef, kode_komponen: ck, nama_komponen: uraian || ck },
+            `komp|${parentRef}|${ck}`,
+          );
+          refId = r.id;
+          r.created ? refCreated++ : refLinked++;
+        } else if (n.level === "AKUN" && kode) {
+          const r = await getOrCreate(
+            "master_akun",
+            { kode_akun: kode },
+            {
+              kode_akun: kode,
+              nama_akun: uraian || kode,
+              kategori_belanja: akunKategori(kode),
+              sumber_dana: n.sumber_dana || "RM",
+            },
+            `akun|${kode}`,
+          );
+          refId = r.id;
+          r.created ? refCreated++ : refLinked++;
+        }
+        // SUB_KOMPONEN / HEADER / DETAIL: tak punya master → referensi_id null.
+      } catch {
+        // Jangan gagalkan seluruh impor karena satu resolusi gagal — biarkan
+        // node tsb tak-tertaut (referensi_id null) & catat sebagai gagal.
+        refId = null;
+        refFailed++;
+      }
+      refIdByTempId.set(n.tempId, refId);
+    }
+
+    // 3) Petakan tempId → uuid, urutan per induk.
     const idMap = new Map<string, string>();
     for (const n of nodes) idMap.set(n.tempId, crypto.randomUUID());
     const urutByParent = new Map<string, number>();
@@ -64,7 +228,7 @@ export async function importKertasKerjaAction(
         usulan_id: usulanId,
         parent_id: n.parentTempId ? idMap.get(n.parentTempId)! : null,
         level: n.level,
-        referensi_id: null,
+        referensi_id: refIdByTempId.get(n.tempId) ?? null,
         kode: n.kode,
         uraian: n.uraian,
         volume: n.volume,
@@ -79,7 +243,7 @@ export async function importKertasKerjaAction(
       };
     });
 
-    // 3) Sisipkan per kedalaman (induk sebelum anak), per potongan 500.
+    // 4) Sisipkan per kedalaman (induk sebelum anak), per potongan 500.
     let inserted = 0;
     for (let d = 0; d <= 7; d++) {
       const batch = recs
@@ -93,7 +257,7 @@ export async function importKertasKerjaAction(
       }
     }
 
-    // 4) Bersihkan klaim KRO (data segar untuk input paralel) + segarkan total.
+    // 5) Bersihkan klaim KRO (data segar untuk input paralel) + segarkan total.
     await sb
       .from("usulan_struktur")
       .update({ dikerjakan_oleh: null, dikerjakan_oleh_nama: null, dikerjakan_pada: null })
@@ -108,7 +272,7 @@ export async function importKertasKerjaAction(
     const counts: Record<string, number> = {};
     for (const n of nodes) counts[n.level] = (counts[n.level] ?? 0) + 1;
 
-    return { ok: true, inserted, counts, total };
+    return { ok: true, inserted, counts, total, refLinked, refCreated, refFailed };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
