@@ -264,17 +264,29 @@ export async function importKertasKerjaAction(
       }
     }
 
-    // 5) Bersihkan klaim KRO (data segar untuk input paralel) + segarkan total.
+    // 5) Bersihkan klaim KRO (data segar untuk input paralel).
     await sb
       .from("usulan_struktur")
       .update({ dikerjakan_oleh: null, dikerjakan_oleh_nama: null, dikerjakan_pada: null })
       .eq("usulan_id", usulanId)
       .eq("level", "KRO");
 
-    const total = nodes
-      .filter((n) => n.level === "DETAIL")
-      .reduce((s, n) => s + (n.jumlah ?? 0), 0);
-    await sb.from("usulan_anggaran").update({ total_anggaran: total, total_header: fileTotal || null }).eq("id", usulanId);
+    // 6) total_anggaran TIDAK ditulis manual di sini. Trigger rollup DB sudah
+    // menyetelnya = Σ (vol×harga) tiap DETAIL — BASIS SAMA yang dipakai editor,
+    // dashboard, & review. Menuliskan Σ jumlah dari FILE (yang bisa BEDA dari
+    // vol×harga — mis. gaji/tunjangan pada Pagu Kebutuhan) dulu membuat angka di
+    // DAFTAR usulan tak sinkron dengan modul lain. Cukup simpan total_header
+    // (angka header SAKTI) untuk rujukan, lalu BACA total_anggaran hasil rollup.
+    await sb
+      .from("usulan_anggaran")
+      .update({ total_header: fileTotal || null })
+      .eq("id", usulanId);
+    const { data: uaAfter } = await sb
+      .from("usulan_anggaran")
+      .select("total_anggaran")
+      .eq("id", usulanId)
+      .single();
+    const total = Number((uaAfter as { total_anggaran?: number } | null)?.total_anggaran) || 0;
 
     const counts: Record<string, number> = {};
     for (const n of nodes) counts[n.level] = (counts[n.level] ?? 0) + 1;
