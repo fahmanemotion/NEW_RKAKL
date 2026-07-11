@@ -120,7 +120,9 @@ ok(res.skipped.orphanDetails===0,"tidak ada detail orphan pada contoh ini");
   ok(r4.nodes.filter(n=>n.level==="DETAIL").length===3,"3 detail utuh setelah rekonstruksi");
 }
 
-// Kode dipakai ULANG untuk kegiatan berbeda → WAJIB tetap terpisah (tidak tergabung)
+// Kode SAMA pada induk (RO) yang sama, uraian beda → DIGABUNG (kode = patokan
+// tunggal). Duplikat tak tersimpan & tak melanggar unique index sibling_kode;
+// rincian (detail) dari keduanya TETAP terjaga di bawah node gabungan.
 {
   const r3 = parseKertasKerja([
     row({1:"022.12",2:"Satker"}),
@@ -148,10 +150,32 @@ ok(res.skipped.orphanDetails===0,"tidak ada detail orphan pada contoh ini");
     row({2:"d4",18:1,20:1,21:1}),
   ]);
   const komp = r3.nodes.filter(n=>n.level==="KOMPONEN");
-  ok(komp.filter(n=>n.kode==="051").length===2,"dua komponen 051 (uraian beda) tetap terpisah");
+  ok(komp.filter(n=>n.kode==="051").length===1,"dua komponen 051 (uraian beda) DIGABUNG jadi satu (kode = patokan)");
   ok(komp.filter(n=>n.kode==="052").length===1,"komponen 052 (uraian sama) digabung jadi satu");
-  ok(r3.nodes.filter(n=>n.level==="DETAIL").length===4,"semua 4 detail terjaga");
-  ok(r3.nodes.some(n=>n.uraian==="Basic Safety Training"),"komponen 'Basic Safety Training' tidak hilang");
+  ok(r3.nodes.filter(n=>n.level==="DETAIL").length===4,"semua 4 detail terjaga (data tak hilang walau node digabung)");
+  ok(komp.find(n=>n.kode==="051")?.uraian==="Workshop Silabus","komponen 051 gabungan memakai uraian kemunculan pertama (Basic Safety Training diserap)");
+}
+// Kode SAMA pada induk BERBEDA (RO berbeda) → TETAP terpisah: penggabungan
+// ber-scope induk, jadi tak over-merge lintas induk.
+{
+  const r4 = parseKertasKerja([
+    row({1:"022.12",2:"Satker"}),
+    row({1:"022.12.DL",2:"Program",21:1}),
+    row({1:"3996",2:"Keg",21:1}),
+    row({1:"3996.AEC",2:"KRO",21:1}),
+    row({1:"3996.AEC.001",2:"RO-1",21:1}),
+    row({1:"051",2:"Komp di RO-1",21:1}),
+    row({1:"A",2:"Sub",21:1}),
+    row({1:"525112",2:"Akun",21:1,32:"BLU"}),
+    row({2:"da",18:1,20:1,21:1}),
+    row({1:"3996.AEC.002",2:"RO-2",21:1}),
+    row({1:"051",2:"Komp di RO-2",21:1}),   // kode 051 sama, induk (RO) BEDA
+    row({1:"A",2:"Sub",21:1}),
+    row({1:"525112",2:"Akun",21:1,32:"BLU"}),
+    row({2:"db",18:1,20:1,21:1}),
+  ]);
+  ok(r4.nodes.filter(n=>n.level==="RO").length===2,"dua RO berbeda terbentuk");
+  ok(r4.nodes.filter(n=>n.level==="KOMPONEN"&&n.kode==="051").length===2,"komponen 051 di RO berbeda TETAP terpisah (scope induk)");
 }
 {
   const r2 = parseKertasKerja([

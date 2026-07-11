@@ -251,13 +251,17 @@ export function parseKertasKerja(aoa0: unknown[][]): KKImportResult {
       continue;
     }
 
-    // Identitas node: PROGRAM/KEGIATAN/KRO/RO punya kode berjenjang yang UNIK →
-    // gabung berdasar kode saja (cocok dgn rekonstruksi di atas). KOMPONEN/
-    // SUB_KOMPONEN/AKUN memakai ULANG kode untuk kegiatan berbeda → gabung hanya
-    // bila kode DAN uraian sama persis agar yang berbeda tidak hilang.
-    const codeOnly = lv === "PROGRAM" || lv === "KEGIATAN" || lv === "KRO" || lv === "RO";
-    const key = codeOnly
-      ? (kode || uraianRaw).toUpperCase()
+    // Identitas node = KODE (patokan TUNGGAL). Node berkode SAMA pada induk yang
+    // sama DIGABUNG walau uraiannya sedikit berbeda — sehingga tidak tersimpan
+    // sebagai duplikat & tak melanggar unique index uq_usulan_struktur_sibling_kode
+    // (kode wajib unik per induk untuk PROGRAM/KEGIATAN/KRO/RO/KOMPONEN/AKUN, dan
+    // SUB_KOMPONEN via trigger). Karena `bag` sudah ber-scope INDUK, kode yang sama
+    // dipakai ulang pada induk BERBEDA tetap tak tertukar (mis. komponen "051" di
+    // bawah RO-A ≠ "051" di bawah RO-B). Hanya kode "kosong"/"-" (mis. Sub Komponen
+    // tanpa kode) yang dibedakan per uraian, karena itu bukan kode sungguhan.
+    const hasRealCode = !!kode && kode !== "-";
+    const key = hasRealCode
+      ? kode.toUpperCase()
       : ((kode || uraianRaw) + "\u0001" + uraianRaw).toUpperCase();
     const bag = parent ? parent.byKey : rootByKey;
     const existing = MERGE_LEVELS.has(lv) ? bag.get(key) : undefined;
