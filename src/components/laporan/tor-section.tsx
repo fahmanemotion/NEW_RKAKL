@@ -1,9 +1,10 @@
 "use client";
 import * as React from "react";
-import { FileText, Download, Loader2, Inbox, ChevronRight, ChevronsUpDown, Check, Search, Pencil, Eye } from "lucide-react";
+import { FileText, Download, Loader2, Inbox, ChevronRight, ChevronsUpDown, Check, Search, Pencil, Eye, Save } from "lucide-react";
 import { Button, Card, Select } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import { listTorKomponen, buildTorForKomponen, type TorKomponenItem } from "@/lib/tor-data";
+import { listTorKomponen, buildTorForKomponen, normKomp, type TorKomponenItem } from "@/lib/tor-data";
+import { saveTorTemplateForUsulan, listTorTemplateKeys } from "@/lib/tor-isi-api";
 import { generateTorDocx, downloadBlob } from "@/lib/tor-generate";
 import { TorEditor } from "@/components/laporan/tor-editor";
 import { TorPreviewModal } from "@/components/laporan/tor-preview";
@@ -145,6 +146,40 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
   const [editKomp, setEditKomp] = React.useState<TorKomponenItem | null>(null);
   const [preview, setPreview] = React.useState<{ blob: Blob; filename: string } | null>(null);
   const [previewBusy, setPreviewBusy] = React.useState<string | null>(null);
+  // Template isi TOR (reusable lintas usulan): status simpan + kunci yang sudah punya template.
+  const [savingTmpl, setSavingTmpl] = React.useState(false);
+  const [tmplMsg, setTmplMsg] = React.useState<string | null>(null);
+  const [tmplKeys, setTmplKeys] = React.useState<Set<string>>(new Set());
+
+  const refreshTmplKeys = React.useCallback(() => {
+    listTorTemplateKeys().then(setTmplKeys).catch(() => {});
+  }, []);
+  React.useEffect(() => {
+    refreshTmplKeys();
+  }, [refreshTmplKeys]);
+
+  async function onSaveTemplate() {
+    if (!usulanId || items.length === 0) return;
+    setSavingTmpl(true);
+    setTmplMsg(null);
+    setErr(null);
+    try {
+      const { saved } = await saveTorTemplateForUsulan(
+        usulanId,
+        items.map((i) => ({ id: i.id, uraian: i.uraian })),
+      );
+      setTmplMsg(
+        saved > 0
+          ? `${saved} komponen tersimpan sebagai template — bisa dipakai ulang di PAGU/tahun berikutnya.`
+          : "Belum ada narasi terisi untuk disimpan. Klik “Isi” pada komponen dan simpan narasinya dulu.",
+      );
+      refreshTmplKeys();
+    } catch (e) {
+      setErr("Gagal menyimpan template: " + (e as Error).message);
+    } finally {
+      setSavingTmpl(false);
+    }
+  }
 
   React.useEffect(() => {
     if (!usulanId) {
@@ -156,6 +191,7 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
     setErr(null);
     setKroFilter("");
     setKompFilter("");
+    setTmplMsg(null);
     listTorKomponen(usulanId)
       .then((rows) => {
         if (alive) setItems(rows);
@@ -247,6 +283,23 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
       </label>
 
       {items.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-300/60 bg-amber-100/40 px-3 py-2 dark:border-amber-800/50 dark:bg-amber-950/20">
+          <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={onSaveTemplate} disabled={savingTmpl}>
+            {savingTmpl ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+            Simpan sebagai Template
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            Simpan semua narasi TOR usulan ini agar dapat dipakai ulang untuk PAGU/tahun berikutnya.
+          </span>
+          {tmplMsg && (
+            <span className="w-full text-xs font-medium text-emerald-700 dark:text-emerald-400 sm:ml-auto sm:w-auto">
+              {tmplMsg}
+            </span>
+          )}
+        </div>
+      )}
+
+      {items.length > 0 && (
         <div className="mb-3 grid gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-muted-foreground">Filter KRO</span>
@@ -295,6 +348,14 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
                   <div className="flex items-center gap-1.5 text-[13px]">
                     <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{k.kode}</span>
                     <span className="truncate font-medium">{k.uraian}</span>
+                    {tmplKeys.has(normKomp(k.uraian)) && (
+                      <span
+                        className="shrink-0 rounded-full bg-sky-100 px-1.5 py-0.5 text-[9px] font-medium leading-none text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
+                        title="Ada template narasi tersimpan untuk komponen ini — akan dimuat otomatis saat Isi kosong"
+                      >
+                        template
+                      </span>
+                    )}
                   </div>
                   {(k.kroUraian || k.roUraian) && (
                     <div className="flex items-center gap-1 truncate text-[10px] leading-tight text-muted-foreground">

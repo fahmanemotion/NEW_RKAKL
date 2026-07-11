@@ -4,7 +4,7 @@ import { Button, Input, Select } from "@/components/ui";
 import { Modal } from "@/components/ui/modal";
 import { Loader2, Plus, Trash2, Save } from "lucide-react";
 import { TOR_SECTIONS, wordTargets } from "@/lib/tor-ai-sections";
-import { loadTorIsi, saveTorIsi, DEFAULT_TAHAPAN, type TorIsi, type TorTahapanRow } from "@/lib/tor-isi-api";
+import { loadTorIsi, saveTorIsi, loadTorTemplate, DEFAULT_TAHAPAN, type TorIsi, type TorTahapanRow } from "@/lib/tor-isi-api";
 
 const BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Ags", "Sep", "Okt", "Nov", "Des"];
 function countWords(s: string): number {
@@ -27,13 +27,29 @@ export function TorEditor({
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
   const [isi, setIsi] = React.useState<TorIsi>({ narasi: {}, tahapan: [], sumberDana: "RM" });
+  // true = isi diambil dari TEMPLATE (belum tersimpan utk usulan ini).
+  const [fromTemplate, setFromTemplate] = React.useState(false);
 
   React.useEffect(() => {
     if (!open || !komponen) return;
     setLoading(true);
     setErr(null);
+    setFromTemplate(false);
+    const nama = komponen.uraian;
     loadTorIsi(usulanId, komponen.id)
-      .then(setIsi)
+      .then(async (loaded) => {
+        const hasContent = Object.values(loaded.narasi).some((tx) => tx && tx.trim());
+        // Isi usulan ini masih kosong → coba muat dari TEMPLATE (komponen bernama sama).
+        if (!hasContent) {
+          const tmpl = await loadTorTemplate(nama).catch(() => null);
+          if (tmpl && Object.values(tmpl.narasi).some((tx) => tx && tx.trim())) {
+            setIsi(tmpl);
+            setFromTemplate(true);
+            return;
+          }
+        }
+        setIsi(loaded);
+      })
       .catch((e) => setErr((e as Error).message))
       .finally(() => setLoading(false));
   }, [open, komponen, usulanId]);
@@ -99,6 +115,12 @@ export function TorEditor({
         </div>
       ) : (
         <div className="max-h-[65vh] space-y-5 overflow-y-auto pr-1">
+          {fromTemplate && (
+            <div className="rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-300">
+              Dimuat dari <strong>template tersimpan</strong> (komponen bernama sama pada usulan lain).
+              Sesuaikan bila perlu, lalu <strong>Simpan</strong> untuk menyimpannya pada usulan ini.
+            </div>
+          )}
           {/* Sumber dana */}
           <div className="flex items-center gap-3">
             <label className="text-sm font-medium">Sumber dana (Bagian Biaya):</label>

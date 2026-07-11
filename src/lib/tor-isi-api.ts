@@ -2,6 +2,7 @@
 // dan pilihan sumber dana (RM/BLU). Dipakai oleh form editor isi TOR.
 import { createClient } from "@/lib/supabase";
 import { TOR_SECTIONS } from "./tor-ai-sections";
+import { normKomp } from "./tor-data";
 
 export interface TorTahapanRow {
   nama: string;
@@ -103,4 +104,88 @@ export async function saveTorIsi(usulanId: string, komponenId: string, isi: TorI
 function clampBulan(n: number): number {
   const v = Math.round(Number(n) || 1);
   return Math.min(12, Math.max(1, v));
+}
+
+/* ── Template isi TOR (dapat dipakai ulang lintas usulan/tahun) ────────────────
+ * Isi TOR disimpan ber-KUNCI NAMA KOMPONEN (dinormalisasi via normKomp — kunci
+ * yang SAMA dipakai pencocokan KODE TOR), sehingga usulan lain yang komponennya
+ * bernama sama dapat memuat kembali narasi yang sudah pernah dibuat.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Simpan SELURUH isi TOR usulan ini sebagai template (per komponen berisi).
+ *  Membaca narasi/tahapan/opsi tersimpan usulan, lalu upsert ber-kunci nama. */
+export async function saveTorTemplateForUsulan(
+  usulanId: string,
+  komponen: { id: string; uraian: string }[],
+): Promise<{ saved: number }> {
+  const c = sb();
+  const [{ data: n }, { data: t }, { data: o }] = await Promise.all([
+    c.from("tor_narasi").select("komponen_id, section_id, teks").eq("usulan_id", usulanId),
+    c.from("tor_tahapan").select("komponen_id, nama, urutan, bulan_mulai, bulan_selesai").eq("usulan_id", usulanId).order("urutan"),
+    c.from("tor_komponen_opsi").select("komponen_id, sumber_dana").eq("usulan_id", usulanId),
+  ]);
+
+  const narasiByKomp = new Map<string, Record<string, string>>();
+  for (const r of (n ?? []) as { komponen_id: string; section_id: string; teks: string }[]) {
+    if (!(r.teks && r.teks.trim())) continue;
+    const m = narasiByKomp.get(r.komponen_id) ?? {};
+    m[r.section_id] = r.teks;
+    narasiByKomp.set(r.komponen_id, m);
+  }
+  const tahapanByKomp = new Map<string, TorTahapanRow[]>();
+  for (const r of (t ?? []) as (TorTahapanRow & { komponen_id: string })[]) {
+    const arr = tahapanByKomp.get(r.komponen_id) ?? [];
+    arr.push({ nama: r.nama, bulan_mulai: Number(r.bulan_mulai) || 1, bulan_selesai: Number(r.bulan_selesai) || 1 });
+    tahapanByKomp.set(r.komponen_id, arr);
+  }
+  const opsiByKomp = new Map<string, string>();
+  for (const r of (o ?? []) as { komponen_id: string; sumber_dana: string }[]) opsiByKomp.set(r.komponen_id, r.sumber_dana || "RM");
+
+  const rows: { komponen_key: string; komponen_nama: string; data: TorIsi; updated_at: string }[] = [];
+  const seen = new Set<string>();
+  const now = new Date().toISOString();
+  for (const k of komponen) {
+    const narasi = narasiByKomp.get(k.id);
+    if (!narasi || Object.keys(narasi).length === 0) continue; // hanya komponen BERISI
+    const key = normKomp(k.uraian);
+    if (!key || seen.has(key)) continue; // dedup kunci dalam satu batch upsert
+    seen.add(key);
+    rows.push({
+      komponen_key: key,
+      komponen_nama: k.uraian,
+      data: {
+        narasi,
+        tahapan: tahapanByKomp.get(k.id) ?? [],
+        sumberDana: opsiByKomp.get(k.id) === "BLU" ? "BLU" : "RM",
+      },
+      updated_at: now,
+    });
+  }
+  if (rows.length) {
+    const { error } = await c.from("tor_isi_template").upsert(rows, { onConflict: "komponen_key" });
+    if (error) throw error;
+  }
+  return { saved: rows.length };
+}
+
+/** Muat template isi TOR untuk sebuah nama komponen (null bila belum ada). */
+export async function loadTorTemplate(komponenNama: string): Promise<TorIsi | null> {
+  const key = normKomp(komponenNama);
+  if (!key) return null;
+  const { data } = await sb().from("tor_isi_template").select("data").eq("komponen_key", key).maybeSingle();
+  if (!data) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const d = ((data as any).data ?? {}) as Partial<TorIsi>;
+  const tahapan = (d.tahapan ?? []) as TorTahapanRow[];
+  return {
+    narasi: d.narasi ?? {},
+    tahapan: tahapan.length ? tahapan : DEFAULT_TAHAPAN.map((x) => ({ ...x })),
+    sumberDana: d.sumberDana === "BLU" ? "BLU" : "RM",
+  };
+}
+
+/** Himpunan kunci komponen yang punya template (untuk penanda di daftar). */
+export async function listTorTemplateKeys(): Promise<Set<string>> {
+  const { data } = await sb().from("tor_isi_template").select("komponen_key");
+  return new Set(((data ?? []) as { komponen_key: string }[]).map((r) => r.komponen_key));
 }

@@ -56,8 +56,9 @@ function fmtTempatTgl(kota: string, tanggalIso: string | null): string {
 }
 
 /** Normalisasi nama komponen agar pencocokan KODE TOR longgar:
- *  huruf kecil, buang "(...)" (mis. "(BST)"), buang tanda baca, rapikan spasi. */
-function normKomp(s: string): string {
+ *  huruf kecil, buang "(...)" (mis. "(BST)"), buang tanda baca, rapikan spasi.
+ *  Diekspor agar template isi TOR memakai KUNCI yang SAMA (tor-isi-api.ts). */
+export function normKomp(s: string): string {
   return String(s || "")
     .toLowerCase()
     .replace(/\([^)]*\)/g, " ")
