@@ -88,19 +88,30 @@
 @layer components {
   /* Sidebar bergradien navy dengan kedalaman halus (light & dark) */
   .app-sidebar {
-    background-image: linear-gradient(
-      180deg,
-      color-mix(in srgb, hsl(var(--sidebar)) 100%, white 5%) 0%,
-      hsl(var(--sidebar)) 38%,
-      color-mix(in srgb, hsl(var(--sidebar)) 100%, black 22%) 100%
-    );
-    box-shadow: inset -1px 0 0 hsl(0 0% 100% / 0.04);
+    background-color: hsl(var(--sidebar));
+    background-image:
+      radial-gradient(130% 55% at 0% 0%, hsl(190 95% 52% / 0.22), transparent 58%),
+      radial-gradient(120% 52% at 100% 100%, hsl(255 88% 62% / 0.22), transparent 60%),
+      radial-gradient(90% 42% at 100% 0%, hsl(214 92% 56% / 0.14), transparent 62%),
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, hsl(var(--sidebar)) 100%, white 6%) 0%,
+        hsl(var(--sidebar)) 42%,
+        color-mix(in srgb, hsl(var(--sidebar)) 100%, black 24%) 100%
+      );
+    box-shadow: inset -1px 0 0 hsl(0 0% 100% / 0.05);
   }
-  /* Item nav aktif: latar lembut + pita aksen kiri + teks putih */
+  /* Item nav aktif: pil gradasi teal→indigo + pita aksen kiri + kilau + teks putih */
   .nav-active {
-    background-color: hsl(0 0% 100% / 0.10);
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--sidebar-accent) / 0.32),
+      hsl(255 88% 64% / 0.16)
+    );
     color: #fff;
-    box-shadow: inset 3px 0 0 hsl(var(--sidebar-accent));
+    box-shadow:
+      inset 3px 0 0 hsl(var(--sidebar-accent)),
+      0 6px 18px -8px hsl(var(--sidebar-accent) / 0.55);
   }
   /* Kartu sedikit lebih berdimensi */
   .card-elevated {

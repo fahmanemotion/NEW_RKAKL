@@ -2,7 +2,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Building2, LogOut, Menu, X } from 'lucide-react';
+import { Anchor, LogOut, Menu, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui';
@@ -36,10 +36,17 @@ export function Shell({ user, satkerLogo, children }: { user: CurrentUser; satke
             open && 'translate-x-0',
           )}
         >
+          {/* orb warna dekoratif (di belakang konten) */}
+          <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+            <div className="absolute -left-8 -top-10 size-44 rounded-full bg-cyan-400/25 blur-3xl" />
+            <div className="absolute -right-10 top-1/3 size-40 rounded-full bg-indigo-500/25 blur-3xl" />
+            <div className="absolute -bottom-16 left-1/4 size-48 rounded-full bg-teal-400/15 blur-3xl" />
+          </div>
+
           {/* Logo + identitas satker */}
           <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4">
-            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-sidebar-accent to-primary text-white shadow-lg shadow-black/25 ring-1 ring-white/15">
-              <Building2 className="size-5" />
+            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-indigo-500 text-white shadow-lg shadow-cyan-500/30 ring-1 ring-white/20">
+              <Anchor className="size-5" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[15px] font-bold leading-tight tracking-wide text-white">SIRANGGA</div>
@@ -74,14 +81,14 @@ export function Shell({ user, satkerLogo, children }: { user: CurrentUser; satke
                     'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                     active
                       ? 'nav-active'
-                      : 'text-sidebar-foreground/75 hover:bg-white/[0.07] hover:text-white',
+                      : 'text-sidebar-foreground/75 hover:bg-sidebar-accent/[0.12] hover:text-white',
                   )}
                 >
                   <LinkPendingIcon
                     Icon={Icon}
                     className={cn(
                       'size-[18px] shrink-0 transition-colors',
-                      active ? 'text-sidebar-accent' : 'text-sidebar-foreground/55 group-hover:text-white',
+                      active ? 'text-sidebar-accent' : 'text-sidebar-foreground/55 group-hover:text-sidebar-accent',
                     )}
                   />
                   {it.label}
