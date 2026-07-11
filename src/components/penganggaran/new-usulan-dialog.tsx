@@ -6,17 +6,24 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { Modal } from "@/components/ui/modal";
 import { Button, Select, Input } from "@/components/ui";
 import { createClient } from "@/lib/supabase";
-import { createUsulanAction } from "@/app/(dashboard)/penganggaran/actions";
+import {
+  createUsulanAction,
+  copyAnggaranAction,
+} from "@/app/(dashboard)/penganggaran/actions";
 import {
   tahapWorkflowState,
   TAHAP_LABEL,
+  TAHAP_ORDER,
   type TahapPagu,
 } from "@/lib/tahap-pagu";
+import { fmtRp } from "@/lib/constants";
 
 interface UsulanRow {
+  id: string;
   tahun_anggaran: number;
   tahap_pagu: string | null;
   status: string;
+  total_anggaran: number | null;
 }
 const sb = () => createClient() as unknown as SupabaseClient;
 
@@ -26,8 +33,10 @@ export function NewUsulanButton() {
   const [tahun, setTahun] = React.useState(new Date().getFullYear() + 1);
   const [existing, setExisting] = React.useState<UsulanRow[]>([]);
   const [tahap, setTahap] = React.useState<TahapPagu | "">("");
+  const [copyFromId, setCopyFromId] = React.useState<string>(""); // "" = kosong
   const [loading, setLoading] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  const [copying, setCopying] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
   // Ambil usulan satker (RLS membatasi ke satker sendiri) saat modal dibuka.
@@ -38,12 +47,33 @@ export function NewUsulanButton() {
     (async () => {
       const { data, error } = await sb()
         .from("usulan_anggaran")
-        .select("tahun_anggaran, tahap_pagu, status");
+        .select("id, tahun_anggaran, tahap_pagu, status, total_anggaran");
       if (error) setErr(error.message);
       setExisting((data ?? []) as unknown as UsulanRow[]);
       setLoading(false);
     })();
   }, [open]);
+
+  // Sumber salinan: usulan TAHUN SEBELUMNYA (tahun − 1) milik satker yang SUDAH
+  // berisi pagu (total > 0). Hingga 4 tahap. Kosong bila tahun sebelumnya belum ada.
+  const copySources = React.useMemo(
+    () =>
+      existing
+        .filter(
+          (u) =>
+            u.tahun_anggaran === tahun - 1 && (Number(u.total_anggaran) || 0) > 0,
+        )
+        .sort(
+          (a, b) =>
+            TAHAP_ORDER.indexOf(a.tahap_pagu as TahapPagu) -
+            TAHAP_ORDER.indexOf(b.tahap_pagu as TahapPagu),
+        ),
+    [existing, tahun],
+  );
+  // Reset pilihan salin bila tahun berganti (sumber ikut berganti).
+  React.useEffect(() => {
+    setCopyFromId("");
+  }, [tahun]);
 
   // Keadaan alur untuk tahun terpilih.
   const state = React.useMemo(
@@ -62,10 +92,23 @@ export function NewUsulanButton() {
     setErr(null);
     try {
       const id = await createUsulanAction({ tahun, tahapPagu: tahap });
+      // Opsional: salin SELURUH rincian dari usulan tahun sebelumnya terpilih.
+      if (copyFromId) {
+        setCopying(true);
+        const res = await copyAnggaranAction(id, copyFromId);
+        if (!res.ok) {
+          alert(
+            "Usulan berhasil dibuat, tetapi penyalinan gagal: " +
+              res.error +
+              "\n\nAnda dapat menyalin lagi dari dalam usulan (kartu “Salin Anggaran”).",
+          );
+        }
+      }
       router.push(`/penganggaran/${id}`);
     } catch (e) {
       setErr((e as Error).message);
       setBusy(false);
+      setCopying(false);
     }
   }
 
@@ -94,7 +137,12 @@ export function NewUsulanButton() {
               onClick={submit}
               disabled={busy || loading || !state.canCreate || !tahap}
             >
-              {busy && <Loader2 className="size-4 animate-spin" />} Buat & Buka
+              {busy && <Loader2 className="size-4 animate-spin" />}{" "}
+              {copying
+                ? "Menyalin…"
+                : copyFromId
+                  ? "Buat, Salin & Buka"
+                  : "Buat & Buka"}
             </Button>
           </>
         }
@@ -126,6 +174,28 @@ export function NewUsulanButton() {
                   </option>
                 ))}
               </Select>
+            </Field>
+
+            <Field label={`Salin dari PAGU TA ${tahun - 1} (opsional)`}>
+              <Select
+                value={copyFromId}
+                onChange={(e) => setCopyFromId(e.target.value)}
+                disabled={!state.canCreate || copySources.length === 0}
+              >
+                <option value="">— Kosong (input dari awal) —</option>
+                {copySources.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    TA {s.tahun_anggaran} ·{" "}
+                    {TAHAP_LABEL[s.tahap_pagu as TahapPagu] ?? s.tahap_pagu} ·
+                    Pagu {fmtRp(s.total_anggaran)}
+                  </option>
+                ))}
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {copySources.length === 0
+                  ? `Tidak ada usulan TA ${tahun - 1} berisi pagu untuk disalin — usulan akan dibuat kosong.`
+                  : `Salin seluruh rincian dari salah satu PAGU TA ${tahun - 1} agar tinggal disesuaikan/ditambah.`}
+              </p>
             </Field>
 
             {reasonMsg && (
