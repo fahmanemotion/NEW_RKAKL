@@ -14,6 +14,12 @@ const nextConfig: NextConfig = {
     // <Link prefetch> = true. Editor Penganggaran menyegarkan diri saat dibuka
     // (revalidate-on-open) agar data tak pernah basi walau disajikan dari cache.
     staleTimes: { dynamic: 30, static: 180 },
+    // #3 — Prefetch DINAMIS SAAT HOVER. Ketika kursor melewati sebuah tautan
+    // (mis. menu sidebar), Next menyiapkan halaman dinamis itu lebih dulu
+    // (render + data), lalu Router Cache di atas menyimpannya → klik terasa
+    // INSTAN. Prefetch tidak menyentuh kerja sesi berat di middleware (di-skip
+    // untuk permintaan prefetch), jadi murah & aman.
+    dynamicOnHover: true,
   },
 };
 
