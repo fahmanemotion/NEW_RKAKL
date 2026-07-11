@@ -8,11 +8,13 @@ import {
   importKodeGabungan,
   listKodePaths,
   updateKomponen,
+  updateKodeNode,
   deleteKomponen,
   deleteAllKode,
   listUsedRefIds,
   type KodeImportResult,
   type KodePathRow,
+  type KodeLevel,
 } from "@/lib/referensi-api";
 
 const HEADERS = [
@@ -34,6 +36,15 @@ export function KodeManager() {  const [rows, setRows] = React.useState<KodePath
   const fileRef = React.useRef<HTMLInputElement | null>(null);
   const [edit, setEdit] = React.useState<KodePathRow | null>(null);
   const [rowBusy, setRowBusy] = React.useState(false);
+  // Edit narasi node berjenjang (Program/Kegiatan/KRO/RO) — perbaiki salah tulis.
+  const [editNode, setEditNode] = React.useState<{
+    level: KodeLevel;
+    id: string;
+    kode: string;
+    nama: string;
+    label: string;
+  } | null>(null);
+  const [nodeBusy, setNodeBusy] = React.useState(false);
   const [confirmDelAll, setConfirmDelAll] = React.useState(false);
   const [delAllText, setDelAllText] = React.useState("");
   const [delAllBusy, setDelAllBusy] = React.useState(false);
@@ -74,6 +85,23 @@ export function KodeManager() {  const [rows, setRows] = React.useState<KodePath
       await load();
     } catch (e) {
       alert("Gagal menghapus: " + cleanMsg((e as Error).message));
+    }
+  }
+
+  // Simpan narasi (dan/atau kode) node berjenjang. Perubahan berlaku ke semua
+  // jalur yang memakai node ini (satu master dipakai bersama).
+  async function onSaveNode(nama: string) {
+    if (!editNode) return;
+    if (!nama.trim()) return alert("Narasi wajib diisi.");
+    setNodeBusy(true);
+    try {
+      await updateKodeNode(editNode.level, editNode.id, { nama: nama.trim() });
+      setEditNode(null);
+      await load();
+    } catch (e) {
+      alert(cleanMsg((e as Error).message));
+    } finally {
+      setNodeBusy(false);
     }
   }
 
@@ -282,10 +310,14 @@ export function KodeManager() {  const [rows, setRows] = React.useState<KodePath
               ) : (
                 filtered.map((r, i) => (
                   <tr key={i} className="border-b border-border align-top transition-colors last:border-0 hover:bg-accent/40">
-                    <Cell kode={r.program} nama={r.programNama} />
-                    <Cell kode={r.kegiatan} nama={r.kegiatanNama} />
-                    <Cell kode={r.kro} nama={r.kroNama} />
-                    <Cell kode={r.ro} nama={r.roNama} />
+                    <Cell kode={r.program} nama={r.programNama}
+                      onEdit={() => setEditNode({ level: "program", id: r.programId, kode: r.program, nama: r.programNama, label: "Program" })} />
+                    <Cell kode={r.kegiatan} nama={r.kegiatanNama}
+                      onEdit={() => setEditNode({ level: "kegiatan", id: r.kegiatanId, kode: r.kegiatan, nama: r.kegiatanNama, label: "Kegiatan" })} />
+                    <Cell kode={r.kro} nama={r.kroNama}
+                      onEdit={() => setEditNode({ level: "kro", id: r.kroId, kode: r.kro, nama: r.kroNama, label: "KRO" })} />
+                    <Cell kode={r.ro} nama={r.roNama}
+                      onEdit={() => setEditNode({ level: "ro", id: r.roId, kode: r.ro, nama: r.roNama, label: "RO" })} />
                     <Cell kode={r.komponen} nama={r.komponenNama} />
                     <td className="px-2 py-2">
                       <div className="flex justify-end gap-1">
@@ -331,6 +363,12 @@ export function KodeManager() {  const [rows, setRows] = React.useState<KodePath
         busy={rowBusy}
         onSave={onSaveEdit}
         onClose={() => setEdit(null)}
+      />
+      <NodeEditModal
+        node={editNode}
+        busy={nodeBusy}
+        onSave={onSaveNode}
+        onClose={() => setEditNode(null)}
       />
 
       <Modal
@@ -445,11 +483,92 @@ function KomponenEditModal({
   );
 }
 
-function Cell({ kode, nama }: { kode: string; nama: string }) {
+function NodeEditModal({
+  node,
+  busy,
+  onSave,
+  onClose,
+}: {
+  node: { level: KodeLevel; id: string; kode: string; nama: string; label: string } | null;
+  busy: boolean;
+  onSave: (nama: string) => void;
+  onClose: () => void;
+}) {
+  const [nama, setNama] = React.useState("");
+  React.useEffect(() => {
+    if (node) setNama(node.nama);
+  }, [node]);
   return (
-    <td className="px-2 py-2">
-      <div className="font-mono font-medium">{kode}</div>
-      <div className="text-muted-foreground">{nama}</div>
+    <Modal
+      open={!!node}
+      onClose={onClose}
+      title={node ? `Edit Narasi ${node.label}` : "Edit Narasi"}
+      footer={<>
+        <Button variant="outline" onClick={onClose}>Batal</Button>
+        <Button onClick={() => onSave(nama)} disabled={busy}>
+          {busy ? "Menyimpan…" : "Simpan"}
+        </Button>
+      </>}
+    >
+      <div className="space-y-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">
+            Kode {node?.label}
+          </label>
+          <Input
+            value={node?.kode ?? ""}
+            disabled
+            className="font-mono text-muted-foreground"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">
+            Narasi / Nama {node?.label}
+          </label>
+          <Input
+            value={nama}
+            onChange={(e) => setNama(e.target.value)}
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !busy) onSave(nama);
+            }}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Hanya narasi yang diubah (kode dikunci agar tak memutus tautan). Perubahan
+          berlaku untuk <strong>semua jalur</strong> yang memakai {node?.label} ini.
+        </p>
+      </div>
+    </Modal>
+  );
+}
+
+function Cell({
+  kode,
+  nama,
+  onEdit,
+}: {
+  kode: string;
+  nama: string;
+  onEdit?: () => void;
+}) {
+  return (
+    <td className="group/cell px-2 py-2 align-top">
+      <div className="flex items-start justify-between gap-1">
+        <div className="min-w-0">
+          <div className="font-mono font-medium">{kode}</div>
+          <div className="text-muted-foreground">{nama}</div>
+        </div>
+        {onEdit && (
+          <button
+            className="mt-0.5 shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus:opacity-100 group-hover/cell:opacity-100"
+            title={`Edit narasi ${kode}`}
+            onClick={onEdit}
+          >
+            <Pencil className="size-3.5" />
+          </button>
+        )}
+      </div>
     </td>
   );
 }

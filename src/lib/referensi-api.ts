@@ -415,10 +415,40 @@ export async function importKodeGabungan(raw: unknown[][]): Promise<KodeImportRe
 /** Ambil seluruh kode sebagai jalur lengkap untuk ditampilkan (BA→Komponen). */
 export interface KodePathRow {
   komponenId: string;
+  programId: string; kegiatanId: string; kroId: string; roId: string;
   ba: string; program: string; programNama: string;
   kegiatan: string; kegiatanNama: string;
   kro: string; kroNama: string; ro: string; roNama: string;
   komponen: string; komponenNama: string; komponenJenis: string;
+}
+
+/** Level KODE KK berjenjang yang narasinya dapat diedit (Komponen punya fungsi tersendiri). */
+export type KodeLevel = "program" | "kegiatan" | "kro" | "ro";
+const KODE_TABLE: Record<KodeLevel, { table: string; kodeCol: string; namaCol: string }> = {
+  program: { table: "master_program", kodeCol: "kode_program", namaCol: "nama_program" },
+  kegiatan: { table: "master_kegiatan", kodeCol: "kode_kegiatan", namaCol: "nama_kegiatan" },
+  kro: { table: "master_kro", kodeCol: "kode_kro", namaCol: "nama_kro" },
+  ro: { table: "master_ro", kodeCol: "kode_ro", namaCol: "nama_ro" },
+};
+
+/**
+ * Ubah kode dan/atau narasi (nama) satu node referensi Program/Kegiatan/KRO/RO.
+ * Dipakai untuk memperbaiki salah tulis narasi setelah impor. Perubahan berlaku
+ * untuk SELURUH jalur yang memakai node tsb (satu master dipakai bersama).
+ * Menolak kode duplikat via constraint (refError → pesan ramah).
+ */
+export async function updateKodeNode(
+  level: KodeLevel,
+  id: string,
+  values: { kode?: string; nama?: string },
+): Promise<void> {
+  const def = KODE_TABLE[level];
+  const patch: Record<string, string> = {};
+  if (values.kode !== undefined) patch[def.kodeCol] = values.kode;
+  if (values.nama !== undefined) patch[def.namaCol] = values.nama;
+  if (Object.keys(patch).length === 0) return;
+  const { error } = await sb().from(def.table).update(patch).eq("id", id);
+  if (error) throw refError(error);
 }
 
 export async function listKodePaths(): Promise<KodePathRow[]> {
@@ -426,11 +456,11 @@ export async function listKodePaths(): Promise<KodePathRow[]> {
     .from("master_komponen")
     .select(
       `id, kode_komponen, nama_komponen, jenis,
-       master_ro!inner ( kode_ro, nama_ro,
-         master_kro!inner ( kode_kro, nama_kro,
-           master_kegiatan!inner ( kode_kegiatan, nama_kegiatan,
-             master_program!inner ( kode_program, nama_program,
-               master_ba!inner ( kode_ba ) ) ) ) )`,
+       master_ro!inner ( id, kode_ro, nama_ro,
+         master_kro!inner ( id, kode_kro, nama_kro,
+           master_kegiatan!inner ( id, kode_kegiatan, nama_kegiatan,
+             master_program!inner ( id, kode_program, nama_program,
+               master_ba!inner ( id, kode_ba ) ) ) ) )`,
     )
     .limit(100000);
   if (error) throw error;
@@ -444,6 +474,8 @@ export async function listKodePaths(): Promise<KodePathRow[]> {
     const ba = (prog.master_ba ?? {}) as Record<string, unknown>;
     out.push({
       komponenId: String(k.id ?? ""),
+      programId: String(prog.id ?? ""), kegiatanId: String(keg.id ?? ""),
+      kroId: String(kro.id ?? ""), roId: String(ro.id ?? ""),
       ba: String(ba.kode_ba ?? ""),
       program: String(prog.kode_program ?? ""), programNama: String(prog.nama_program ?? ""),
       kegiatan: String(keg.kode_kegiatan ?? ""), kegiatanNama: String(keg.nama_kegiatan ?? ""),
