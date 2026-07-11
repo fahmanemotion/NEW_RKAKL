@@ -70,10 +70,15 @@ const STYLES = `
 .sir-horizon { position:absolute; left:0; right:0; bottom:40%; height:130px; background:radial-gradient(60% 100% at 62% 100%, rgba(45,212,191,.28), transparent 72%); filter:blur(10px); }
 .sir-rise { animation:sirRise .7s cubic-bezier(.16,1,.3,1) both; }
 .sir-fade { animation:sirFade 1s ease both; }
-.sir-formwave { position:absolute; left:0; right:0; bottom:0; height:70px; overflow:hidden; pointer-events:none; opacity:.5; }
-.sir-formwave svg { position:absolute; bottom:0; left:0; width:200%; height:100%; color:hsl(var(--primary)); opacity:.22; animation:sirWave 15s linear infinite; }
+@keyframes sirFloat { 0%,100% { transform:translate(0,0); } 50% { transform:translate(0,-22px); } }
+.sir-orb { position:absolute; border-radius:9999px; filter:blur(44px); animation:sirFloat ease-in-out infinite; will-change:transform; }
+.sir-formwave { position:absolute; left:0; right:0; bottom:0; height:92px; overflow:hidden; pointer-events:none; }
+.sir-formwave svg { position:absolute; bottom:0; left:0; width:200%; height:100%; }
+.sir-formwave svg path { fill:currentColor; }
+.sir-fwback { color:rgba(45,212,191,.20); animation:sirWave 17s linear infinite; }
+.sir-fwfront { color:rgba(56,189,248,.30); height:80%; animation:sirWave 11s linear infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .sir-scene *, .sir-formwave svg, .sir-rise { animation-duration:.001ms !important; animation-iteration-count:1 !important; }
+  .sir-scene *, .sir-formwave svg, .sir-orb, .sir-rise { animation-duration:.001ms !important; animation-iteration-count:1 !important; }
 }
 `;
 
@@ -287,14 +292,26 @@ export default function LoginPage() {
       </div>
 
       {/* ── Panel form ─────────────────────────────────────────────────── */}
-      <div className="relative flex items-center justify-center overflow-hidden bg-muted/40 px-6 py-10">
+      <div className="relative flex items-center justify-center overflow-hidden px-6 py-10 bg-gradient-to-br from-sky-50 via-white to-cyan-50/70 dark:from-slate-950 dark:via-slate-900 dark:to-[hsl(200_45%_9%)]">
+        {/* orb warna mengambang + pola titik */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="sir-orb" style={{ top: '-3rem', left: '-3rem', width: '18rem', height: '18rem', background: 'rgba(56,189,248,.38)', animationDuration: '11s' }} />
+          <div className="sir-orb" style={{ bottom: '2rem', right: '-4rem', width: '21rem', height: '21rem', background: 'rgba(45,212,191,.34)', animationDuration: '14s', animationDelay: '-4s' }} />
+          <div className="sir-orb" style={{ top: '24%', right: '16%', width: '12rem', height: '12rem', background: 'rgba(129,140,248,.26)', animationDuration: '16s', animationDelay: '-8s' }} />
+          <div
+            className="absolute inset-0 opacity-60 dark:opacity-25"
+            style={{ backgroundImage: 'radial-gradient(circle, rgba(100,116,139,.16) 1px, transparent 1px)', backgroundSize: '22px 22px' }}
+          />
+        </div>
+
         <div className="absolute right-5 top-5 z-10">
           <ThemeToggle />
         </div>
 
-        <div className="sir-rise w-full max-w-md">
-          {/* Kartu form */}
-          <div className="rounded-2xl border border-border bg-card p-7 shadow-xl shadow-black/[0.06] ring-1 ring-black/[0.02] sm:p-8 dark:shadow-black/40">
+        <div className="sir-rise relative z-10 w-full max-w-md">
+          {/* Kartu form — glassy dengan bingkai gradasi + kilau */}
+          <div className="rounded-[1.15rem] bg-gradient-to-br from-primary/50 via-cyan-400/40 to-teal-400/50 p-px shadow-[0_30px_80px_-24px_rgba(8,145,178,.45)] dark:shadow-[0_30px_80px_-20px_rgba(6,182,212,.3)]">
+          <div className="rounded-2xl border border-white/60 bg-card/90 p-7 backdrop-blur-xl sm:p-8 dark:border-white/10 dark:bg-card/80">
             {/* header brand (mobile) */}
             <div className="mb-6 flex items-center gap-3 lg:hidden">
               <div className="grid size-11 place-items-center rounded-xl bg-gradient-to-br from-sidebar-accent to-primary text-white shadow-md shadow-primary/20">
@@ -361,7 +378,7 @@ export default function LoginPage() {
                 <p className="rounded-lg bg-destructive/10 px-3 py-2.5 text-xs text-destructive">{err}</p>
               )}
 
-              <Button type="submit" className="group h-11 w-full text-[15px]" disabled={isSubmitting}>
+              <Button type="submit" className="group h-11 w-full bg-gradient-to-r from-sky-600 to-cyan-500 text-[15px] shadow-lg shadow-cyan-500/25 transition hover:brightness-110" disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
                 Masuk
                 {!isSubmitting && <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />}
@@ -372,15 +389,17 @@ export default function LoginPage() {
               <ShieldCheck className="size-3.5 text-emerald-500" /> Koneksi aman &amp; terenkripsi
             </p>
           </div>
+          </div>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
             © {new Date().getFullYear()} Politeknik Ilmu Pelayaran Makassar
           </p>
         </div>
 
-        {/* gelombang tipis di dasar panel form (terlihat juga di mobile) */}
+        {/* gelombang dua-warna di dasar panel form (terlihat juga di mobile) */}
         <div className="sir-formwave">
-          <svg viewBox="0 0 2880 150" preserveAspectRatio="none"><path d={WAVE_PATH} /></svg>
+          <svg className="sir-fwback" viewBox="0 0 2880 150" preserveAspectRatio="none"><path d={WAVE_PATH} /></svg>
+          <svg className="sir-fwfront" viewBox="0 0 2880 150" preserveAspectRatio="none"><path d={WAVE_PATH} /></svg>
         </div>
       </div>
     </div>
