@@ -24,9 +24,12 @@ const FEATURES = [
   { icon: ShieldCheck, t: 'Kolaborasi berbasis peran', d: 'Kerja bersama yang aman antar operator & reviewer.' },
 ];
 
-// Satu periode gelombang berulang mulus pada x=1440 (dua periode digambar).
+// Gelombang berulang mulus pada x=1440 (digambar dua periode).
 const WAVE_PATH =
   'M0,40 C240,10 480,10 720,40 C960,70 1200,70 1440,40 C1680,10 1920,10 2160,40 C2400,70 2640,70 2880,40 L2880,150 L0,150 Z';
+// Garis buih (kurva atas saja, tanpa isi).
+const WAVE_LINE =
+  'M0,40 C240,10 480,10 720,40 C960,70 1200,70 1440,40 C1680,10 1920,10 2160,40 C2400,70 2640,70 2880,40';
 
 // Animasi laut (murni CSS/SVG). Hormati prefers-reduced-motion.
 const STYLES = `
@@ -34,22 +37,37 @@ const STYLES = `
 @keyframes sirBob { 0%,100% { transform: translateY(0) rotate(-2.5deg); } 50% { transform: translateY(-10px) rotate(2.5deg); } }
 @keyframes sirDrift { 0% { transform: translateX(-10px); } 100% { transform: translateX(70px); } }
 @keyframes sirCloud { from { transform: translateX(-18rem); } to { transform: translateX(115vw); } }
-@keyframes sirTwinkle { 0%,100% { opacity: .12; transform: scale(.8); } 50% { opacity: .9; transform: scale(1); } }
+@keyframes sirTwinkle { 0%,100% { opacity: .12; transform: scale(.8); } 50% { opacity: .95; transform: scale(1); } }
 @keyframes sirSpin { to { transform: rotate(360deg); } }
 @keyframes sirRise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 @keyframes sirFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sirGull { 0% { transform: translate(-6rem,8px); } 45% { transform: translate(22vw,-9px); } 100% { transform: translate(56vw,3px); } }
+@keyframes sirFlap { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(.5); } }
+@keyframes sirBeam { to { transform: rotate(360deg); } }
+@keyframes sirGlow { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+@keyframes sirMoon { 0%,100% { opacity: .8; } 50% { opacity: 1; } }
 .sir-ocean { position:absolute; left:0; right:0; bottom:0; height:44%; overflow:hidden; }
 .sir-wave { position:absolute; bottom:0; left:0; width:200%; height:100%; will-change:transform; }
 .sir-wave path { fill:currentColor; }
-.sir-w1 { color:rgba(125,211,252,.16); animation:sirWave 19s linear infinite; }
-.sir-w2 { color:rgba(56,189,248,.24); height:86%; animation:sirWave 13s linear infinite; }
-.sir-w3 { color:rgba(3,105,161,.55); height:70%; animation:sirWave 8.5s linear infinite; }
-.sir-ship-drift { position:absolute; left:16%; bottom:31%; animation:sirDrift 9s ease-in-out infinite alternate; }
+.sir-w1 { color:rgba(103,232,249,.14); animation:sirWave 19s linear infinite; }
+.sir-w2 { color:rgba(45,212,191,.22); height:86%; animation:sirWave 13s linear infinite; }
+.sir-w3 { color:rgba(6,131,157,.55); height:70%; animation:sirWave 8.5s linear infinite; }
+.sir-foam { position:absolute; bottom:0; left:0; width:200%; height:70%; animation:sirWave 8.5s linear infinite; }
+.sir-foam path { fill:none; stroke:rgba(224,255,255,.4); stroke-width:2; }
+.sir-ship-drift { position:absolute; left:15%; bottom:31%; animation:sirDrift 9s ease-in-out infinite alternate; }
 .sir-ship-bob { animation:sirBob 4.6s ease-in-out infinite; }
 .sir-ship { width:3.5rem; height:3.5rem; color:#fff; filter:drop-shadow(0 6px 8px rgba(0,0,0,.35)); }
 .sir-cloud { position:absolute; border-radius:9999px; background:rgba(255,255,255,.14); filter:blur(10px); animation:sirCloud linear infinite; }
 .sir-star { position:absolute; width:3px; height:3px; border-radius:9999px; background:#fff; animation:sirTwinkle ease-in-out infinite; }
-.sir-compass { position:absolute; color:rgba(255,255,255,.10); animation:sirSpin 64s linear infinite; }
+.sir-compass { position:absolute; color:rgba(255,255,255,.09); animation:sirSpin 70s linear infinite; }
+.sir-gull { position:absolute; left:0; animation:sirGull linear infinite; }
+.sir-gull svg { display:block; animation:sirFlap .55s ease-in-out infinite; transform-origin:center; }
+.sir-house { position:absolute; right:8%; bottom:34%; filter:drop-shadow(0 8px 12px rgba(0,0,0,.35)); }
+.sir-house svg { overflow:visible; }
+.sir-beam { transform-origin:32px 34px; animation:sirBeam 11s linear infinite; }
+.sir-lamp { animation:sirGlow 2.2s ease-in-out infinite; transform-origin:center; }
+.sir-moon { position:absolute; border-radius:9999px; background:radial-gradient(circle at 38% 38%, #f8fbff, #cfe6ff 55%, rgba(207,230,255,0) 72%); box-shadow:0 0 60px 20px rgba(186,224,255,.28); animation:sirMoon 6s ease-in-out infinite; }
+.sir-horizon { position:absolute; left:0; right:0; bottom:40%; height:130px; background:radial-gradient(60% 100% at 62% 100%, rgba(45,212,191,.28), transparent 72%); filter:blur(10px); }
 .sir-rise { animation:sirRise .7s cubic-bezier(.16,1,.3,1) both; }
 .sir-fade { animation:sirFade 1s ease both; }
 .sir-formwave { position:absolute; left:0; right:0; bottom:0; height:70px; overflow:hidden; pointer-events:none; opacity:.5; }
@@ -60,15 +78,60 @@ const STYLES = `
 `;
 
 const STARS = [
-  { top: '10%', left: '14%', d: '0s', dur: '3.2s' },
-  { top: '18%', left: '32%', d: '.8s', dur: '2.6s' },
-  { top: '8%', left: '52%', d: '1.4s', dur: '3.6s' },
-  { top: '22%', left: '68%', d: '.4s', dur: '2.9s' },
-  { top: '14%', left: '84%', d: '1.1s', dur: '3.3s' },
-  { top: '30%', left: '22%', d: '1.9s', dur: '2.4s' },
-  { top: '28%', left: '46%', d: '.2s', dur: '3.8s' },
-  { top: '34%', left: '76%', d: '1.6s', dur: '2.7s' },
+  { top: '9%', left: '14%', d: '0s', dur: '3.2s' },
+  { top: '17%', left: '30%', d: '.8s', dur: '2.6s' },
+  { top: '7%', left: '50%', d: '1.4s', dur: '3.6s' },
+  { top: '21%', left: '66%', d: '.4s', dur: '2.9s' },
+  { top: '13%', left: '82%', d: '1.1s', dur: '3.3s' },
+  { top: '29%', left: '20%', d: '1.9s', dur: '2.4s' },
+  { top: '27%', left: '44%', d: '.2s', dur: '3.8s' },
+  { top: '33%', left: '74%', d: '1.6s', dur: '2.7s' },
 ];
+
+// Camar (siluet "m") — dua sayap yang mengepak.
+function Gull({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size * 0.45} viewBox="0 0 24 11" fill="none"
+      stroke="#f4fbff" strokeWidth="1.6" strokeLinecap="round">
+      <path d="M1,7 Q6,1 12,7 Q18,1 23,7" opacity="0.9" />
+    </svg>
+  );
+}
+
+// Mercusuar bergaris merah-putih dengan sorot cahaya berputar & lampu berkedip.
+function Lighthouse() {
+  return (
+    <svg width="66" height="150" viewBox="0 0 64 150">
+      <defs>
+        <clipPath id="sirTower"><path d="M22,138 L26,44 L38,44 L42,138 Z" /></clipPath>
+        <linearGradient id="sirBeamGrad">
+          <stop offset="0" stopColor="#fef3c7" stopOpacity="0.6" />
+          <stop offset="1" stopColor="#fef3c7" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {/* sorot cahaya (di belakang menara) */}
+      <g className="sir-beam">
+        <polygon points="32,34 126,8 126,60" fill="url(#sirBeamGrad)" />
+      </g>
+      {/* karang */}
+      <ellipse cx="32" cy="146" rx="27" ry="7" fill="rgba(2,26,44,.75)" />
+      {/* menara + garis merah (di-clip mengikuti bentuk menara) */}
+      <g clipPath="url(#sirTower)">
+        <rect x="0" y="40" width="64" height="110" fill="#f4f7fb" />
+        <rect x="0" y="54" width="64" height="13" fill="#e5484d" />
+        <rect x="0" y="82" width="64" height="13" fill="#e5484d" />
+        <rect x="0" y="110" width="64" height="13" fill="#e5484d" />
+      </g>
+      {/* galeri, rumah lampu, atap */}
+      <rect x="20" y="39" width="24" height="5" rx="1.5" fill="#2b3a52" />
+      <rect x="25" y="26" width="14" height="15" fill="#1f2a3d" />
+      <rect className="sir-lamp" x="27" y="28" width="10" height="11" fill="#fde68a" />
+      <circle className="sir-lamp" cx="32" cy="33" r="9" fill="#fde68a" opacity="0.55" />
+      <path d="M22,26 L42,26 L32,13 Z" fill="#e5484d" />
+      <circle cx="32" cy="12" r="2" fill="#2b3a52" />
+    </svg>
+  );
+}
 
 export default function LoginPage() {
   const [err, setErr] = React.useState<string | null>(null);
@@ -121,13 +184,13 @@ export default function LoginPage() {
         className="sir-scene relative hidden flex-col justify-between overflow-hidden p-12 text-white lg:flex"
         style={{
           backgroundImage:
-            'linear-gradient(160deg, hsl(220 65% 12%) 0%, hsl(214 78% 22%) 42%, hsl(199 88% 34%) 100%)',
+            'linear-gradient(165deg, hsl(224 74% 9%) 0%, hsl(216 78% 17%) 28%, hsl(202 82% 27%) 60%, hsl(188 78% 37%) 100%)',
         }}
       >
-        {/* dekorasi statis: cahaya, grid, kompas berputar */}
+        {/* dekorasi & scene (di belakang konten) */}
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute -right-24 -top-24 size-96 rounded-full bg-cyan-400/20 blur-3xl" />
-          <div className="absolute -bottom-40 -left-20 size-[26rem] rounded-full bg-sky-300/10 blur-3xl" />
+          <div className="absolute -bottom-40 -left-20 size-[26rem] rounded-full bg-teal-300/10 blur-3xl" />
           <div
             className="absolute inset-0 opacity-[0.05]"
             style={{
@@ -136,24 +199,31 @@ export default function LoginPage() {
               backgroundSize: '46px 46px',
             }}
           />
-          <div className="absolute right-[-7rem] top-[26%] size-[30rem] rounded-full border border-white/10" />
-          <div className="absolute right-[-4rem] top-[32%] size-[22rem] rounded-full border border-white/[0.07]" />
-          <Compass className="sir-compass right-[-1rem] top-[34%] size-72" strokeWidth={0.6} />
+          {/* bulan + kompas berputar */}
+          <div className="sir-moon" style={{ top: '8%', right: '18%', width: '68px', height: '68px' }} />
+          <div className="absolute right-[-7rem] top-[30%] size-[30rem] rounded-full border border-white/10" />
+          <div className="absolute right-[-4rem] top-[36%] size-[22rem] rounded-full border border-white/[0.06]" />
+          <Compass className="sir-compass right-[-1rem] top-[38%] size-72" strokeWidth={0.6} />
 
           {/* bintang berkelip */}
           {STARS.map((s, i) => (
-            <span
-              key={i}
-              className="sir-star"
-              style={{ top: s.top, left: s.left, animationDelay: s.d, animationDuration: s.dur }}
-            />
+            <span key={i} className="sir-star"
+              style={{ top: s.top, left: s.left, animationDelay: s.d, animationDuration: s.dur }} />
           ))}
 
-          {/* awan hanyut */}
-          <div className="sir-cloud" style={{ top: '13%', height: '30px', width: '150px', animationDuration: '46s', animationDelay: '-6s' }} />
-          <div className="sir-cloud" style={{ top: '24%', height: '22px', width: '110px', animationDuration: '62s', animationDelay: '-28s' }} />
+          {/* camar terbang */}
+          <div className="sir-gull" style={{ top: '15%', animationDuration: '17s', animationDelay: '0s' }}><Gull size={24} /></div>
+          <div className="sir-gull" style={{ top: '22%', animationDuration: '23s', animationDelay: '-9s' }}><Gull size={17} /></div>
+          <div className="sir-gull" style={{ top: '11%', animationDuration: '20s', animationDelay: '-15s' }}><Gull size={20} /></div>
 
-          {/* laut: gelombang berlapis + kapal */}
+          {/* awan hanyut */}
+          <div className="sir-cloud" style={{ top: '13%', height: '30px', width: '150px', animationDuration: '48s', animationDelay: '-6s' }} />
+          <div className="sir-cloud" style={{ top: '25%', height: '22px', width: '110px', animationDuration: '64s', animationDelay: '-30s' }} />
+
+          {/* kilau ufuk */}
+          <div className="sir-horizon" />
+
+          {/* laut: gelombang berlapis + buih + kapal */}
           <div className="sir-ocean">
             <svg className="sir-wave sir-w1" viewBox="0 0 2880 150" preserveAspectRatio="none"><path d={WAVE_PATH} /></svg>
             <svg className="sir-wave sir-w2" viewBox="0 0 2880 150" preserveAspectRatio="none"><path d={WAVE_PATH} /></svg>
@@ -161,7 +231,11 @@ export default function LoginPage() {
               <div className="sir-ship-bob"><Sailboat className="sir-ship" strokeWidth={1.6} /></div>
             </div>
             <svg className="sir-wave sir-w3" viewBox="0 0 2880 150" preserveAspectRatio="none"><path d={WAVE_PATH} /></svg>
+            <svg className="sir-foam" viewBox="0 0 2880 150" preserveAspectRatio="none"><path d={WAVE_LINE} /></svg>
           </div>
+
+          {/* mercusuar (di depan laut, di karang) */}
+          <div className="sir-house"><Lighthouse /></div>
         </div>
 
         {/* logo */}
@@ -180,17 +254,17 @@ export default function LoginPage() {
           <span className="sir-fade inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-white/80 ring-1 ring-white/15">
             <Waves className="size-3.5" /> Perencanaan &amp; Penganggaran
           </span>
-          <h2 className="mt-5 text-[2.1rem] font-bold leading-[1.15] [text-shadow:0_2px_12px_rgba(0,0,0,.25)]">
+          <h2 className="mt-5 text-[2.1rem] font-bold leading-[1.15] [text-shadow:0_2px_14px_rgba(0,0,0,.3)]">
             Nahkodai seluruh siklus anggaran satker
           </h2>
-          <p className="mt-3 text-sm leading-relaxed text-white/75">
+          <p className="mt-3 text-sm leading-relaxed text-white/80 [text-shadow:0_1px_8px_rgba(0,0,0,.25)]">
             Susun usulan anggaran hierarkis ala SAKTI, pantau realisasi, dan hasilkan RAB &amp; Kertas Kerja dalam satu alur kerja yang rapi.
           </p>
           <ul className="mt-8 space-y-3">
             {FEATURES.map(({ icon: Icon, t, d }, i) => (
               <li
                 key={t}
-                className="sir-rise flex items-start gap-3 rounded-xl bg-white/[0.07] p-3 ring-1 ring-white/10 backdrop-blur-sm transition-colors hover:bg-white/10"
+                className="sir-rise flex items-start gap-3 rounded-xl bg-white/[0.08] p-3 ring-1 ring-white/10 backdrop-blur-sm transition-colors hover:bg-white/[0.13]"
                 style={{ animationDelay: `${0.15 + i * 0.12}s` }}
               >
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white/10 ring-1 ring-white/15">
@@ -206,7 +280,7 @@ export default function LoginPage() {
         </div>
 
         {/* footer */}
-        <div className="relative z-10 flex items-center gap-2 text-xs text-white/60 [text-shadow:0_1px_6px_rgba(0,0,0,.4)]">
+        <div className="relative z-10 flex items-center gap-2 text-xs text-white/60 [text-shadow:0_1px_6px_rgba(0,0,0,.45)]">
           <span className="size-1.5 animate-pulse rounded-full bg-emerald-400" />
           Sistem Informasi Perencanaan dan Penganggaran Terintegrasi
         </div>
