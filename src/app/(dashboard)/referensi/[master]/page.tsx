@@ -10,6 +10,7 @@ import { TorKodeManager } from '@/components/referensi/tor-kode-manager';
 import { PenandatanganManager } from '@/components/referensi/penandatangan-manager';
 import { TempatTanggalManager } from '@/components/referensi/tempat-tanggal-manager';
 import { SatkerManager } from '@/components/referensi/satker-manager';
+import { BackupManager } from '@/components/referensi/backup-manager';
 
 /** Shell konsisten untuk semua sub-halaman Referensi: hero + tab + konten. */
 function Shell({
@@ -105,6 +106,24 @@ export default async function Page({ params }: { params: Promise<{ master: strin
         subtitle="Kelola daftar pejabat penanda tangan untuk laporan RAB."
       >
         <PenandatanganManager />
+      </Shell>
+    );
+  }
+
+  // Menu "Backup" = ekspor/impor seluruh data aplikasi (ZIP). Administrator saja.
+  if (master === 'backup') {
+    return (
+      <Shell
+        title="Backup & Restore Data"
+        subtitle="Simpan SELURUH data ke satu berkas ZIP, atau pulihkan saat pindah aplikasi/server baru."
+      >
+        {user.role === 'Administrator' ? (
+          <BackupManager />
+        ) : (
+          <p className="rounded-md border border-amber-400/50 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
+            Hanya <strong>Administrator</strong> yang dapat mengakses Backup &amp; Restore.
+          </p>
+        )}
       </Shell>
     );
   }

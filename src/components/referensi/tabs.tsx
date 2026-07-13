@@ -11,6 +11,7 @@ const TABS: { key: string; label: string }[] = [
   { key: 'satker', label: 'Satker' },
   { key: 'tempat-tanggal', label: 'Tempat & Tgl' },
   { key: 'penandatangan', label: 'Penandatanganan' },
+  { key: 'backup', label: 'Backup' },
 ];
 
 export function ReferensiTabs() {
