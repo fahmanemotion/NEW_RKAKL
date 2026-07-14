@@ -1272,7 +1272,11 @@ export function PenganggaranClient({
       {/* Toolbar ringkas (sticky) + pagu + simpan + finalisasi */}
       <div className="sticky top-14 z-20 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md border border-border bg-background/95 px-2 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/75">
         <div className="flex flex-wrap items-center gap-1">
-          {actions
+          {/* Aksi per-baris (tambah/edit/hapus tunggal) HANYA saat TIDAK sedang
+              mencentang. Saat ada item dicentang → mode massal: cukup tampilkan
+              Salin/Hapus agar tak ada dua tombol hapus yang membingungkan. */}
+          {checkedIds.size === 0 &&
+            actions
             .filter((a) => a.kind !== "copy" && a.kind !== "paste")
             .map((a) => {
             const iconOnly = a.kind === "edit" || a.kind === "delete";
