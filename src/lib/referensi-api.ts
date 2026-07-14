@@ -412,6 +412,44 @@ export async function importKodeGabungan(raw: unknown[][]): Promise<KodeImportRe
   };
 }
 
+/** Satu jalur kode lengkap untuk penambahan manual (tanpa Excel). */
+export interface ManualKodePath {
+  ba: string; baNama: string;
+  program: string; programNama: string;
+  kegiatan: string; kegiatanNama: string;
+  kro: string; kroNama: string;
+  ro: string; roNama: string;
+  komponen: string; komponenNama: string;
+}
+
+/**
+ * Tambah satu jalur kode secara MANUAL (BA→Program→Kegiatan→KRO→RO→Komponen)
+ * tanpa mengunggah Excel. Memakai pipeline impor yang sama agar aman & konsisten:
+ * induk yang sudah ada DIPAKAI ULANG (dedup berdasarkan kode, narasi diabaikan),
+ * hanya data baru yang ditambahkan. Komponen dengan kode sama pada RO yang sama
+ * tidak akan digandakan.
+ */
+export async function createKodePathManual(p: ManualKodePath): Promise<void> {
+  const need: [string, string][] = [
+    ["Kode BA", p.ba], ["Kode Program", p.program], ["Kode Kegiatan", p.kegiatan],
+    ["Kode KRO", p.kro], ["Kode RO", p.ro], ["Kode Komponen", p.komponen],
+  ];
+  const missing = need.filter(([, v]) => !String(v).trim()).map(([l]) => l);
+  if (missing.length) throw new Error(`Wajib diisi: ${missing.join(", ")}.`);
+
+  // Satu baris data (urutan kolom sama dengan sheet impor); parser melewati baris
+  // header, jadi cukup kirim baris datanya saja.
+  const row = [
+    p.ba, p.baNama, p.program, p.programNama, p.kegiatan, p.kegiatanNama,
+    p.kro, p.kroNama, p.ro, p.roNama, p.komponen, p.komponenNama,
+  ];
+  const res = await importKodeGabungan([row]);
+  if (res.dropped.ro > 0 || res.dropped.komponen > 0)
+    throw new Error(
+      "Komponen tidak dapat dikaitkan ke induknya — periksa kembali kode BA/Program/Kegiatan/KRO/RO pada jalur ini.",
+    );
+}
+
 /** Ambil seluruh kode sebagai jalur lengkap untuk ditampilkan (BA→Komponen). */
 export interface KodePathRow {
   komponenId: string;

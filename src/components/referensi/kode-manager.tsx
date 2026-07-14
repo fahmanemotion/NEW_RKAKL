@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { loadXLSXPlain } from "@/lib/xlsx-lazy";
-import { Upload, Download, Search, Loader2, CheckCircle2, AlertTriangle, Pencil, Trash2, FolderTree, Inbox, Lock } from "lucide-react";
+import { Upload, Download, Search, Loader2, CheckCircle2, AlertTriangle, Pencil, Trash2, FolderTree, Inbox, Lock, Plus } from "lucide-react";
 import { Button, Input, Card } from "@/components/ui";
 import { Modal } from "@/components/ui/modal";
 import {
@@ -12,9 +12,11 @@ import {
   deleteKomponen,
   deleteAllKode,
   listUsedRefIds,
+  createKodePathManual,
   type KodeImportResult,
   type KodePathRow,
   type KodeLevel,
+  type ManualKodePath,
 } from "@/lib/referensi-api";
 
 const HEADERS = [
@@ -48,8 +50,24 @@ export function KodeManager() {  const [rows, setRows] = React.useState<KodePath
   const [confirmDelAll, setConfirmDelAll] = React.useState(false);
   const [delAllText, setDelAllText] = React.useState("");
   const [delAllBusy, setDelAllBusy] = React.useState(false);
+  // Tambah jalur kode manual (tanpa Excel).
+  const [addOpen, setAddOpen] = React.useState(false);
+  const [addBusy, setAddBusy] = React.useState(false);
   // Komponen yang sudah dipakai di kertas kerja/usulan → tak boleh dihapus.
   const [usedIds, setUsedIds] = React.useState<Set<string>>(new Set());
+
+  async function onSaveAdd(p: ManualKodePath) {
+    setAddBusy(true);
+    try {
+      await createKodePathManual(p);
+      setAddOpen(false);
+      await load();
+    } catch (e) {
+      alert(cleanMsg((e as Error).message));
+    } finally {
+      setAddBusy(false);
+    }
+  }
 
   async function onDeleteAll() {
     setDelAllBusy(true);
@@ -278,14 +296,19 @@ export function KodeManager() {  const [rows, setRows] = React.useState<KodePath
               </span>
             </div>
           </div>
-          <div className="flex h-9 w-full max-w-xs items-center gap-2 rounded-md border border-input bg-card px-2.5 focus-within:ring-2 focus-within:ring-ring">
-            <Search className="size-3.5 shrink-0 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Cari program / kegiatan / KRO / RO / komponen…"
-              className="h-7 border-0 px-0 shadow-none focus-visible:ring-0"
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex h-9 w-full min-w-[220px] max-w-xs flex-1 items-center gap-2 rounded-md border border-input bg-card px-2.5 focus-within:ring-2 focus-within:ring-ring">
+              <Search className="size-3.5 shrink-0 text-muted-foreground" />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Cari program / kegiatan / KRO / RO / komponen…"
+                className="h-7 border-0 px-0 shadow-none focus-visible:ring-0"
+              />
+            </div>
+            <Button variant="outline" onClick={() => setAddOpen(true)}>
+              <Plus className="size-4" /> Tambah Manual
+            </Button>
           </div>
         </div>
         <div className="max-h-[60vh] overflow-auto">
@@ -358,6 +381,12 @@ export function KodeManager() {  const [rows, setRows] = React.useState<KodePath
           </div>
         )}
       </Card>
+      <KodePathAddModal
+        open={addOpen}
+        busy={addBusy}
+        onSave={onSaveAdd}
+        onClose={() => setAddOpen(false)}
+      />
       <KomponenEditModal
         row={edit}
         busy={rowBusy}
@@ -415,6 +444,93 @@ export function KodeManager() {  const [rows, setRows] = React.useState<KodePath
         </div>
       </Modal>
     </div>
+  );
+}
+
+const EMPTY_PATH: ManualKodePath = {
+  ba: "", baNama: "", program: "", programNama: "", kegiatan: "", kegiatanNama: "",
+  kro: "", kroNama: "", ro: "", roNama: "", komponen: "", komponenNama: "",
+};
+
+const PATH_LEVELS: {
+  kodeKey: keyof ManualKodePath;
+  namaKey: keyof ManualKodePath;
+  label: string;
+  ph: string;
+}[] = [
+  { kodeKey: "ba", namaKey: "baNama", label: "BA", ph: "022" },
+  { kodeKey: "program", namaKey: "programNama", label: "Program", ph: "12.DL" },
+  { kodeKey: "kegiatan", namaKey: "kegiatanNama", label: "Kegiatan", ph: "1975" },
+  { kodeKey: "kro", namaKey: "kroNama", label: "KRO", ph: "DAB" },
+  { kodeKey: "ro", namaKey: "roNama", label: "RO", ph: "002" },
+  { kodeKey: "komponen", namaKey: "komponenNama", label: "Komponen", ph: "051" },
+];
+
+function KodePathAddModal({
+  open, busy, onSave, onClose,
+}: {
+  open: boolean;
+  busy: boolean;
+  onSave: (p: ManualKodePath) => void;
+  onClose: () => void;
+}) {
+  const [v, setV] = React.useState<ManualKodePath>(EMPTY_PATH);
+  React.useEffect(() => {
+    if (open) setV(EMPTY_PATH);
+  }, [open]);
+  const set = (k: keyof ManualKodePath, val: string) => setV((p) => ({ ...p, [k]: val }));
+  const canSave =
+    !!v.ba.trim() && !!v.program.trim() && !!v.kegiatan.trim() &&
+    !!v.kro.trim() && !!v.ro.trim() && !!v.komponen.trim();
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Tambah Kode Manual"
+      className="max-w-2xl"
+      footer={<>
+        <Button variant="outline" onClick={onClose}>Batal</Button>
+        <Button onClick={() => onSave(v)} disabled={busy || !canSave}>
+          {busy ? "Menyimpan…" : "Simpan"}
+        </Button>
+      </>}
+    >
+      <div className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          Isi satu jalur lengkap (BA → Program → Kegiatan → KRO → RO → Komponen). Induk yang
+          sudah ada akan <strong>dipakai ulang</strong> (kode sama tidak digandakan); hanya data
+          baru yang ditambahkan.
+        </p>
+        {PATH_LEVELS.map((l) => (
+          <div key={l.label} className="grid grid-cols-[8rem_1fr] gap-2">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+                Kode {l.label}
+              </label>
+              <Input
+                value={v[l.kodeKey]}
+                onChange={(e) => set(l.kodeKey, e.target.value)}
+                placeholder={l.ph}
+                className="font-mono"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+                Uraian {l.label}
+              </label>
+              <Input
+                value={v[l.namaKey]}
+                onChange={(e) => set(l.namaKey, e.target.value)}
+                placeholder={`Uraian ${l.label}`}
+              />
+            </div>
+          </div>
+        ))}
+        <p className="text-[11px] text-muted-foreground">
+          Kode wajib untuk semua level. Uraian yang dikosongkan akan mengikuti kodenya.
+        </p>
+      </div>
+    </Modal>
   );
 }
 
