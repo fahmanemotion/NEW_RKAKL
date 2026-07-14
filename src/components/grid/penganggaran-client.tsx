@@ -172,10 +172,6 @@ export function PenganggaranClient({
       return next;
     });
   }, []);
-  const removeRowsLocal = React.useCallback((ids: Iterable<string>) => {
-    const set = ids instanceof Set ? (ids as Set<string>) : new Set(ids);
-    setRows((prev) => prev.filter((r) => !set.has(r.id)));
-  }, []);
   const patchChildrenSumberLocal = React.useCallback(
     (parentId: string, sumber: string | null) => {
       setRows((prev) =>
@@ -1089,15 +1085,31 @@ export function PenganggaranClient({
       ? `Hapus ${t} "${selectedRow.uraian}" beserta SELURUH turunannya (sampai detail)?`
       : `Hapus detail "${selectedRow.uraian}"?`;
     if (!confirm(msg)) return;
+    // Hapus node ini beserta seluruh turunannya (anak terdalam dulu).
+    const ids = subtreeIds(rows, selectedRow.ref.id);
+    const toDelete = ids.length ? ids : [selectedRow.ref.id];
+    const target = new Set(toDelete);
+    setSyncing(true);
     try {
-      // Hapus node ini beserta seluruh turunannya (anak terdalam dulu).
-      const ids = subtreeIds(rows, selectedRow.ref.id);
-      const toDelete = ids.length ? ids : [selectedRow.ref.id];
       await deleteNodes(toDelete);
       select(null);
-      removeRowsLocal(toDelete); // buang subtree dari state; Pagu diagregasi ulang
+      // REKONSILIASI dari database (bukan sekadar buang lokal). Penting: DELETE
+      // yang mengenai 0 baris (mis. ditolak diam-diam oleh izin/koneksi) TIDAK
+      // menghasilkan error, sehingga penghapusan lokal saja bisa membuat item
+      // "hilang di layar padahal masih ada di database" lalu muncul lagi saat
+      // disegarkan. Dengan menarik ulang kondisi nyata DB, tampilan SELALU akurat.
+      const fresh = await fetchStruktur(header.id);
+      setRows(fresh);
+      const gagal = fresh.filter((r) => target.has(r.id)).length;
+      if (gagal > 0)
+        alert(
+          `${gagal} item TIDAK dapat dihapus (kemungkinan izin akses atau gangguan koneksi). ` +
+            `Tampilan sudah disegarkan sesuai kondisi database — silakan coba lagi.`,
+        );
     } catch (e) {
       alert("Gagal menghapus: " + (e as Error).message);
+    } finally {
+      setSyncing(false);
     }
   }
 
