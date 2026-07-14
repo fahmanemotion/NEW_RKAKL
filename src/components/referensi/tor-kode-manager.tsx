@@ -285,13 +285,6 @@ export function TorKodeManager() {
                   <td className="px-3 py-2">
                     <div className="flex justify-end gap-1">
                       <button
-                        className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                        onClick={() => setEdit({ mode: "edit", row: r })}
-                        title="Edit semua kolom"
-                      >
-                        <Pencil className="size-4" />
-                      </button>
-                      <button
                         className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => onDelete(r)}
                         title="Hapus"
