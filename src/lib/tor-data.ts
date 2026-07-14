@@ -235,6 +235,15 @@ export async function buildTorForKomponen(
         ? `${u.kegiatan.nama_kegiatan} (${u.kegiatan.kode_kegiatan})`
         : "";
   const tahun = String(u?.tahun_anggaran ?? "");
+  // Tahun pada COVER ("Kota, TAHUN") = tahun DISUSUN, BUKAN tahun pagu/anggaran.
+  // Diambil dari tanggal pengaturan RAB (Referensi → Tempat & Tgl) bila diisi,
+  // selain itu tahun berjalan. Prosedur ini memastikan tahun cover tak lagi
+  // keliru mengikuti tahun pagu.
+  const tahunSusun = String(
+    pgr?.tanggal
+      ? new Date(pgr.tanggal + "T00:00:00").getFullYear()
+      : new Date().getFullYear(),
+  );
   // Cover: kode mulai dari Kegiatan → kegiatan.KRO.RO.komponen.
   const kodeKomp = joinKode([
     kegiatanNode?.kode || u?.kegiatan?.kode_kegiatan,
@@ -254,7 +263,7 @@ export async function buildTorForKomponen(
     SATKER_UP: (satker?.nama_satker || "").toUpperCase(),
     ESELON1_UP: eselon1Only(t?.unit_eselon || unit?.nama || "").toUpperCase(),
     KL_UP: KL.toUpperCase(),
-    TEMPAT_TAHUN: `${cityName(satker?.lokus || "").toUpperCase() || "…"}, ${tahun}`,
+    TEMPAT_TAHUN: `${cityName(satker?.lokus || "").toUpperCase() || "…"}, ${tahunSusun}`,
     KL,
     UNIT_ESELON: t?.unit_eselon || unit?.nama || "",
     PROGRAM: program,
@@ -283,7 +292,10 @@ export async function buildTorForKomponen(
     TTD2_NIP: t2.nip || "",
   };
 
-  const filename = `TOR_${(komp?.kode || "komponen").replace(/[^\w.]+/g, "_")}.docx`;
+  // Nama file: TOR_<kegiatan>_<KRO>_<RO>_<komponen> (mis. TOR_1975_DAB_002_051).
+  const filename = `TOR_${(kodeKomp || komp?.kode || "komponen")
+    .replace(/[^A-Za-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")}.docx`;
 
   // Rincian RAB Bagian E: per sub-komponen (fallback: komponen itu sendiri).
   const baseKode = kodeProgKomp;
