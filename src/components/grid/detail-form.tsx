@@ -147,9 +147,10 @@ export function DetailForm({
               {[0, 1, 2, 3, 4].map((i) => (
                 <div key={i} className="flex items-center gap-1.5">
                   {i > 0 && <span className="px-0.5 text-muted-foreground">×</span>}
-                  <Input className="w-16 text-right" type="number" min={0} placeholder="0"
-                    value={seg[i].qty === 0 ? '' : String(seg[i].qty)}
-                    onChange={(e) => setSegAt(i, { qty: e.target.value })} />
+                  {/* Tanpa spinner + pemisah ribuan, konsisten dgn "Harga Satuan". */}
+                  <Input className="w-20 text-right" inputMode="numeric" placeholder="0"
+                    value={grp(seg[i].qty)}
+                    onChange={(e) => setSegAt(i, { qty: onlyDigits(e.target.value) })} />
                   <Input className="w-24" placeholder="satuan"
                     value={seg[i].sat} onChange={(e) => setSegAt(i, { sat: e.target.value })} />
                 </div>
