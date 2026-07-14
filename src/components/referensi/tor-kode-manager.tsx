@@ -27,7 +27,7 @@ import {
 } from "@/lib/tor-api";
 import { TOR_KODE_HEADERS, type TorKodeRec } from "@/lib/tor-kode";
 
-const FIELDS: { key: keyof TorKodeRow; label: string }[] = [
+const FIELDS: { key: keyof TorKodeRec; label: string }[] = [
   { key: "indikator_ro", label: "Indikator RO" },
   { key: "indikator_kro", label: "Indikator KRO" },
   { key: "indikator_kinerja_kegiatan", label: "Indikator Kinerja Kegiatan" },
@@ -36,6 +36,9 @@ const FIELDS: { key: keyof TorKodeRow; label: string }[] = [
   { key: "sasaran_program", label: "Sasaran Program" },
   { key: "unit_eselon", label: "Unit Eselon I/II" },
 ];
+
+/** Kolom yang dapat diedit per sel (Komponen + seluruh narasi kinerja). */
+type EditCellState = { row: TorKodeRow; field: keyof TorKodeRec; label: string } | null;
 
 type EditState =
   | { mode: "add" }
@@ -52,6 +55,9 @@ export function TorKodeManager() {
   const fileRef = React.useRef<HTMLInputElement | null>(null);
   const [edit, setEdit] = React.useState<EditState>(null);
   const [rowBusy, setRowBusy] = React.useState(false);
+  // Edit satu sel (hover pencil per kolom) — koreksi cepat narasi.
+  const [editCell, setEditCell] = React.useState<EditCellState>(null);
+  const [cellBusy, setCellBusy] = React.useState(false);
   const [confirmDelAll, setConfirmDelAll] = React.useState(false);
   const [delAllText, setDelAllText] = React.useState("");
   const [delAllBusy, setDelAllBusy] = React.useState(false);
@@ -123,6 +129,25 @@ export function TorKodeManager() {
       await load();
     } catch (e) {
       alert("Gagal menghapus: " + (e as Error).message);
+    }
+  }
+
+  // Simpan hasil edit satu kolom (narasi) — hanya field yang diubah.
+  async function onSaveCell(val: string) {
+    if (!editCell) return;
+    const isKomponen = editCell.field === "komponen";
+    if (isKomponen && !val.trim()) return alert("Nama komponen wajib diisi.");
+    setCellBusy(true);
+    try {
+      await updateTorKode(editCell.row.id, {
+        [editCell.field]: isKomponen ? val.trim() : val,
+      } as Partial<TorKodeRec>);
+      setEditCell(null);
+      await load();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setCellBusy(false);
     }
   }
 
@@ -245,18 +270,24 @@ export function TorKodeManager() {
             ) : (
               filtered.map((r) => (
                 <tr key={r.id} className="border-t border-border align-top">
-                  <td className="px-3 py-2 font-medium">{r.komponen}</td>
+                  <TorCell
+                    value={r.komponen}
+                    strong
+                    onEdit={() => setEditCell({ row: r, field: "komponen", label: "Komponen" })}
+                  />
                   {FIELDS.map((f) => (
-                    <td key={f.key} className="px-3 py-2 text-muted-foreground">
-                      {(r[f.key] as string) || "—"}
-                    </td>
+                    <TorCell
+                      key={f.key}
+                      value={(r[f.key] as string) || ""}
+                      onEdit={() => setEditCell({ row: r, field: f.key, label: f.label })}
+                    />
                   ))}
                   <td className="px-3 py-2">
                     <div className="flex justify-end gap-1">
                       <button
                         className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                         onClick={() => setEdit({ mode: "edit", row: r })}
-                        title="Edit"
+                        title="Edit semua kolom"
                       >
                         <Pencil className="size-4" />
                       </button>
@@ -275,6 +306,13 @@ export function TorKodeManager() {
           </tbody>
         </table>
       </div>
+
+      <TorFieldEditModal
+        state={editCell}
+        busy={cellBusy}
+        onClose={() => setEditCell(null)}
+        onSave={onSaveCell}
+      />
 
       {edit && (
         <TorKodeEditModal
@@ -327,6 +365,87 @@ export function TorKodeManager() {
         />
       </Modal>
     </div>
+  );
+}
+
+/** Sel tabel dengan tombol edit yang muncul saat kursor diarahkan (hover). */
+function TorCell({
+  value,
+  strong,
+  onEdit,
+}: {
+  value: string;
+  strong?: boolean;
+  onEdit: () => void;
+}) {
+  return (
+    <td className="group/cell px-3 py-2 align-top">
+      <div className="flex items-start justify-between gap-1">
+        <span className={`min-w-0 ${strong ? "font-medium text-foreground" : "text-muted-foreground"}`}>
+          {value || "—"}
+        </span>
+        <button
+          className="mt-0.5 shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus:opacity-100 group-hover/cell:opacity-100"
+          title="Edit narasi kolom ini"
+          onClick={onEdit}
+        >
+          <Pencil className="size-3.5" />
+        </button>
+      </div>
+    </td>
+  );
+}
+
+/** Modal edit satu kolom (narasi) — dibuka dari pencil hover per sel. */
+function TorFieldEditModal({
+  state,
+  busy,
+  onClose,
+  onSave,
+}: {
+  state: EditCellState;
+  busy: boolean;
+  onClose: () => void;
+  onSave: (val: string) => void;
+}) {
+  const [val, setVal] = React.useState("");
+  React.useEffect(() => {
+    if (state) setVal(String(state.row[state.field] ?? ""));
+  }, [state]);
+  const isKomponen = state?.field === "komponen";
+  return (
+    <Modal
+      open={!!state}
+      onClose={onClose}
+      title={state ? `Edit ${state.label}` : "Edit"}
+      className="max-w-xl"
+      footer={<>
+        <Button variant="outline" onClick={onClose}>Batal</Button>
+        <Button onClick={() => onSave(val)} disabled={busy || (isKomponen && !val.trim())}>
+          {busy && <Loader2 className="size-4 animate-spin" />} Simpan
+        </Button>
+      </>}
+    >
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">
+          Komponen: <strong className="text-foreground">{state?.row.komponen}</strong>
+        </p>
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium text-muted-foreground">{state?.label}</span>
+          {isKomponen ? (
+            <Input value={val} onChange={(e) => setVal(e.target.value)} autoFocus placeholder="Nama komponen" />
+          ) : (
+            <textarea
+              value={val}
+              onChange={(e) => setVal(e.target.value)}
+              rows={3}
+              autoFocus
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+            />
+          )}
+        </label>
+      </div>
+    </Modal>
   );
 }
 
