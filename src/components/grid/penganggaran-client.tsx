@@ -583,6 +583,41 @@ export function PenganggaranClient({
     setClip({ items });
   }
 
+  // Hapus MASSAL item-item yang DICENTANG (beserta seluruh turunannya). Sama
+  // seperti hapus tunggal: rekonsiliasi dari DB agar tampilan akurat & beri tahu
+  // bila ada yang gagal terhapus (DELETE 0-baris tidak menghasilkan error).
+  async function deleteChecked() {
+    if (checkedRoots.length === 0 || isFinal) return;
+    if (
+      !confirm(
+        `Hapus ${checkedRoots.length} item terpilih beserta SELURUH turunannya (sampai detail)?`,
+      )
+    )
+      return;
+    const toDelete = new Set<string>();
+    for (const n of checkedRoots)
+      for (const id of subtreeIds(rows, n.id)) toDelete.add(id);
+    setSyncing(true);
+    try {
+      await deleteNodes([...toDelete]);
+      setCheckedIds(new Set());
+      setClip(null);
+      select(null);
+      const fresh = await fetchStruktur(header.id);
+      setRows(fresh);
+      const gagal = fresh.filter((r) => toDelete.has(r.id)).length;
+      if (gagal > 0)
+        alert(
+          `${gagal} item TIDAK dapat dihapus (kemungkinan izin akses atau koneksi). ` +
+            `Tampilan sudah disegarkan sesuai database.`,
+        );
+    } catch (e) {
+      alert("Gagal menghapus: " + (e as Error).message);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   // ESC membatalkan proses salin: kosongkan clipboard & pilihan centang,
   // sehingga user bisa membatalkan ketika salah memilih item yang akan disalin.
   // Tidak aktif saat ada modal terbuka agar ESC tetap menutup modal lebih dulu.
@@ -1280,6 +1315,19 @@ export function PenganggaranClient({
               onClick={copyChecked}
             >
               <Copy className="size-4" /> Salin{clip ? " ulang" : ""} ({checkedRoots.length})
+            </Button>
+          )}
+          {/* Hapus massal: aktif saat ada item dicentang (hapus semua yang dicentang) */}
+          {checkedIds.size > 0 && (
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-8"
+              title={`Hapus ${checkedRoots.length} item terpilih (subtree ikut)`}
+              disabled={isFinal}
+              onClick={deleteChecked}
+            >
+              <Trash2 className="size-4" /> Hapus ({checkedRoots.length})
             </Button>
           )}
           {/* Tempel: muncul setelah Salin; aktif bila induk tujuan yang cocok dipilih */}
