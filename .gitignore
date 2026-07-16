@@ -1,4 +1,17 @@
+# Dependencies
 node_modules/
+
+# Build output
 .next/
+*.tsbuildinfo
+
+# Logs
 *.log
-.env.local
+
+# Environment — berisi rahasia (SUPABASE_SERVICE_ROLE_KEY dll), jangan di-commit.
+# .env.example dikecualikan karena hanya berisi contoh nama variabel.
+.env*
+!.env.example
+
+# Vercel CLI
+.vercel
