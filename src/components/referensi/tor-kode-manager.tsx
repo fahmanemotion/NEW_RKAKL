@@ -270,11 +270,9 @@ export function TorKodeManager() {
             ) : (
               filtered.map((r) => (
                 <tr key={r.id} className="border-t border-border align-top">
-                  <TorCell
-                    value={r.komponen}
-                    strong
-                    onEdit={() => setEditCell({ row: r, field: "komponen", label: "Komponen" })}
-                  />
+                  {/* Komponen (kolom kunci) — diedit lewat tombol Aksi yang selalu tampil,
+                      seperti kolom Komponen di KODE KK. */}
+                  <TorCell value={r.komponen} strong />
                   {FIELDS.map((f) => (
                     <TorCell
                       key={f.key}
@@ -284,6 +282,13 @@ export function TorKodeManager() {
                   ))}
                   <td className="px-3 py-2">
                     <div className="flex justify-end gap-1">
+                      <button
+                        className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                        onClick={() => setEditCell({ row: r, field: "komponen", label: "Komponen" })}
+                        title="Edit komponen"
+                      >
+                        <Pencil className="size-4" />
+                      </button>
                       <button
                         className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => onDelete(r)}
@@ -361,7 +366,7 @@ export function TorKodeManager() {
   );
 }
 
-/** Sel tabel dengan tombol edit yang muncul saat kursor diarahkan (hover). */
+/** Sel tabel; bila onEdit ada, tombol edit muncul saat kursor diarahkan (hover). */
 function TorCell({
   value,
   strong,
@@ -369,7 +374,7 @@ function TorCell({
 }: {
   value: string;
   strong?: boolean;
-  onEdit: () => void;
+  onEdit?: () => void;
 }) {
   return (
     <td className="group/cell px-3 py-2 align-top">
@@ -377,13 +382,15 @@ function TorCell({
         <span className={`min-w-0 ${strong ? "font-medium text-foreground" : "text-muted-foreground"}`}>
           {value || "—"}
         </span>
-        <button
-          className="mt-0.5 shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus:opacity-100 group-hover/cell:opacity-100"
-          title="Edit narasi kolom ini"
-          onClick={onEdit}
-        >
-          <Pencil className="size-3.5" />
-        </button>
+        {onEdit && (
+          <button
+            className="mt-0.5 shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus:opacity-100 group-hover/cell:opacity-100"
+            title="Edit narasi kolom ini"
+            onClick={onEdit}
+          >
+            <Pencil className="size-3.5" />
+          </button>
+        )}
       </div>
     </td>
   );
@@ -420,9 +427,11 @@ function TorFieldEditModal({
       </>}
     >
       <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">
-          Komponen: <strong className="text-foreground">{state?.row.komponen}</strong>
-        </p>
+        {!isKomponen && (
+          <p className="text-xs text-muted-foreground">
+            Komponen: <strong className="text-foreground">{state?.row.komponen}</strong>
+          </p>
+        )}
         <label className="block">
           <span className="mb-1 block text-xs font-medium text-muted-foreground">{state?.label}</span>
           {isKomponen ? (
