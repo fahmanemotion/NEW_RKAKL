@@ -37,6 +37,13 @@ const FIELDS: { key: keyof TorKodeRec; label: string }[] = [
   { key: "unit_eselon", label: "Unit Eselon I/II" },
 ];
 
+/**
+ * Kolom terakhir sebelum "Aksi" (Unit Eselon I/II) diedit lewat tombol pensil di
+ * kolom Aksi yang SELALU tampil — meniru KODE KK, yang tombol Aksi-nya mengedit
+ * kolom data terakhir di sebelahnya (Komponen). Kolom sebelumnya pakai pensil hover.
+ */
+const AKSI_FIELD = FIELDS[FIELDS.length - 1];
+
 /** Kolom yang dapat diedit per sel (Komponen + seluruh narasi kinerja). */
 type EditCellState = { row: TorKodeRow; field: keyof TorKodeRec; label: string } | null;
 
@@ -270,22 +277,31 @@ export function TorKodeManager() {
             ) : (
               filtered.map((r) => (
                 <tr key={r.id} className="border-t border-border align-top">
-                  {/* Komponen (kolom kunci) — diedit lewat tombol Aksi yang selalu tampil,
-                      seperti kolom Komponen di KODE KK. */}
-                  <TorCell value={r.komponen} strong />
+                  <TorCell
+                    value={r.komponen}
+                    strong
+                    onEdit={() => setEditCell({ row: r, field: "komponen", label: "Komponen" })}
+                  />
                   {FIELDS.map((f) => (
                     <TorCell
                       key={f.key}
                       value={(r[f.key] as string) || ""}
-                      onEdit={() => setEditCell({ row: r, field: f.key, label: f.label })}
+                      // Kolom terakhir diedit lewat tombol Aksi yang selalu tampil.
+                      onEdit={
+                        f.key === AKSI_FIELD.key
+                          ? undefined
+                          : () => setEditCell({ row: r, field: f.key, label: f.label })
+                      }
                     />
                   ))}
                   <td className="px-3 py-2">
                     <div className="flex justify-end gap-1">
                       <button
                         className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-                        onClick={() => setEditCell({ row: r, field: "komponen", label: "Komponen" })}
-                        title="Edit komponen"
+                        onClick={() =>
+                          setEditCell({ row: r, field: AKSI_FIELD.key, label: AKSI_FIELD.label })
+                        }
+                        title={`Edit ${AKSI_FIELD.label}`}
                       >
                         <Pencil className="size-4" />
                       </button>
