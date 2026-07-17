@@ -160,6 +160,18 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
 
   async function onSaveTemplate() {
     if (!usulanId || items.length === 0) return;
+    // Menulis BALIK ke pustaka Referensi → NARASI TOR. Ini satu-satunya jalur
+    // dari Laporan yang mengubah pustaka, jadi harus disengaja: penyimpanan
+    // narasi biasa (tombol Simpan di form Isi TOR) tidak pernah menyentuhnya.
+    if (
+      !confirm(
+        "Naikkan narasi usulan ini menjadi acuan di Referensi → NARASI TOR?\n\n" +
+          "Narasi pustaka untuk komponen bernama sama akan DITIMPA, dan itu menjadi " +
+          "isian otomatis bagi usulan/tahun berikutnya.\n\n" +
+          "Narasi usulan tahun lain tidak terpengaruh. Lanjutkan?",
+      )
+    )
+      return;
     setSavingTmpl(true);
     setTmplMsg(null);
     setErr(null);
@@ -289,7 +301,8 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
             Simpan sebagai Template
           </Button>
           <span className="text-xs text-muted-foreground">
-            Simpan semua narasi TOR usulan ini agar dapat dipakai ulang untuk PAGU/tahun berikutnya.
+            Opsional — <strong>menimpa</strong> pustaka di Referensi → NARASI TOR dengan narasi usulan ini,
+            agar dipakai ulang pada PAGU/tahun berikutnya. Menyimpan narasi biasa tidak mengubah pustaka.
           </span>
           {tmplMsg && (
             <span className="w-full text-xs font-medium text-emerald-700 dark:text-emerald-400 sm:ml-auto sm:w-auto">
