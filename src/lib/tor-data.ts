@@ -55,6 +55,14 @@ function fmtTempatTgl(kota: string, tanggalIso: string | null): string {
   return kota ? `${kota}, ${tgl}` : tgl;
 }
 
+/**
+ * Bandingkan kode secara "natural": deret angka dibaca sebagai angka sehingga
+ * "2" < "11" (bukan "11" < "2" ala urutan teks), huruf tetap alfabetis.
+ */
+function cmpKode(a: string | null | undefined, b: string | null | undefined): number {
+  return String(a || "").localeCompare(String(b || ""), "id", { numeric: true, sensitivity: "base" });
+}
+
 /** Label sumber dana untuk narasi Bagian E. */
 function labelSumberDana(v: string): string {
   return v === "RM_BLU" ? "RM & BLU" : v === "BLU" ? "BLU" : "RM";
@@ -202,7 +210,15 @@ export async function listTorKomponen(usulanId: string): Promise<TorKomponenItem
         kroUraian: kro?.uraian ?? "",
       };
     })
-    .sort((a, b) => a.kode.localeCompare(b.kode));
+    // Urut HIRARKIS: KRO → RO → Komponen. Sebelumnya hanya diurut kode komponen,
+    // sehingga daftar melompat-lompat antar KRO (051 DCB.005, 051 DCB.004, …).
+    .sort(
+      (a, b) =>
+        cmpKode(a.kroKode, b.kroKode) ||
+        cmpKode(a.roKode, b.roKode) ||
+        cmpKode(a.kode, b.kode) ||
+        cmpKode(a.uraian, b.uraian),
+    );
 }
 
 /** Bangun token + logo + nama file + baris RAB untuk satu komponen. */

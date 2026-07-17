@@ -250,7 +250,9 @@ export function TorSection({ usulanList }: { usulanList: TorUsulanOpt[] }) {
       if (it.kroId && !seen.has(it.kroId))
         seen.set(it.kroId, { id: it.kroId, kode: it.kroKode, uraian: it.kroUraian });
     }
-    return [...seen.values()].sort((a, b) => a.kode.localeCompare(b.kode));
+    return [...seen.values()].sort((a, b) =>
+      a.kode.localeCompare(b.kode, "id", { numeric: true, sensitivity: "base" }),
+    );
   }, [items]);
 
   // Opsi Komponen mengikuti KRO terpilih.
