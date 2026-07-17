@@ -108,24 +108,73 @@ function replaceMarker(xml: string, token: string, content: string): string {
   return xml.replace(re, () => content);
 }
 
-/** Ubah teks narasi (multi-baris) menjadi paragraf .docx. Baris berhuruf/angka/strip di-indentasi. */
+/**
+ * Penanda butir daftar: "- ", "• ", "* ", atau penomoran manual "a. " / "1) ".
+ * Huruf sengaja dibatasi SATU (`[a-z][.)]`, bukan dua): singkatan dua huruf
+ * berakhiran titik lazim mengawali kalimat hukum — "No. 5 Tahun 2003", "PP. 21"
+ * — dan akan salah dikira butir. Penanda "- " tetap jalan untuk butir ke-27 dst.
+ * Penanda tanpa isi ("-" saja) ikut tertangkap agar bisa dilewati, bukan dicetak.
+ */
+const BUTIR_RE = /^(?:[-•*]|[a-z][.)]|\d+[.)])(?:\s+|$)/i;
+
+/** Nomor butir → huruf: a, b, … z, aa, ab, … (aman bila butir lebih dari 26). */
+function hurufButir(i: number): string {
+  let s = "";
+  let n = i + 1;
+  while (n > 0) {
+    s = String.fromCharCode(97 + ((n - 1) % 26)) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+/**
+ * Ubah teks narasi (multi-baris) menjadi paragraf .docx.
+ *
+ * Baris butir ("- ", atau penomoran manual "a."/"1.") DILETAKKAN ULANG hurufnya
+ * secara otomatis (a, b, c, …) mengikuti urutan tampil, sehingga menyisipkan atau
+ * memindah butir tak pernah membuat huruf meloncat. Penomoran manual apa pun
+ * dibuang lebih dulu agar tidak dobel ("a. a. …").
+ *
+ * Butir memakai indentasi GANTUNG + tab: huruf di kolom 360, teks di kolom 720,
+ * sehingga baris sambungan lurus dengan teks di atasnya (bukan di bawah hurufnya).
+ * Deret huruf di-reset oleh paragraf biasa atau sub-judul "## ".
+ */
 function narasiToXml(text: string): string {
   const t = (text || "").trim();
   if (!t) return "";
-  return t
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((line) => {
-      if (/^##\s+/.test(line)) {
-        const s = line.replace(/^##\s+/, "");
-        return `<w:p><w:pPr><w:spacing w:before="120" w:after="60"/></w:pPr><w:r><w:rPr>${AR}<w:b/><w:sz w:val="24"/></w:rPr><w:t xml:space="preserve">${escapeXml(s)}</w:t></w:r></w:p>`;
-      }
-      const isList = /^([a-z]\.|\d+[.)]|[-•])\s/i.test(line);
-      const ind = isList ? '<w:ind w:left="360"/>' : "";
-      return `<w:p><w:pPr><w:spacing w:after="80" w:line="360" w:lineRule="auto"/>${ind}<w:jc w:val="both"/></w:pPr><w:r><w:rPr>${AR}<w:sz w:val="24"/></w:rPr><w:t xml:space="preserve">${escapeXml(line)}</w:t></w:r></w:p>`;
-    })
-    .join("");
+  const baris = t.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  let n = 0; // urutan butir pada deret yang sedang berjalan
+  const out: string[] = [];
+  for (const line of baris) {
+    if (/^##\s+/.test(line)) {
+      n = 0;
+      const s = line.replace(/^##\s+/, "");
+      out.push(
+        `<w:p><w:pPr><w:spacing w:before="120" w:after="60"/></w:pPr><w:r><w:rPr>${AR}<w:b/><w:sz w:val="24"/></w:rPr><w:t xml:space="preserve">${escapeXml(s)}</w:t></w:r></w:p>`,
+      );
+      continue;
+    }
+    const m = BUTIR_RE.exec(line);
+    if (m) {
+      const isi = line.slice(m[0].length).trim();
+      if (!isi) continue; // butir kosong (mis. "- " yang belum diisi) → lewati
+      const label = `${hurufButir(n++)}.`;
+      out.push(
+        `<w:p><w:pPr><w:spacing w:after="80" w:line="360" w:lineRule="auto"/>` +
+          `<w:ind w:left="720" w:hanging="360"/><w:jc w:val="both"/></w:pPr>` +
+          `<w:r><w:rPr>${AR}<w:sz w:val="24"/></w:rPr>` +
+          `<w:t xml:space="preserve">${escapeXml(label)}</w:t><w:tab/>` +
+          `<w:t xml:space="preserve">${escapeXml(isi)}</w:t></w:r></w:p>`,
+      );
+      continue;
+    }
+    n = 0; // paragraf biasa memutus deret butir
+    out.push(
+      `<w:p><w:pPr><w:spacing w:after="80" w:line="360" w:lineRule="auto"/><w:jc w:val="both"/></w:pPr><w:r><w:rPr>${AR}<w:sz w:val="24"/></w:rPr><w:t xml:space="preserve">${escapeXml(line)}</w:t></w:r></w:p>`,
+    );
+  }
+  return out.join("");
 }
 
 /** Satu baris tahapan pada matriks Kurun Waktu (bulan 1-12). */
