@@ -3,7 +3,7 @@ import React from "react";
 import { Button, Input, Select } from "@/components/ui";
 import { Plus, Trash2 } from "lucide-react";
 import { TOR_SECTIONS, wordTargets } from "@/lib/tor-ai-sections";
-import { DEFAULT_TAHAPAN, type TorIsi, type TorTahapanRow } from "@/lib/tor-isi-api";
+import { DEFAULT_TAHAPAN, normSumberDana, type TorIsi, type TorTahapanRow } from "@/lib/tor-isi-api";
 
 const BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Ags", "Sep", "Okt", "Nov", "Des"];
 
@@ -44,13 +44,20 @@ export function TorIsiFields({
         <label className="text-sm font-medium">Sumber dana (Bagian Biaya):</label>
         <Select
           value={isi.sumberDana}
-          onChange={(e) => setIsi((s) => ({ ...s, sumberDana: e.target.value }))}
+          onChange={(e) => setIsi((s) => ({ ...s, sumberDana: normSumberDana(e.target.value) }))}
           className="w-56"
         >
           <option value="RM">RM — Rupiah Murni</option>
           <option value="BLU">BLU — PNBP/BLU</option>
+          <option value="RM_BLU">RM &amp; BLU — dua sumber DIPA</option>
         </Select>
       </div>
+      {isi.sumberDana === "RM_BLU" && (
+        <p className="-mt-2 text-xs text-muted-foreground">
+          Narasi Bagian E akan menyebut total biaya beserta rinciannya: berapa dari DIPA RM dan
+          berapa dari DIPA BLU. Nilainya dihitung otomatis dari sumber dana tiap akun di kertas kerja.
+        </p>
+      )}
 
       {/* Narasi per bagian */}
       {TOR_SECTIONS.map((s) => {

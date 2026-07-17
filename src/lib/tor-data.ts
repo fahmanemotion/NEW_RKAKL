@@ -55,6 +55,46 @@ function fmtTempatTgl(kota: string, tanggalIso: string | null): string {
   return kota ? `${kota}, ${tgl}` : tgl;
 }
 
+/** Label sumber dana untuk narasi Bagian E. */
+function labelSumberDana(v: string): string {
+  return v === "RM_BLU" ? "RM & BLU" : v === "BLU" ? "BLU" : "RM";
+}
+
+/**
+ * Pecah biaya sebuah komponen menurut sumber dana DIPA-nya.
+ * Dijumlah pada level AKUN (bukan DETAIL) karena `jumlah` AKUN sudah merupakan
+ * rollup detail di bawahnya — menjumlah keduanya akan dobel. Sumber dana memang
+ * hanya tersimpan pada AKUN dan diwarisi detail-nya.
+ */
+function biayaPerSumber(
+  rows: StrukturRow[],
+  komponenId: string,
+): { rm: number; blu: number; lain: number } {
+  const anak = new Map<string, StrukturRow[]>();
+  for (const r of rows) {
+    if (!r.parent_id) continue;
+    const a = anak.get(r.parent_id) ?? [];
+    a.push(r);
+    anak.set(r.parent_id, a);
+  }
+  const out = { rm: 0, blu: 0, lain: 0 };
+  const telusuri = (id: string) => {
+    for (const r of anak.get(id) ?? []) {
+      if (r.level === "AKUN") {
+        const s = String(r.sumber_dana || "").toUpperCase();
+        const n = Number(r.jumlah || 0);
+        if (s.includes("BLU")) out.blu += n;
+        else if (s.includes("RM") || s.includes("RUPIAH") || !s) out.rm += n;
+        else out.lain += n;
+        continue; // jangan turun ke detail — sudah terhitung di jumlah AKUN
+      }
+      telusuri(r.id);
+    }
+  };
+  telusuri(komponenId);
+  return out;
+}
+
 /** Normalisasi nama komponen agar pencocokan KODE TOR longgar:
  *  huruf kecil, buang "(...)" (mis. "(BST)"), buang tanda baca, rapikan spasi.
  *  Diekspor agar template isi TOR memakai KUNCI yang SAMA (tor-isi-api.ts). */
@@ -71,6 +111,8 @@ interface StrukturRow {
   id: string; parent_id: string | null; level: string;
   kode: string | null; uraian: string | null; volume: number | null; satuan: string | null;
   jumlah: number | null;
+  /** Diisi pada level AKUN; dipakai memecah biaya RM vs BLU pada Bagian E. */
+  sumber_dana: string | null;
 }
 interface TorKodeRow {
   komponen: string; unit_eselon: string | null;
@@ -112,7 +154,7 @@ async function loadContext(usulanId: string) {
     fetchAllStruktur(
       sb(),
       usulanId,
-      "id, parent_id, level, kode, uraian, volume, satuan, jumlah",
+      "id, parent_id, level, kode, uraian, volume, satuan, jumlah, sumber_dana",
     ).then((rows) => ({ data: rows })),
     sb().from("master_tor_kode").select(
       "komponen, unit_eselon, indikator_ro, indikator_kro, sasaran_program, indikator_kinerja_program, sasaran_kegiatan, indikator_kinerja_kegiatan",
@@ -196,6 +238,14 @@ export async function buildTorForKomponen(
     .map((r) => ({ nama: r.nama, bulanMulai: Number(r.bulan_mulai || 0), bulanSelesai: Number(r.bulan_selesai || 0) }));
   const opsi = opsiRows.find((r) => r.komponen_id === komponenId);
   const sumberDana = (opsi?.sumber_dana as string) || "RM";
+  // Bagian E: bila komponen dibiayai DUA DIPA (RM & BLU), sebutkan rincian
+  // nominal tiap sumber setelah total. Nilainya dihitung dari kertas kerja,
+  // bukan diketik manual, agar tak pernah beda dengan RAB terlampir.
+  const bagi = sumberDana === "RM_BLU" ? biayaPerSumber(rows, komponenId) : null;
+  const rincianDana =
+    bagi && (bagi.rm > 0 || bagi.blu > 0)
+      ? `, terdiri dari DIPA RM sebesar Rp ${fmtRupiah(bagi.rm)} & DIPA BLU sebesar Rp ${fmtRupiah(bagi.blu)}`
+      : "";
   // Penempatan tanda tangan: kiri = peran "Mengetahui", kanan = "KPA".
   // Bila peran belum diisi, pakai dua penandatangan pertama.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -282,7 +332,8 @@ export async function buildTorForKomponen(
     VOL_KOMP: volKomp(Number(komp?.volume || 0), komp?.satuan || ""),
     TOTAL: fmtRupiah(totalKomp),
     TERBILANG: totalKomp ? titleCase(terbilang(Math.round(totalKomp))) : "",
-    SUMBER_DANA: sumberDana,
+    SUMBER_DANA: labelSumberDana(sumberDana),
+    RINCIAN_DANA: rincianDana,
     TEMPAT_TGL_TTD: fmtTempatTgl(cityName(pgr?.kota || satker?.lokus || ""), pgr?.tanggal ?? null),
     TTD1_JABATAN: t1.jabatan || "",
     TTD1_NAMA: t1.nama || "",

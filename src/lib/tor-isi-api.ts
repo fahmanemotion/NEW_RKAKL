@@ -10,10 +10,20 @@ export interface TorTahapanRow {
   bulan_selesai: number;
 }
 
+/** Sumber dana Bagian E. 'RM_BLU' = dibiayai DUA DIPA sekaligus (RM & BLU). */
+export type SumberDana = "RM" | "BLU" | "RM_BLU";
+
+/** Batasi ke nilai yang dikenal; selain itu jatuh ke 'RM'. */
+export function normSumberDana(v: unknown): SumberDana {
+  const s = String(v ?? "").toUpperCase();
+  if (s === "RM_BLU" || s === "BLU" || s === "RM") return s as SumberDana;
+  return "RM";
+}
+
 export interface TorIsi {
   narasi: Record<string, string>; // section_id -> teks
   tahapan: TorTahapanRow[];
-  sumberDana: string; // 'RM' | 'BLU'
+  sumberDana: SumberDana;
 }
 
 /** Tahapan awal saat komponen belum pernah diisi (bisa diubah pengguna). */
@@ -55,7 +65,7 @@ export async function loadTorIsi(usulanId: string, komponenId: string): Promise<
     narasi,
     tahapan: tahapan.length ? tahapan : DEFAULT_TAHAPAN.map((x) => ({ ...x })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    sumberDana: ((o as any)?.sumber_dana as string) || "RM",
+    sumberDana: normSumberDana((o as any)?.sumber_dana),
   };
 }
 
@@ -97,7 +107,7 @@ export async function saveTorIsi(usulanId: string, komponenId: string, isi: TorI
   // 3) Opsi sumber dana: upsert.
   const upO = await c
     .from("tor_komponen_opsi")
-    .upsert({ ...key, sumber_dana: isi.sumberDana === "BLU" ? "BLU" : "RM" }, { onConflict: "usulan_id,komponen_id" });
+    .upsert({ ...key, sumber_dana: normSumberDana(isi.sumberDana) }, { onConflict: "usulan_id,komponen_id" });
   if (upO.error) throw upO.error;
 }
 
@@ -156,7 +166,7 @@ export async function saveTorTemplateForUsulan(
       data: {
         narasi,
         tahapan: tahapanByKomp.get(k.id) ?? [],
-        sumberDana: opsiByKomp.get(k.id) === "BLU" ? "BLU" : "RM",
+        sumberDana: normSumberDana(opsiByKomp.get(k.id)),
       },
       updated_at: now,
     });
@@ -180,7 +190,7 @@ export async function loadTorTemplate(komponenNama: string): Promise<TorIsi | nu
   return {
     narasi: d.narasi ?? {},
     tahapan: tahapan.length ? tahapan : DEFAULT_TAHAPAN.map((x) => ({ ...x })),
-    sumberDana: d.sumberDana === "BLU" ? "BLU" : "RM",
+    sumberDana: normSumberDana(d.sumberDana),
   };
 }
 
@@ -205,7 +215,7 @@ function toTorIsi(raw: unknown): TorIsi {
   return {
     narasi: d.narasi ?? {},
     tahapan: (d.tahapan ?? []) as TorTahapanRow[],
-    sumberDana: d.sumberDana === "BLU" ? "BLU" : "RM",
+    sumberDana: normSumberDana(d.sumberDana),
   };
 }
 
@@ -240,7 +250,7 @@ export async function saveTorTemplate(komponenNama: string, isi: TorIsi): Promis
       data: {
         narasi: isi.narasi,
         tahapan: isi.tahapan.filter((t) => t.nama.trim()),
-        sumberDana: isi.sumberDana === "BLU" ? "BLU" : "RM",
+        sumberDana: normSumberDana(isi.sumberDana),
       },
       updated_at: new Date().toISOString(),
     },

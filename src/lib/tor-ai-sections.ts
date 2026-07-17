@@ -148,7 +148,7 @@ export interface TorPromptContext {
   satuan?: string;
   anggaran?: string;
   tahun?: string;
-  sumberDana?: "RM" | "BLU";
+  sumberDana?: "RM" | "BLU" | "RM_BLU";
 }
 
 function fmtPages(p: number): string {

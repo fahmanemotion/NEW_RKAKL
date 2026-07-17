@@ -27,6 +27,8 @@ export interface TorTokens {
   RO_ROW: string; IND_RO: string; VOL_RO: string; SATUAN_RO: string; KOMP: string; VOL_KOMP: string;
   // Biaya + tanda tangan
   TOTAL: string; TERBILANG: string; TEMPAT_TGL_TTD: string; SUMBER_DANA: string;
+  /** Rincian nominal tiap DIPA saat sumber dana = RM & BLU; "" bila sumber tunggal. */
+  RINCIAN_DANA: string;
   TTD1_JABATAN: string; TTD1_NAMA: string; TTD1_NIP: string;
   TTD2_JABATAN: string; TTD2_NAMA: string; TTD2_NIP: string;
 }
