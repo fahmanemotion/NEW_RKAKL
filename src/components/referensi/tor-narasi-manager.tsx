@@ -3,6 +3,7 @@ import * as React from "react";
 import { Search, Loader2, Plus, Pencil, Trash2, Inbox, AlertTriangle, Save, FileText } from "lucide-react";
 import { Button, Input, Card } from "@/components/ui";
 import { Modal } from "@/components/ui/modal";
+import { ComboBox } from "@/components/ui/combobox";
 import { TorIsiFields } from "@/components/tor/tor-isi-fields";
 import { TOR_SECTIONS } from "@/lib/tor-ai-sections";
 import {
@@ -288,18 +289,15 @@ function TorNarasiEditModal({
             <Input value={nama} disabled className="text-muted-foreground" />
           ) : (
             <>
-              <Input
+              <ComboBox
+                options={namaKomponen}
                 value={nama}
-                onChange={(e) => setNama(e.target.value)}
-                placeholder="mis. Basic Safety Training"
-                list="tor-narasi-komponen"
-                autoFocus
+                onChange={setNama}
+                placeholder="Pilih komponen…"
+                searchPlaceholder="Ketik untuk mencari komponen…"
+                emptyText="Komponen tidak ditemukan di master KODE KK."
+                allowCustom
               />
-              <datalist id="tor-narasi-komponen">
-                {namaKomponen.map((n) => (
-                  <option key={n} value={n} />
-                ))}
-              </datalist>
               <p className="mt-1 text-xs text-muted-foreground">
                 Pilih dari daftar komponen yang ada agar narasi ini otomatis termuat saat menyusun TOR.
               </p>
