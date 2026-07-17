@@ -136,8 +136,11 @@ function hurufButir(i: number): string {
  * memindah butir tak pernah membuat huruf meloncat. Penomoran manual apa pun
  * dibuang lebih dulu agar tidak dobel ("a. a. …").
  *
- * Butir memakai indentasi GANTUNG + tab: huruf di kolom 360, teks di kolom 720,
- * sehingga baris sambungan lurus dengan teks di atasnya (bukan di bawah hurufnya).
+ * Butir memakai indentasi GANTUNG sehingga baris sambungan lurus dengan teks di
+ * atasnya, bukan menempel di bawah hurufnya. Pemisah huruf→teks sengaja SPASI
+ * BIASA, bukan <w:tab/>: pada paragraf rata kiri-kanan (w:jc="both") Word
+ * melebarkan tab untuk memenuhi baris, sehingga muncul jurang lebar setelah
+ * "a.". Spasi ikut melar seragam bersama spasi antar kata, jadi tetap rapi.
  * Deret huruf di-reset oleh paragraf biasa atau sub-judul "## ".
  */
 function narasiToXml(text: string): string {
@@ -164,8 +167,7 @@ function narasiToXml(text: string): string {
         `<w:p><w:pPr><w:spacing w:after="80" w:line="360" w:lineRule="auto"/>` +
           `<w:ind w:left="720" w:hanging="360"/><w:jc w:val="both"/></w:pPr>` +
           `<w:r><w:rPr>${AR}<w:sz w:val="24"/></w:rPr>` +
-          `<w:t xml:space="preserve">${escapeXml(label)}</w:t><w:tab/>` +
-          `<w:t xml:space="preserve">${escapeXml(isi)}</w:t></w:r></w:p>`,
+          `<w:t xml:space="preserve">${escapeXml(`${label} ${isi}`)}</w:t></w:r></w:p>`,
       );
       continue;
     }
