@@ -189,3 +189,68 @@ export async function listTorTemplateKeys(): Promise<Set<string>> {
   const { data } = await sb().from("tor_isi_template").select("komponen_key");
   return new Set(((data ?? []) as { komponen_key: string }[]).map((r) => r.komponen_key));
 }
+
+/* ── Pengelolaan pustaka template (Referensi → NARASI TOR) ─────────────────── */
+
+export interface TorTemplateRow {
+  komponen_key: string;
+  komponen_nama: string;
+  isi: TorIsi;
+  updated_at: string;
+}
+
+/** Bentuk ulang jsonb `data` menjadi TorIsi yang utuh (tahan data lama/kosong). */
+function toTorIsi(raw: unknown): TorIsi {
+  const d = (raw ?? {}) as Partial<TorIsi>;
+  return {
+    narasi: d.narasi ?? {},
+    tahapan: (d.tahapan ?? []) as TorTahapanRow[],
+    sumberDana: d.sumberDana === "BLU" ? "BLU" : "RM",
+  };
+}
+
+/** Daftar seluruh template isi TOR, urut nama komponen. */
+export async function listTorTemplates(): Promise<TorTemplateRow[]> {
+  const { data, error } = await sb()
+    .from("tor_isi_template")
+    .select("komponen_key, komponen_nama, data, updated_at")
+    .order("komponen_nama");
+  if (error) throw error;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return ((data ?? []) as any[]).map((r) => ({
+    komponen_key: String(r.komponen_key),
+    komponen_nama: String(r.komponen_nama ?? ""),
+    isi: toTorIsi(r.data),
+    updated_at: String(r.updated_at ?? ""),
+  }));
+}
+
+/**
+ * Simpan/perbarui satu template ber-kunci NAMA komponen (dinormalisasi).
+ * Nama yang menghasilkan kunci sama dianggap komponen yang sama → tidak digandakan.
+ */
+export async function saveTorTemplate(komponenNama: string, isi: TorIsi): Promise<void> {
+  const nama = (komponenNama || "").trim();
+  const key = normKomp(nama);
+  if (!key) throw new Error("Nama komponen wajib diisi.");
+  const { error } = await sb().from("tor_isi_template").upsert(
+    {
+      komponen_key: key,
+      komponen_nama: nama,
+      data: {
+        narasi: isi.narasi,
+        tahapan: isi.tahapan.filter((t) => t.nama.trim()),
+        sumberDana: isi.sumberDana === "BLU" ? "BLU" : "RM",
+      },
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "komponen_key" },
+  );
+  if (error) throw error;
+}
+
+/** Hapus satu template. */
+export async function deleteTorTemplate(komponenKey: string): Promise<void> {
+  const { error } = await sb().from("tor_isi_template").delete().eq("komponen_key", komponenKey);
+  if (error) throw error;
+}

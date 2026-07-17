@@ -7,6 +7,7 @@ import { ReferensiTabs } from '@/components/referensi/tabs';
 import { MasterManager } from '@/components/referensi/master-manager';
 import { KodeManager } from '@/components/referensi/kode-manager';
 import { TorKodeManager } from '@/components/referensi/tor-kode-manager';
+import { TorNarasiManager } from '@/components/referensi/tor-narasi-manager';
 import { PenandatanganManager } from '@/components/referensi/penandatangan-manager';
 import { TempatTanggalManager } from '@/components/referensi/tempat-tanggal-manager';
 import { SatkerManager } from '@/components/referensi/satker-manager';
@@ -70,6 +71,18 @@ export default async function Page({ params }: { params: Promise<{ master: strin
         subtitle="Metadata kinerja per komponen (Sasaran & Indikator Program/Kegiatan, Unit Eselon) untuk mengisi tabel identitas TOR yang tidak otomatis."
       >
         <TorKodeManager />
+      </Shell>
+    );
+  }
+
+  // Menu "NARASI TOR" = pustaka narasi TOR per komponen, dipakai ulang lintas tahun.
+  if (master === 'narasi-tor') {
+    return (
+      <Shell
+        title="Referensi NARASI TOR"
+        subtitle="Isi narasi TOR per komponen yang dapat dipakai ulang lintas tahun — otomatis termuat saat menyusun TOR di modul Laporan."
+      >
+        <TorNarasiManager />
       </Shell>
     );
   }
