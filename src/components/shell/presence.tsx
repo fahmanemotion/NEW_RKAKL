@@ -29,7 +29,18 @@ function usulanIdFromPath(pathname: string): string | null {
   return m ? m[1] : null;
 }
 
-type Meta = { name: string; kros: PresenceKro[] };
+// userId disertakan agar panel bisa mengelompokkan lintas koneksi meski KUNCI
+// presence unik per koneksi (lihat catatan di bawah).
+type Meta = { userId: string; name: string; kros: PresenceKro[] };
+
+/** Id acak per koneksi (per mount / per reload). */
+function randomId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+}
 
 // Satu channel GLOBAL untuk seluruh aplikasi: semua pengguna yang sedang membuka
 // aplikasi tampil di panel, di halaman mana pun (bukan hanya sesama editor satu usulan).
@@ -61,9 +72,9 @@ export function PresenceProvider({
     if (!usulanId) {
       myKrosRef.current = [];
       const ch = channelRef.current;
-      if (ch) void ch.track({ name: meNameRef.current, kros: [] } satisfies Meta).catch(() => {});
+      if (ch) void ch.track({ userId: meId, name: meNameRef.current, kros: [] } satisfies Meta).catch(() => {});
     }
-  }, [usulanId]);
+  }, [usulanId, meId]);
 
   React.useEffect(() => {
     const supabase = createClient();
@@ -77,8 +88,13 @@ export function PresenceProvider({
       }
     }
 
+    // KUNCI PRESENCE UNIK PER KONEKSI (bukan per pengguna). Saat pengguna reload
+    // atau tutup-buka browser, koneksi lama yang "leave"-nya telat memakai kunci
+    // BERBEDA, sehingga tak dapat menghapus koneksi baru → pengguna tak lagi
+    // "hilang" dari panel orang lain setelah reload. Pengelompokan per pengguna
+    // dilakukan di mergePresenceState via meta.userId.
     const channel = supabase.channel(PRESENCE_CHANNEL, {
-      config: { presence: { key: meId } },
+      config: { presence: { key: `${meId}:${randomId()}` } },
     });
     channelRef.current = channel;
     let disposed = false;
@@ -92,7 +108,7 @@ export function PresenceProvider({
 
     const trackSelf = () =>
       channel
-        .track({ name: meNameRef.current, kros: myKrosRef.current } satisfies Meta)
+        .track({ userId: meId, name: meNameRef.current, kros: myKrosRef.current } satisfies Meta)
         .catch(() => {});
 
     channel.on('presence', { event: 'sync' }, sync);
@@ -142,8 +158,8 @@ export function PresenceProvider({
   const setMyKros = React.useCallback<SetMyKros>((kros) => {
     myKrosRef.current = kros;
     const ch = channelRef.current;
-    if (ch) void ch.track({ name: meNameRef.current, kros } satisfies Meta).catch(() => {});
-  }, []);
+    if (ch) void ch.track({ userId: meId, name: meNameRef.current, kros } satisfies Meta).catch(() => {});
+  }, [meId]);
 
   const usersValue = React.useMemo(
     () => ({ users, active: true, status }),
