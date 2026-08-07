@@ -42,22 +42,25 @@ const LABEL: Record<Level, string> = {
 // Level yang bisa di-Edit langsung dari toolbar.
 const EDITABLE = new Set<Level>(['KRO', 'RO', 'KOMPONEN', 'SUB_KOMPONEN', 'AKUN', 'HEADER', 'DETAIL']);
 // Level yang bisa di-Salin (beserta seluruh turunannya).
-const COPYABLE = new Set<Level>(['SUB_KOMPONEN', 'AKUN', 'DETAIL']);
+const COPYABLE = new Set<Level>(['SUB_KOMPONEN', 'AKUN', 'HEADER', 'DETAIL']);
 
 const DEL: ToolbarAction = { key: 'delete', label: 'Hapus', kind: 'delete' };
 const EDIT: ToolbarAction = { key: 'edit', label: 'Edit', kind: 'edit' };
 const COPY: ToolbarAction = { key: 'copy', label: 'Salin', kind: 'copy' };
 
 // Induk tempel (level node terpilih) → level isi clipboard yang cocok ditempel.
-const PASTE_TARGET: Partial<Record<Level, Level>> = {
-  KOMPONEN: 'SUB_KOMPONEN',
-  SUB_KOMPONEN: 'AKUN',
-  AKUN: 'DETAIL',
-  HEADER: 'DETAIL', // detail bisa ditempel ke dalam header
+// Satu induk boleh menerima lebih dari satu level (mis. Akun menerima Header
+// maupun Detail).
+export const PASTE_TARGETS: Partial<Record<Level, Level[]>> = {
+  KOMPONEN: ['SUB_KOMPONEN'],
+  SUB_KOMPONEN: ['AKUN'],
+  AKUN: ['HEADER', 'DETAIL'], // header (beserta detailnya) atau detail langsung
+  HEADER: ['DETAIL'], // detail bisa ditempel ke dalam header
 };
 const PASTE_LABEL: Record<string, string> = {
   SUB_KOMPONEN: 'Tempel Sub Komponen',
   AKUN: 'Tempel Akun',
+  HEADER: 'Tempel Header',
   DETAIL: 'Tempel Detail',
 };
 
@@ -121,10 +124,17 @@ export function toolbarActions(
   if (COPYABLE.has(lv)) out.push(COPY);
   // 5) Hapus.
   out.push(DEL);
-  // 6) Tempel (bila clipboard cocok untuk induk terpilih; mendukung > 1 item).
-  const tgt = PASTE_TARGET[lv];
-  if (tgt && clipLevels && clipLevels.has(tgt)) {
-    out.push({ key: 'paste', label: PASTE_LABEL[tgt] ?? 'Tempel', kind: 'paste' });
+  // 6) Tempel (bila clipboard cocok untuk induk terpilih; mendukung > 1 item
+  //    dan > 1 level, mis. Header + Detail sekaligus ke dalam Akun).
+  const targets = PASTE_TARGETS[lv] ?? [];
+  const matched = clipLevels ? targets.filter((t) => clipLevels.has(t)) : [];
+  if (matched.length > 0) {
+    out.push({
+      key: 'paste',
+      label:
+        matched.length === 1 ? (PASTE_LABEL[matched[0]] ?? 'Tempel') : 'Tempel',
+      kind: 'paste',
+    });
   }
 
   return out;

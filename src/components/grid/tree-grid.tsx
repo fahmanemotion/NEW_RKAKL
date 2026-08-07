@@ -8,7 +8,9 @@ import { ChevronRight, ChevronDown, Check } from "lucide-react";
 const SD_KODE: Record<string, string> = { RM: "A00", BLU: "F00", SBSN: "SBSN" };
 
 // Level yang boleh dicentang untuk salin massal.
-const CHECKABLE = new Set(["SUB_KOMPONEN", "AKUN", "DETAIL"]);
+// HEADER ikut dicentang: mencentangnya otomatis mencentang seluruh Detail di
+// bawahnya (lihat toggleCheck pada penganggaran-client).
+const CHECKABLE = new Set(["SUB_KOMPONEN", "AKUN", "HEADER", "DETAIL"]);
 
 export function TreeGrid({
   rows,

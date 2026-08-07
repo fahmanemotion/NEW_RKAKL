@@ -15,7 +15,7 @@ import {
 import { createClient } from "@/lib/supabase";
 import { Button, Card, Select } from "@/components/ui";
 import { flattenForGrid, subtreeIds, filterByKros, checkedRootNodes, type GridRow } from "@/lib/tree";
-import { toolbarActions, type ToolbarAction } from "@/lib/toolbar";
+import { toolbarActions, PASTE_TARGETS, type ToolbarAction } from "@/lib/toolbar";
 import { fmtN, isKodeOperasional, type Level } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
@@ -566,19 +566,15 @@ export function PenganggaranClient({
     });
   }, [rows]);
 
-  // Induk yang valid untuk menempel tiap level clipboard.
-  const PASTE_TARGET: Partial<Record<Level, Level>> = {
-    KOMPONEN: "SUB_KOMPONEN",
-    SUB_KOMPONEN: "AKUN",
-    AKUN: "DETAIL",
-    HEADER: "DETAIL", // detail bisa ditempel ke dalam header
-  };
+  // Induk yang valid untuk menempel tiap level clipboard (boleh lebih dari satu
+  // level per induk, mis. Akun menerima Header maupun Detail).
+  const pasteTargetsFor = (lv: Level | null): Level[] =>
+    lv ? (PASTE_TARGETS[lv] ?? []) : [];
   // Boleh tempel bila baris terpilih adalah induk yang cocok untuk isi clipboard.
   const canPaste =
     !!clip &&
     !!selType &&
-    !!PASTE_TARGET[selType as Level] &&
-    clipLevels.has(PASTE_TARGET[selType as Level]!);
+    pasteTargetsFor(selType as Level).some((t) => clipLevels.has(t));
 
   // "Akar" terpilih (induk tak ikut tercentang); hanya akar yang disalin.
   const checkedRoots = React.useMemo(
@@ -684,9 +680,8 @@ export function PenganggaranClient({
     if (!clip || !selectedRow?.ref) return;
     const targetLevel = selType as Level;
     const targetId = selectedRow.ref.id;
-    const toPaste = clip.items.filter(
-      (it) => PASTE_TARGET[targetLevel] === it.level,
-    );
+    const allowed = pasteTargetsFor(targetLevel);
+    const toPaste = clip.items.filter((it) => allowed.includes(it.level));
     if (toPaste.length === 0) return;
     setPasting(true);
     try {
