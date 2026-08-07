@@ -32,6 +32,8 @@ type Meta = { name: string; kros: PresenceKro[] };
 // Satu channel GLOBAL untuk seluruh aplikasi: semua pengguna yang sedang membuka
 // aplikasi tampil di panel, di halaman mana pun (bukan hanya sesama editor satu usulan).
 const PRESENCE_CHANNEL = 'app-presence';
+// Interval track ulang (heartbeat) agar daftar self-healing & presence tak kedaluwarsa.
+const HEARTBEAT_MS = 15000;
 
 export function PresenceProvider({
   user,
@@ -84,24 +86,29 @@ export function PresenceProvider({
       setUsers(list);
     };
 
+    const trackSelf = () =>
+      channel
+        .track({ name: meNameRef.current, kros: myKrosRef.current } satisfies Meta)
+        .catch(() => {});
+
     channel.on('presence', { event: 'sync' }, sync);
     channel.on('presence', { event: 'join' }, sync);
     channel.on('presence', { event: 'leave' }, sync);
     channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        void channel.track({ name: meNameRef.current, kros: myKrosRef.current } satisfies Meta);
-      }
+      // Track ulang di setiap (re)connect — termasuk setelah koneksi sempat putus.
+      if (status === 'SUBSCRIBED') void trackSelf();
     });
 
-    // Navigasi hard-reload (window.location.assign) tidak selalu memicu cleanup React,
-    // jadi untrack manual saat unload agar tidak meninggalkan "hantu" presence.
-    const onUnload = () => { void channel.untrack(); };
-    window.addEventListener('beforeunload', onUnload);
-    window.addEventListener('pagehide', onUnload);
+    // Heartbeat: track ulang berkala. Membuat daftar SELF-HEALING (mis. setelah
+    // menutup/membuka browser) dan mencegah presence kedaluwarsa. Penutupan browser
+    // ditangani otomatis oleh Supabase (server broadcast "leave" saat socket putus),
+    // sehingga tidak perlu untrack manual yang rawan terpicu keliru (pagehide/bfcache).
+    const heartbeat = setInterval(() => {
+      void trackSelf();
+    }, HEARTBEAT_MS);
 
     return () => {
-      window.removeEventListener('beforeunload', onUnload);
-      window.removeEventListener('pagehide', onUnload);
+      clearInterval(heartbeat);
       void supabase.removeChannel(channel);
       channelRef.current = null;
       setUsers([]);
