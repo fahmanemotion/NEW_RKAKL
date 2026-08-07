@@ -10,6 +10,8 @@ export interface PresenceUser {
   userId: string;
   name: string;
   kros: PresenceKro[];
+  /** true bila pengguna sedang berada di modul Penganggaran. */
+  inPenganggaran: boolean;
   self: boolean;
 }
 
@@ -27,7 +29,12 @@ function usulanIdFromPath(pathname: string): string | null {
   return m ? m[1] : null;
 }
 
-type Ping = { id: string; name: string; kros: PresenceKro[] };
+/** Panel presence hanya relevan di modul Penganggaran. */
+function isPenganggaran(pathname: string): boolean {
+  return pathname === '/penganggaran' || pathname.startsWith('/penganggaran/');
+}
+
+type Ping = { id: string; name: string; kros: PresenceKro[]; ing: boolean };
 
 const PRESENCE_CHANNEL = 'app-presence';
 const PING_MS = 4000;    // umumkan kehadiran tiap 4 detik
@@ -51,14 +58,15 @@ export function PresenceProvider({
   const meName = user.nama ?? user.email ?? 'Pengguna';
   const meNameRef = React.useRef(meName);
   meNameRef.current = meName;
+  const inPengRef = React.useRef(isPenganggaran(pathname));
+  inPengRef.current = isPenganggaran(pathname);
 
-  // Saat keluar dari halaman usulan, reset KRO lalu umumkan perubahannya.
+  // Saat keluar dari halaman usulan, reset KRO. Setiap perpindahan halaman juga
+  // diumumkan agar status "di modul lain" milik pengguna lain selalu mutakhir.
   React.useEffect(() => {
-    if (!usulanId) {
-      myKrosRef.current = [];
-      pingRef.current();
-    }
-  }, [usulanId]);
+    if (!usulanId) myKrosRef.current = [];
+    pingRef.current();
+  }, [usulanId, pathname]);
 
   React.useEffect(() => {
     const supabase = createClient();
@@ -69,12 +77,18 @@ export function PresenceProvider({
     });
     channelRef.current = channel;
 
-    const seen = new Map<string, { name: string; kros: PresenceKro[]; lastSeen: number }>();
+    const seen = new Map<string, { name: string; kros: PresenceKro[]; ing: boolean; lastSeen: number }>();
 
     const rebuild = () => {
       const now = Date.now();
       const list: PresenceUser[] = [
-        { userId: meId, name: meNameRef.current, kros: myKrosRef.current, self: true },
+        {
+          userId: meId,
+          name: meNameRef.current,
+          kros: myKrosRef.current,
+          inPenganggaran: inPengRef.current,
+          self: true,
+        },
       ];
       for (const [id, v] of Array.from(seen.entries())) {
         if (id === meId) continue;
@@ -82,7 +96,13 @@ export function PresenceProvider({
           seen.delete(id);
           continue;
         }
-        list.push({ userId: id, name: v.name, kros: v.kros, self: false });
+        list.push({
+          userId: id,
+          name: v.name,
+          kros: v.kros,
+          inPenganggaran: v.ing,
+          self: false,
+        });
       }
       list.sort((a, b) =>
         a.self === b.self ? a.name.localeCompare(b.name, 'id') : a.self ? -1 : 1,
@@ -95,7 +115,12 @@ export function PresenceProvider({
         .send({
           type: 'broadcast',
           event: 'ping',
-          payload: { id: meId, name: meNameRef.current, kros: myKrosRef.current } satisfies Ping,
+          payload: {
+            id: meId,
+            name: meNameRef.current,
+            kros: myKrosRef.current,
+            ing: inPengRef.current,
+          } satisfies Ping,
         })
         .catch(() => {});
     };
@@ -105,7 +130,12 @@ export function PresenceProvider({
       const p = payload as Ping;
       if (!p?.id || p.id === meId) return;
       const isNew = !seen.has(p.id);
-      seen.set(p.id, { name: p.name ?? 'Pengguna', kros: p.kros ?? [], lastSeen: Date.now() });
+      seen.set(p.id, {
+        name: p.name ?? 'Pengguna',
+        kros: p.kros ?? [],
+        ing: p.ing ?? false,
+        lastSeen: Date.now(),
+      });
       rebuild();
       // Balas agar pendatang (dan yang lain) langsung menemukan kita — dua arah.
       if (isNew) ping();
@@ -150,7 +180,11 @@ export function PresenceProvider({
     pingRef.current();
   }, []);
 
-  const usersValue = React.useMemo(() => ({ users, active: true }), [users]);
+  // Panel hanya ditampilkan di modul Penganggaran agar sidebar modul lain bersih.
+  // Pelacakan tetap berjalan global supaya kehadiran tidak "hilang" saat
+  // pengguna berpindah modul lalu kembali.
+  const active = isPenganggaran(pathname);
+  const usersValue = React.useMemo(() => ({ users, active }), [users, active]);
 
   return (
     <SetterCtx.Provider value={setMyKros}>
@@ -196,7 +230,7 @@ export function PresencePanel() {
               </div>
               {u.kros.length === 0 ? (
                 <p className="mt-1 text-[11px] italic text-sidebar-foreground/45">
-                  belum memilih KRO
+                  {u.inPenganggaran ? 'belum memilih KRO' : 'di modul lain'}
                 </p>
               ) : (
                 <ol className="mt-1 space-y-0.5">
