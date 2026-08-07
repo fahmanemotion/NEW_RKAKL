@@ -297,6 +297,13 @@ export async function copyAnggaranAction(
     const user = await requireUser();
     const sb = (await createServerSupabase()) as unknown as {
       from: (t: string) => any;
+      rpc: (
+        fn: string,
+        args?: Record<string, unknown>,
+      ) => Promise<{
+        data: unknown;
+        error: { message?: string; code?: string } | null;
+      }>;
     };
 
     const { data: target } = await sb
@@ -313,6 +320,35 @@ export async function copyAnggaranAction(
       throw new Error(
         "Hanya usulan berstatus Draft yang dapat diisi dengan salinan.",
       );
+
+    // JALUR UTAMA: satu RPC set-based di database (cepat & atomik). Penyalinan
+    // baris-per-baris dari sini memicu trigger rollup/audit untuk SETIAP baris
+    // sehingga ribuan baris menembus statement timeout.
+    const rpc = await sb.rpc("copy_usulan_struktur", {
+      p_target: targetUsulanId,
+      p_source: sourceUsulanId,
+      p_replace: opts?.replace ?? false,
+    });
+    if (!rpc.error) {
+      revalidatePath("/penganggaran");
+      revalidatePath(`/penganggaran/${targetUsulanId}`);
+      return { ok: true, copied: Number(rpc.data) || 0 };
+    }
+    {
+      const msg = rpc.error.message ?? "";
+      if (/TARGET_NOT_EMPTY/.test(msg))
+        return {
+          ok: false,
+          code: "TARGET_NOT_EMPTY",
+          error:
+            "Usulan tujuan sudah berisi rincian. Kosongkan dahulu sebelum menyalin.",
+        };
+      // Fungsi belum ada (migrasi belum dijalankan) → pakai jalur lama di bawah.
+      const missing =
+        rpc.error.code === "PGRST202" ||
+        /could not find the function|does not exist|schema cache/i.test(msg);
+      if (!missing) throw new Error(msg || "Penyalinan gagal.");
+    }
 
     const { count: tgtCount } = await sb
       .from("usulan_struktur")
