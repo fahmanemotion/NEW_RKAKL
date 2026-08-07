@@ -439,7 +439,22 @@ export function PenganggaranClient({
       return;
     setCopying(true);
     try {
-      const res = await copyAnggaranAction(header.id, copySourceId);
+      let res = await copyAnggaranAction(header.id, copySourceId);
+      // Sisa dari percobaan sebelumnya: tawarkan kosongkan lalu salin ulang.
+      if (!res.ok && res.code === "TARGET_NOT_EMPTY") {
+        if (
+          confirm(
+            "Usulan ini masih menyimpan sisa rincian (kemungkinan dari percobaan salin sebelumnya).\n\n" +
+              "Kosongkan sisa tersebut lalu salin ulang sekarang?",
+          )
+        ) {
+          res = await copyAnggaranAction(header.id, copySourceId, {
+            replace: true,
+          });
+        } else {
+          return;
+        }
+      }
       if (!res.ok) {
         alert("Gagal menyalin: " + res.error);
         return;

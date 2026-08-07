@@ -285,12 +285,13 @@ export async function listCopySourcesAction(
 
 export type CopyResult =
   | { ok: true; copied: number }
-  | { ok: false; error: string };
+  | { ok: false; error: string; code?: "TARGET_NOT_EMPTY" };
 
 /** Salin seluruh struktur dari usulan sumber ke usulan tujuan (harus Draft kosong). */
 export async function copyAnggaranAction(
   targetUsulanId: string,
   sourceUsulanId: string,
+  opts?: { replace?: boolean },
 ): Promise<CopyResult> {
   try {
     const user = await requireUser();
@@ -317,10 +318,23 @@ export async function copyAnggaranAction(
       .from("usulan_struktur")
       .select("id", { count: "exact", head: true })
       .eq("usulan_id", targetUsulanId);
-    if ((tgtCount ?? 0) > 0)
-      throw new Error(
-        "Usulan tujuan sudah berisi rincian. Kosongkan dahulu sebelum menyalin.",
-      );
+    if ((tgtCount ?? 0) > 0) {
+      // Bisa jadi sisa dari percobaan salin yang gagal di tengah jalan. Beri
+      // kode khusus agar UI dapat menawarkan "kosongkan & salin ulang".
+      if (!opts?.replace)
+        return {
+          ok: false,
+          code: "TARGET_NOT_EMPTY",
+          error:
+            "Usulan tujuan sudah berisi rincian. Kosongkan dahulu sebelum menyalin.",
+        };
+      const { error: delErr } = await sb
+        .from("usulan_struktur")
+        .delete()
+        .eq("usulan_id", targetUsulanId);
+      if (delErr)
+        throw new Error("Gagal mengosongkan usulan tujuan: " + delErr.message);
+    }
 
     const { data: source } = await sb
       .from("usulan_anggaran")
@@ -341,13 +355,27 @@ export async function copyAnggaranAction(
     );
 
     let copied = 0;
-    for (const batch of batches) {
-      for (let i = 0; i < batch.length; i += 500) {
-        const chunk = batch.slice(i, i + 500);
-        const { error } = await sb.from("usulan_struktur").insert(chunk);
-        if (error) throw new Error(error.message);
-        copied += chunk.length;
+    try {
+      for (const batch of batches) {
+        for (let i = 0; i < batch.length; i += 500) {
+          const chunk = batch.slice(i, i + 500);
+          const { error } = await sb.from("usulan_struktur").insert(chunk);
+          if (error) throw error;
+          copied += chunk.length;
+        }
       }
+    } catch (e) {
+      // ROLLBACK: hapus baris yang terlanjur masuk agar usulan tujuan kembali
+      // kosong. Tanpa ini, percobaan berikutnya akan tertolak oleh pemeriksaan
+      // "sudah berisi rincian" padahal grid tampak kosong.
+      await sb.from("usulan_struktur").delete().eq("usulan_id", targetUsulanId);
+      const err = e as { code?: string; message?: string };
+      if (err?.code === "23505" || /duplicate key|unique/i.test(err?.message ?? ""))
+        throw new Error(
+          "Usulan sumber memiliki kode ganda pada level yang sama (mis. dua KRO/Komponen/Akun berkode sama dalam satu induk), " +
+            "sehingga tidak dapat disalin. Perbaiki duplikasi di usulan sumber lalu ulangi.",
+        );
+      throw new Error(err?.message ?? "Penyalinan gagal.");
     }
 
     await sb
