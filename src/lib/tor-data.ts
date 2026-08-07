@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase";
 import { fetchAllStruktur } from "@/lib/fetch-struktur";
 import { terbilang } from "./rab-data";
 import type { TorTokens, RabRow, TahapanRow } from "./tor-generate";
+import { compareKodeHuruf } from "./kode-sort";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb = (): any => createClient();
@@ -368,7 +369,7 @@ export async function buildTorForKomponen(
   const baseKode = kodeProgKomp;
   const subs = rows
     .filter((r) => r.level === "SUB_KOMPONEN" && r.parent_id === komponenId)
-    .sort((a, b) => (a.kode || "").localeCompare(b.kode || ""));
+    .sort((a, b) => compareKodeHuruf(a.kode || "", b.kode || ""));
   const rab: RabRow[] = subs.length
     ? subs.map((s) => ({
         kode: baseKode + (s.kode || ""),

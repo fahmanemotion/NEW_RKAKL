@@ -4,6 +4,7 @@
 // agregasi jumlah ke atas, dan baris-info (Lokasi / Jumlah Komponen Utama / KPPN).
 
 import type { Level, UsulanStruktur } from "@/types/database";
+import { compareKodeHuruf } from './kode-sort';
 
 export interface GridRow {
   id: string;
@@ -91,13 +92,17 @@ export function buildTree(rows: UsulanStruktur[]): { roots: Node[] } {
     else roots.push(n);
   });
   // Level dengan kode terstruktur diurutkan by kode (hirarkis atas→bawah);
-  // sisanya (Komponen/Sub Komponen/Detail) mengikuti urutan input.
+  // Sub Komponen diurutkan by kode huruf (A..Z lalu AA, AB, ...);
+  // sisanya (Komponen/Detail) mengikuti urutan input.
   const CODE_SORT = new Set(["PROGRAM", "KEGIATAN", "KRO", "RO", "KOMPONEN", "AKUN"]);
-  const byUrut = (a: Node, b: Node) =>
-    CODE_SORT.has(a.level) && CODE_SORT.has(b.level)
+  const byUrut = (a: Node, b: Node) => {
+    if (a.level === "SUB_KOMPONEN" && b.level === "SUB_KOMPONEN")
+      return compareKodeHuruf(a.kode || "", b.kode || "") || a.urutan - b.urutan;
+    return CODE_SORT.has(a.level) && CODE_SORT.has(b.level)
       ? (a.kode || "").localeCompare(b.kode || "", undefined, { numeric: true }) ||
         a.urutan - b.urutan
       : a.urutan - b.urutan || (a.kode || "").localeCompare(b.kode || "");
+  };
   const sortRec = (n: Node) => {
     n.children.sort(byUrut);
     n.children.forEach(sortRec);
