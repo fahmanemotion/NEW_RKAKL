@@ -9,11 +9,18 @@ import { mergePresenceState, type PresenceKro, type PresenceUser } from '@/lib/p
 export type { PresenceKro, PresenceUser };
 
 type SetMyKros = (kros: PresenceKro[]) => void;
+/** Status koneksi realtime presence untuk indikator di panel. */
+export type PresenceStatus = 'connecting' | 'online' | 'error';
 
 const SetterCtx = React.createContext<SetMyKros>(() => {});
-const UsersCtx = React.createContext<{ users: PresenceUser[]; active: boolean }>({
+const UsersCtx = React.createContext<{
+  users: PresenceUser[];
+  active: boolean;
+  status: PresenceStatus;
+}>({
   users: [],
   active: false,
+  status: 'connecting',
 });
 
 /** Ambil usulanId dari path /penganggaran/{id} (daftar /penganggaran → null). */
@@ -40,6 +47,7 @@ export function PresenceProvider({
   const pathname = usePathname();
   const usulanId = usulanIdFromPath(pathname);
   const [users, setUsers] = React.useState<PresenceUser[]>([]);
+  const [status, setStatus] = React.useState<PresenceStatus>('connecting');
   const myKrosRef = React.useRef<PresenceKro[]>([]);
   const channelRef = React.useRef<RealtimeChannel | null>(null);
 
@@ -59,10 +67,22 @@ export function PresenceProvider({
 
   React.useEffect(() => {
     const supabase = createClient();
+
+    // Bersihkan sisa channel 'app-presence' dari mount sebelumnya pada client
+    // SINGLETON. Dua channel bertopik sama pada satu socket saling bertabrakan
+    // (yang kedua bisa CHANNEL_ERROR), sehingga presence tak pernah SUBSCRIBED.
+    for (const ch of supabase.getChannels()) {
+      if (ch.topic === `realtime:${PRESENCE_CHANNEL}` || ch.topic === PRESENCE_CHANNEL) {
+        void supabase.removeChannel(ch);
+      }
+    }
+
     const channel = supabase.channel(PRESENCE_CHANNEL, {
       config: { presence: { key: meId } },
     });
     channelRef.current = channel;
+    let disposed = false;
+    let retry: ReturnType<typeof setTimeout> | null = null;
 
     const sync = () => {
       // Gabungkan SEMUA koneksi tiap pengguna (union KRO) — bukan hanya meta
@@ -78,9 +98,25 @@ export function PresenceProvider({
     channel.on('presence', { event: 'sync' }, sync);
     channel.on('presence', { event: 'join' }, sync);
     channel.on('presence', { event: 'leave' }, sync);
-    channel.subscribe((status) => {
-      // Track ulang di setiap (re)connect — termasuk setelah koneksi sempat putus.
-      if (status === 'SUBSCRIBED') void trackSelf();
+    channel.subscribe((st, err) => {
+      if (st === 'SUBSCRIBED') {
+        setStatus('online');
+        // Track ulang di setiap (re)connect — termasuk setelah koneksi sempat putus.
+        void trackSelf();
+      } else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT' || st === 'CLOSED') {
+        // Kegagalan koneksi TIDAK lagi ditelan diam-diam: tampilkan status &
+        // catat agar bisa didiagnosis, lalu coba sambung ulang.
+        if (st !== 'CLOSED') {
+          setStatus('error');
+          console.warn(`[presence] channel ${st}:`, err?.message ?? err ?? '(tanpa detail)');
+        }
+        if (!disposed && !retry) {
+          retry = setTimeout(() => {
+            retry = null;
+            if (!disposed) void channel.subscribe();
+          }, 3000);
+        }
+      }
     });
 
     // Heartbeat: track ulang berkala. Membuat daftar SELF-HEALING (mis. setelah
@@ -92,10 +128,13 @@ export function PresenceProvider({
     }, HEARTBEAT_MS);
 
     return () => {
+      disposed = true;
+      if (retry) clearTimeout(retry);
       clearInterval(heartbeat);
       void supabase.removeChannel(channel);
       channelRef.current = null;
       setUsers([]);
+      setStatus('connecting');
     };
   }, [meId]);
 
@@ -107,8 +146,8 @@ export function PresenceProvider({
   }, []);
 
   const usersValue = React.useMemo(
-    () => ({ users, active: true }),
-    [users],
+    () => ({ users, active: true, status }),
+    [users, status],
   );
 
   return (
@@ -129,18 +168,32 @@ export function usePresenceUsers() {
 
 /** Panel sidebar: daftar pengguna LAIN yang sedang mengakses + KRO mereka. */
 export function PresencePanel() {
-  const { users, active } = usePresenceUsers();
+  const { users, active, status } = usePresenceUsers();
   if (!active) return null;
   const others = users.filter((u) => !u.self);
+  // Warna titik indikator mencerminkan status koneksi realtime yang SEBENARNYA,
+  // sehingga "kosong karena belum ada orang" bisa dibedakan dari "koneksi gagal".
+  const dot =
+    status === 'online' ? 'bg-emerald-400' : status === 'error' ? 'bg-rose-400' : 'bg-amber-400';
 
   return (
     <div className="flex min-h-0 flex-1 flex-col border-t border-white/10">
       <div className="flex items-center gap-2 px-4 pb-2 pt-3 text-[11px] font-semibold uppercase tracking-wide text-sidebar-foreground/60">
         <span className="relative flex size-2">
-          <span className="absolute inline-flex size-2 animate-ping rounded-full bg-emerald-400/70" />
-          <span className="relative inline-flex size-2 rounded-full bg-emerald-400" />
+          {status === 'online' && (
+            <span className={`absolute inline-flex size-2 animate-ping rounded-full ${dot} opacity-70`} />
+          )}
+          <span className={`relative inline-flex size-2 rounded-full ${dot}`} />
         </span>
         Sedang mengakses
+        {status === 'error' && (
+          <span className="ml-auto normal-case text-rose-300/80" title="Koneksi realtime gagal">
+            koneksi bermasalah
+          </span>
+        )}
+        {status === 'connecting' && (
+          <span className="ml-auto normal-case text-amber-300/70">menyambung…</span>
+        )}
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
         {others.length === 0 ? (
