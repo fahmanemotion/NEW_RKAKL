@@ -4,23 +4,21 @@ import { usePathname } from 'next/navigation';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase';
 import type { CurrentUser } from '@/lib/auth';
-import { mergePresenceState, type PresenceKro, type PresenceUser } from '@/lib/presence-merge';
 
-export type { PresenceKro, PresenceUser };
+export interface PresenceKro { id: string; kode: string; uraian: string }
+export interface PresenceUser {
+  userId: string;
+  name: string;
+  kros: PresenceKro[];
+  self: boolean;
+}
 
 type SetMyKros = (kros: PresenceKro[]) => void;
-/** Status koneksi realtime presence untuk indikator di panel. */
-export type PresenceStatus = 'connecting' | 'online' | 'error';
 
 const SetterCtx = React.createContext<SetMyKros>(() => {});
-const UsersCtx = React.createContext<{
-  users: PresenceUser[];
-  active: boolean;
-  status: PresenceStatus;
-}>({
+const UsersCtx = React.createContext<{ users: PresenceUser[]; active: boolean }>({
   users: [],
   active: false,
-  status: 'connecting',
 });
 
 /** Ambil usulanId dari path /penganggaran/{id} (daftar /penganggaran → null). */
@@ -29,24 +27,11 @@ function usulanIdFromPath(pathname: string): string | null {
   return m ? m[1] : null;
 }
 
-// userId disertakan agar panel bisa mengelompokkan lintas koneksi meski KUNCI
-// presence unik per koneksi (lihat catatan di bawah).
-type Meta = { userId: string; name: string; kros: PresenceKro[] };
+type Ping = { id: string; name: string; kros: PresenceKro[] };
 
-/** Id acak per koneksi (per mount / per reload). */
-function randomId(): string {
-  try {
-    return crypto.randomUUID();
-  } catch {
-    return Math.random().toString(36).slice(2) + Date.now().toString(36);
-  }
-}
-
-// Satu channel GLOBAL untuk seluruh aplikasi: semua pengguna yang sedang membuka
-// aplikasi tampil di panel, di halaman mana pun (bukan hanya sesama editor satu usulan).
 const PRESENCE_CHANNEL = 'app-presence';
-// Interval track ulang (heartbeat) agar daftar self-healing & presence tak kedaluwarsa.
-const HEARTBEAT_MS = 15000;
+const PING_MS = 4000;    // umumkan kehadiran tiap 4 detik
+const STALE_MS = 12000;  // anggap offline jika tak terdengar selama 12 detik
 
 export function PresenceProvider({
   user,
@@ -58,113 +43,114 @@ export function PresenceProvider({
   const pathname = usePathname();
   const usulanId = usulanIdFromPath(pathname);
   const [users, setUsers] = React.useState<PresenceUser[]>([]);
-  const [status, setStatus] = React.useState<PresenceStatus>('connecting');
   const myKrosRef = React.useRef<PresenceKro[]>([]);
   const channelRef = React.useRef<RealtimeChannel | null>(null);
+  const pingRef = React.useRef<() => void>(() => {});
 
   const meId = user.id;
   const meName = user.nama ?? user.email ?? 'Pengguna';
   const meNameRef = React.useRef(meName);
   meNameRef.current = meName;
 
-  // Saat keluar dari halaman usulan, reset KRO (tidak lagi mengerjakan KRO apa pun).
+  // Saat keluar dari halaman usulan, reset KRO lalu umumkan perubahannya.
   React.useEffect(() => {
     if (!usulanId) {
       myKrosRef.current = [];
-      const ch = channelRef.current;
-      if (ch) void ch.track({ userId: meId, name: meNameRef.current, kros: [] } satisfies Meta).catch(() => {});
+      pingRef.current();
     }
-  }, [usulanId, meId]);
+  }, [usulanId]);
 
   React.useEffect(() => {
     const supabase = createClient();
-
-    // Bersihkan sisa channel 'app-presence' dari mount sebelumnya pada client
-    // SINGLETON. Dua channel bertopik sama pada satu socket saling bertabrakan
-    // (yang kedua bisa CHANNEL_ERROR), sehingga presence tak pernah SUBSCRIBED.
-    for (const ch of supabase.getChannels()) {
-      if (ch.topic === `realtime:${PRESENCE_CHANNEL}` || ch.topic === PRESENCE_CHANNEL) {
-        void supabase.removeChannel(ch);
-      }
-    }
-
-    // KUNCI PRESENCE UNIK PER KONEKSI (bukan per pengguna). Saat pengguna reload
-    // atau tutup-buka browser, koneksi lama yang "leave"-nya telat memakai kunci
-    // BERBEDA, sehingga tak dapat menghapus koneksi baru → pengguna tak lagi
-    // "hilang" dari panel orang lain setelah reload. Pengelompokan per pengguna
-    // dilakukan di mergePresenceState via meta.userId.
+    // Pendekatan BROADCAST (bukan presence-state) supaya simetris & andal:
+    // tiap klien mengumumkan dirinya berkala; klien lain menyimpan "last seen".
     const channel = supabase.channel(PRESENCE_CHANNEL, {
-      config: { presence: { key: `${meId}:${randomId()}` } },
+      config: { broadcast: { self: false } },
     });
     channelRef.current = channel;
-    let disposed = false;
-    let retry: ReturnType<typeof setTimeout> | null = null;
 
-    const sync = () => {
-      // Gabungkan SEMUA koneksi tiap pengguna (union KRO) — bukan hanya meta
-      // terakhir — agar tab menganggur tak menghapus KRO tab yang aktif.
-      setUsers(mergePresenceState(channel.presenceState<Meta>(), meId));
+    const seen = new Map<string, { name: string; kros: PresenceKro[]; lastSeen: number }>();
+
+    const rebuild = () => {
+      const now = Date.now();
+      const list: PresenceUser[] = [
+        { userId: meId, name: meNameRef.current, kros: myKrosRef.current, self: true },
+      ];
+      for (const [id, v] of Array.from(seen.entries())) {
+        if (id === meId) continue;
+        if (now - v.lastSeen > STALE_MS) {
+          seen.delete(id);
+          continue;
+        }
+        list.push({ userId: id, name: v.name, kros: v.kros, self: false });
+      }
+      list.sort((a, b) =>
+        a.self === b.self ? a.name.localeCompare(b.name, 'id') : a.self ? -1 : 1,
+      );
+      setUsers(list);
     };
 
-    const trackSelf = () =>
-      channel
-        .track({ userId: meId, name: meNameRef.current, kros: myKrosRef.current } satisfies Meta)
+    const ping = () => {
+      void channel
+        .send({
+          type: 'broadcast',
+          event: 'ping',
+          payload: { id: meId, name: meNameRef.current, kros: myKrosRef.current } satisfies Ping,
+        })
         .catch(() => {});
+    };
+    pingRef.current = ping;
 
-    channel.on('presence', { event: 'sync' }, sync);
-    channel.on('presence', { event: 'join' }, sync);
-    channel.on('presence', { event: 'leave' }, sync);
-    channel.subscribe((st, err) => {
-      if (st === 'SUBSCRIBED') {
-        setStatus('online');
-        // Track ulang di setiap (re)connect — termasuk setelah koneksi sempat putus.
-        void trackSelf();
-      } else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT' || st === 'CLOSED') {
-        // Kegagalan koneksi TIDAK lagi ditelan diam-diam: tampilkan status &
-        // catat agar bisa didiagnosis, lalu coba sambung ulang.
-        if (st !== 'CLOSED') {
-          setStatus('error');
-          console.warn(`[presence] channel ${st}:`, err?.message ?? err ?? '(tanpa detail)');
-        }
-        if (!disposed && !retry) {
-          retry = setTimeout(() => {
-            retry = null;
-            if (!disposed) void channel.subscribe();
-          }, 3000);
-        }
+    channel.on('broadcast', { event: 'ping' }, ({ payload }) => {
+      const p = payload as Ping;
+      if (!p?.id || p.id === meId) return;
+      const isNew = !seen.has(p.id);
+      seen.set(p.id, { name: p.name ?? 'Pengguna', kros: p.kros ?? [], lastSeen: Date.now() });
+      rebuild();
+      // Balas agar pendatang (dan yang lain) langsung menemukan kita — dua arah.
+      if (isNew) ping();
+    });
+    channel.on('broadcast', { event: 'bye' }, ({ payload }) => {
+      const p = payload as { id?: string };
+      if (p?.id && seen.delete(p.id)) rebuild();
+    });
+
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        ping();
+        rebuild();
       }
     });
 
-    // Heartbeat: track ulang berkala. Membuat daftar SELF-HEALING (mis. setelah
-    // menutup/membuka browser) dan mencegah presence kedaluwarsa. Penutupan browser
-    // ditangani otomatis oleh Supabase (server broadcast "leave" saat socket putus),
-    // sehingga tidak perlu untrack manual yang rawan terpicu keliru (pagehide/bfcache).
-    const heartbeat = setInterval(() => {
-      void trackSelf();
-    }, HEARTBEAT_MS);
+    const pingInterval = setInterval(ping, PING_MS);
+    const pruneInterval = setInterval(rebuild, PING_MS);
+
+    const bye = () => {
+      void channel
+        .send({ type: 'broadcast', event: 'bye', payload: { id: meId } })
+        .catch(() => {});
+    };
+    window.addEventListener('pagehide', bye);
 
     return () => {
-      disposed = true;
-      if (retry) clearTimeout(retry);
-      clearInterval(heartbeat);
+      clearInterval(pingInterval);
+      clearInterval(pruneInterval);
+      window.removeEventListener('pagehide', bye);
+      bye();
       void supabase.removeChannel(channel);
       channelRef.current = null;
+      pingRef.current = () => {};
       setUsers([]);
-      setStatus('connecting');
     };
   }, [meId]);
 
   // Stabil: identitasnya tidak berubah → grid tak re-render saat presence berubah.
   const setMyKros = React.useCallback<SetMyKros>((kros) => {
     myKrosRef.current = kros;
-    const ch = channelRef.current;
-    if (ch) void ch.track({ userId: meId, name: meNameRef.current, kros } satisfies Meta).catch(() => {});
-  }, [meId]);
+    pingRef.current();
+  }, []);
 
-  const usersValue = React.useMemo(
-    () => ({ users, active: true, status }),
-    [users, status],
-  );
+  const usersValue = React.useMemo(() => ({ users, active: true }), [users]);
 
   return (
     <SetterCtx.Provider value={setMyKros}>
@@ -184,32 +170,18 @@ export function usePresenceUsers() {
 
 /** Panel sidebar: daftar pengguna LAIN yang sedang mengakses + KRO mereka. */
 export function PresencePanel() {
-  const { users, active, status } = usePresenceUsers();
+  const { users, active } = usePresenceUsers();
   if (!active) return null;
   const others = users.filter((u) => !u.self);
-  // Warna titik indikator mencerminkan status koneksi realtime yang SEBENARNYA,
-  // sehingga "kosong karena belum ada orang" bisa dibedakan dari "koneksi gagal".
-  const dot =
-    status === 'online' ? 'bg-emerald-400' : status === 'error' ? 'bg-rose-400' : 'bg-amber-400';
 
   return (
     <div className="flex min-h-0 flex-1 flex-col border-t border-white/10">
       <div className="flex items-center gap-2 px-4 pb-2 pt-3 text-[11px] font-semibold uppercase tracking-wide text-sidebar-foreground/60">
         <span className="relative flex size-2">
-          {status === 'online' && (
-            <span className={`absolute inline-flex size-2 animate-ping rounded-full ${dot} opacity-70`} />
-          )}
-          <span className={`relative inline-flex size-2 rounded-full ${dot}`} />
+          <span className="absolute inline-flex size-2 animate-ping rounded-full bg-emerald-400/70" />
+          <span className="relative inline-flex size-2 rounded-full bg-emerald-400" />
         </span>
         Sedang mengakses
-        {status === 'error' && (
-          <span className="ml-auto normal-case text-rose-300/80" title="Koneksi realtime gagal">
-            koneksi bermasalah
-          </span>
-        )}
-        {status === 'connecting' && (
-          <span className="ml-auto normal-case text-amber-300/70">menyambung…</span>
-        )}
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
         {others.length === 0 ? (
