@@ -4,14 +4,9 @@ import { usePathname } from 'next/navigation';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase';
 import type { CurrentUser } from '@/lib/auth';
+import { mergePresenceState, type PresenceKro, type PresenceUser } from '@/lib/presence-merge';
 
-export interface PresenceKro { id: string; kode: string; uraian: string }
-export interface PresenceUser {
-  userId: string;
-  name: string;
-  kros: PresenceKro[];
-  self: boolean;
-}
+export type { PresenceKro, PresenceUser };
 
 type SetMyKros = (kros: PresenceKro[]) => void;
 
@@ -70,20 +65,9 @@ export function PresenceProvider({
     channelRef.current = channel;
 
     const sync = () => {
-      const state = channel.presenceState<Meta>();
-      const list: PresenceUser[] = Object.entries(state).map(([userId, metas]) => {
-        const meta = metas[metas.length - 1] as (Meta & { presence_ref: string }) | undefined;
-        return {
-          userId,
-          name: meta?.name ?? 'Pengguna',
-          kros: meta?.kros ?? [],
-          self: userId === meId,
-        };
-      });
-      list.sort((a, b) =>
-        a.self === b.self ? a.name.localeCompare(b.name, 'id') : a.self ? -1 : 1,
-      );
-      setUsers(list);
+      // Gabungkan SEMUA koneksi tiap pengguna (union KRO) — bukan hanya meta
+      // terakhir — agar tab menganggur tak menghapus KRO tab yang aktif.
+      setUsers(mergePresenceState(channel.presenceState<Meta>(), meId));
     };
 
     const trackSelf = () =>
