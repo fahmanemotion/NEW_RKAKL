@@ -15,8 +15,6 @@ export interface PresenceUser {
 
 type SetMyKros = (kros: PresenceKro[]) => void;
 
-// Dua context terpisah: setter STABIL (dipakai grid yang berat, agar grid tidak
-// ikut re-render saat daftar presence berubah) dan daftar users (dipakai panel).
 const SetterCtx = React.createContext<SetMyKros>(() => {});
 const UsersCtx = React.createContext<{ users: PresenceUser[]; active: boolean }>({
   users: [],
@@ -30,6 +28,10 @@ function usulanIdFromPath(pathname: string): string | null {
 }
 
 type Meta = { name: string; kros: PresenceKro[] };
+
+// Satu channel GLOBAL untuk seluruh aplikasi: semua pengguna yang sedang membuka
+// aplikasi tampil di panel, di halaman mana pun (bukan hanya sesama editor satu usulan).
+const PRESENCE_CHANNEL = 'app-presence';
 
 export function PresenceProvider({
   user,
@@ -49,13 +51,18 @@ export function PresenceProvider({
   const meNameRef = React.useRef(meName);
   meNameRef.current = meName;
 
+  // Saat keluar dari halaman usulan, reset KRO (tidak lagi mengerjakan KRO apa pun).
   React.useEffect(() => {
     if (!usulanId) {
-      setUsers([]);
-      return;
+      myKrosRef.current = [];
+      const ch = channelRef.current;
+      if (ch) void ch.track({ name: meNameRef.current, kros: [] } satisfies Meta).catch(() => {});
     }
+  }, [usulanId]);
+
+  React.useEffect(() => {
     const supabase = createClient();
-    const channel = supabase.channel(`pengang-presence:${usulanId}`, {
+    const channel = supabase.channel(PRESENCE_CHANNEL, {
       config: { presence: { key: meId } },
     });
     channelRef.current = channel;
@@ -78,18 +85,28 @@ export function PresenceProvider({
     };
 
     channel.on('presence', { event: 'sync' }, sync);
+    channel.on('presence', { event: 'join' }, sync);
+    channel.on('presence', { event: 'leave' }, sync);
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         void channel.track({ name: meNameRef.current, kros: myKrosRef.current } satisfies Meta);
       }
     });
 
+    // Navigasi hard-reload (window.location.assign) tidak selalu memicu cleanup React,
+    // jadi untrack manual saat unload agar tidak meninggalkan "hantu" presence.
+    const onUnload = () => { void channel.untrack(); };
+    window.addEventListener('beforeunload', onUnload);
+    window.addEventListener('pagehide', onUnload);
+
     return () => {
+      window.removeEventListener('beforeunload', onUnload);
+      window.removeEventListener('pagehide', onUnload);
       void supabase.removeChannel(channel);
       channelRef.current = null;
       setUsers([]);
     };
-  }, [usulanId, meId]);
+  }, [meId]);
 
   // Stabil: identitasnya tidak berubah → grid tak re-render saat presence berubah.
   const setMyKros = React.useCallback<SetMyKros>((kros) => {
@@ -99,8 +116,8 @@ export function PresenceProvider({
   }, []);
 
   const usersValue = React.useMemo(
-    () => ({ users, active: !!usulanId }),
-    [users, usulanId],
+    () => ({ users, active: true }),
+    [users],
   );
 
   return (
