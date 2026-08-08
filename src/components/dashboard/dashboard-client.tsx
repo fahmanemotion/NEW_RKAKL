@@ -810,11 +810,11 @@ function FilterSelect({
         </button>
         {open && (
           <div
-            className="absolute left-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-lg"
-            style={{ width: Math.max(popW, 220) }}
+            className="absolute left-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-border bg-card text-card-foreground shadow-xl ring-1 ring-black/5"
+            style={{ width: Math.max(popW, 240) }}
           >
-            <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
-              <Search className="size-3.5 opacity-50" />
+            <div className="flex items-center gap-1.5 border-b border-border bg-card px-2 py-1.5">
+              <Search className="size-3.5 shrink-0 opacity-50" />
               <input
                 ref={inputRef}
                 value={q}
@@ -842,7 +842,7 @@ function FilterSelect({
             <ul
               ref={listRef}
               role="listbox"
-              className="max-h-64 overflow-y-auto py-1 text-xs"
+              className="max-h-64 overflow-y-auto bg-card py-1 text-xs"
             >
               {filtered.length === 0 ? (
                 <li className="px-2 py-2 text-muted-foreground">Tidak ditemukan.</li>
@@ -858,8 +858,8 @@ function FilterSelect({
                       onMouseEnter={() => setHi(i)}
                       onClick={() => pick(v)}
                       className={`flex cursor-pointer items-center gap-1.5 px-2 py-1.5 ${
-                        active ? "bg-muted" : ""
-                      }`}
+                        active ? "bg-primary/10" : ""
+                      } ${selected ? "font-medium text-primary" : ""}`}
                       title={lbl}
                     >
                       <Check
