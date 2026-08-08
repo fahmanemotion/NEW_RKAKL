@@ -130,26 +130,30 @@ export function Shell({ user, satkerLogo, children }: { user: CurrentUser; satke
             )}
 
             <div className="ml-auto flex items-center gap-2 sm:gap-3">
-              <ThemeToggle />
-
-              <div className="hidden items-center gap-2 sm:flex">
-                <div className="text-right leading-tight">
-                  <div className="text-sm font-medium">{user.nama}</div>
-                  <div className="text-xs text-muted-foreground">{user.jabatan ?? user.email}</div>
-                </div>
-                {user.role && <Badge className={STATUS_COLOR.Draft}>{user.role}</Badge>}
+              {/* Identitas: nama + role (jabatan tidak ditampilkan). */}
+              <div className="flex items-center gap-2.5">
+                <span className="hidden text-sm font-medium leading-none sm:inline">
+                  {user.nama}
+                </span>
+                {user.role && (
+                  <Badge className={STATUS_COLOR.Draft}>{user.role}</Badge>
+                )}
               </div>
 
               <div className="hidden h-6 w-px bg-border sm:block" />
 
-              <button
-                onClick={logout}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
-                title="Keluar dari aplikasi"
-              >
-                <LogOut className="size-4" />
-                <span className="hidden sm:inline">Keluar</span>
-              </button>
+              {/* Aksi: ganti tema + keluar, dikelompokkan berdampingan. */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <ThemeToggle />
+                <button
+                  onClick={logout}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                  title="Keluar dari aplikasi"
+                >
+                  <LogOut className="size-4" />
+                  <span className="hidden sm:inline">Keluar</span>
+                </button>
+              </div>
             </div>
           </header>
 
