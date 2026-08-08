@@ -21,7 +21,7 @@ import { Card, Input, Select } from "@/components/ui";
 import { createClient } from "@/lib/supabase";
 import { fetchAllStruktur } from "@/lib/fetch-struktur";
 import { fmtRp, fmtN } from "@/lib/constants";
-import { TAHAP_LABEL, type TahapPagu } from "@/lib/tahap-pagu";
+import { TAHAP_LABEL, TAHAP_ORDER, type TahapPagu } from "@/lib/tahap-pagu";
 import type { UsulanStruktur } from "@/types/database";
 import {
   buildDashboardRows,
@@ -85,7 +85,16 @@ export function DashboardClient({
   const [tahun, setTahun] = React.useState<number | null>(years[0] ?? null);
 
   const tahapList = React.useMemo(
-    () => usulanList.filter((u) => u.tahun === tahun),
+    () =>
+      usulanList
+        .filter((u) => u.tahun === tahun)
+        // Urut sesuai alur tahap (Kebutuhan, Indikatif, Anggaran, Alokasi),
+        // DIBALIK: tahap terkini di atas; tahap yang sudah dilalui di bawah.
+        .sort(
+          (a, b) =>
+            TAHAP_ORDER.indexOf(b.tahap as TahapPagu) -
+            TAHAP_ORDER.indexOf(a.tahap as TahapPagu),
+        ),
     [usulanList, tahun],
   );
   const [tahap, setTahap] = React.useState<string | null>(
@@ -94,7 +103,13 @@ export function DashboardClient({
 
   // Saat tahun berganti, set tahap ke pilihan pertama yang tersedia.
   React.useEffect(() => {
-    const list = usulanList.filter((u) => u.tahun === tahun);
+    const list = usulanList
+      .filter((u) => u.tahun === tahun)
+      .sort(
+        (a, b) =>
+          TAHAP_ORDER.indexOf(b.tahap as TahapPagu) -
+          TAHAP_ORDER.indexOf(a.tahap as TahapPagu),
+      );
     setTahap((prev) =>
       list.some((u) => u.tahap === prev) ? prev : (list[0]?.tahap ?? null),
     );
