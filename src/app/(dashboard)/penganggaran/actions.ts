@@ -100,7 +100,7 @@ export async function deleteUsulanAction(usulanId: string): Promise<void> {
 
   const { data: row, error: selErr } = await sb
     .from("usulan_anggaran")
-    .select("id, status, satker_id")
+    .select("id, status, satker_id, tahun_anggaran, tahap_pagu")
     .eq("id", usulanId)
     .single();
   if (selErr || !row) throw new Error("Usulan tidak ditemukan.");
@@ -111,11 +111,33 @@ export async function deleteUsulanAction(usulanId: string): Promise<void> {
 
   if (!isAdmin && !isOwnerOperator)
     throw new Error("Anda tidak berhak menghapus usulan ini.");
-  if (!isAdmin && row.status !== "Draft")
+
+  // Aturan hapus berurutan (berlaku untuk SEMUA peran, termasuk Administrator).
+  // 1) Hanya Draft yang bisa dihapus; Final harus dikembalikan ke Draft dulu.
+  if (row.status !== "Draft")
     throw new Error(
-      "Hanya usulan berstatus Draft yang dapat dihapus. " +
-        "Usulan yang sudah diajukan atau final tidak bisa dihapus.",
+      "Tahap yang sudah Final tidak dapat dihapus. " +
+        "Kembalikan ke Draft terlebih dahulu sebelum menghapus.",
     );
+  // 2) Hanya tahap TERAKHIR yang boleh dihapus. Bila masih ada tahap setelahnya,
+  //    tolak — penghapusan harus dari tahap paling akhir (mundur satu per satu).
+  const delIdx = TAHAP_ORDER.indexOf(row.tahap_pagu as TahapPagu);
+  if (delIdx >= 0 && delIdx < TAHAP_ORDER.length - 1) {
+    const laterTahaps = TAHAP_ORDER.slice(delIdx + 1);
+    const { data: laterRows } = await sb
+      .from("usulan_anggaran")
+      .select("tahap_pagu")
+      .eq("satker_id", row.satker_id)
+      .eq("tahun_anggaran", row.tahun_anggaran)
+      .in("tahap_pagu", laterTahaps);
+    if ((laterRows ?? []).length > 0) {
+      const next = (laterRows![0] as { tahap_pagu: TahapPagu }).tahap_pagu;
+      throw new Error(
+        "Penghapusan harus berurutan dari tahap terakhir. " +
+          `Hapus dahulu tahap ${TAHAP_LABEL[next] ?? next} sebelum menghapus tahap ini.`,
+      );
+    }
+  }
 
   const { error } = await sb
     .from("usulan_anggaran")
