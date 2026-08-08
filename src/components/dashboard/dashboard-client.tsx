@@ -14,6 +14,8 @@ import {
   Hammer,
   RotateCcw,
   Layers,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react";
 import { Card, Input, Select } from "@/components/ui";
 import { createClient } from "@/lib/supabase";
@@ -733,21 +735,145 @@ function FilterSelect({
   options: [string, string][];
   className?: string;
 }) {
+  const [open, setOpen] = React.useState(false);
+  const [q, setQ] = React.useState("");
+  const [hi, setHi] = React.useState(0);
+  const wrapRef = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const listRef = React.useRef<HTMLUListElement>(null);
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+  const [popW, setPopW] = React.useState<number>(0);
+
+  // Tutup saat klik di luar; fokuskan input saat terbuka.
+  React.useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQ("");
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    setPopW(btnRef.current?.getBoundingClientRect().width ?? 0);
+    setTimeout(() => inputRef.current?.focus(), 0);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const all: [string, string][] = React.useMemo(
+    () => [[ALL, "Semua"], ...options],
+    [options],
+  );
+  const filtered = React.useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return all;
+    return all.filter(([v, lbl]) => v.toLowerCase().includes(t) || lbl.toLowerCase().includes(t));
+  }, [all, q]);
+
+  // Reset sorotan tiap kali daftar hasil berubah, dan jaga agar tak melebihi
+  // batas.
+  React.useEffect(() => {
+    setHi((h) => (filtered.length === 0 ? 0 : Math.min(h, filtered.length - 1)));
+  }, [filtered.length]);
+
+  // Pastikan opsi tersorot terlihat saat bernavigasi dengan panah.
+  React.useEffect(() => {
+    if (!open) return;
+    const el = listRef.current?.children[hi] as HTMLElement | undefined;
+    el?.scrollIntoView({ block: "nearest" });
+  }, [hi, open]);
+
+  const selectedLabel =
+    value === ALL ? "Semua" : (options.find(([v]) => v === value)?.[1] ?? value);
+
+  function pick(v: string) {
+    onChange(v);
+    setOpen(false);
+    setQ("");
+  }
+
   return (
     <div className={className}>
       <label className="mb-1 block text-[11px] font-medium text-muted-foreground">{label}</label>
-      <Select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-8 w-full min-w-0 text-xs"
-      >
-        <option value={ALL}>Semua</option>
-        {options.map(([val, lbl]) => (
-          <option key={val} value={val}>
-            {lbl}
-          </option>
-        ))}
-      </Select>
+      <div ref={wrapRef} className="relative">
+        <button
+          ref={btnRef}
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex h-8 w-full min-w-0 items-center justify-between gap-1 rounded-md border border-border bg-background px-2 text-left text-xs hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/40"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+        >
+          <span className={`truncate ${value === ALL ? "text-muted-foreground" : ""}`}>
+            {selectedLabel}
+          </span>
+          <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" />
+        </button>
+        {open && (
+          <div
+            className="absolute left-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-lg"
+            style={{ width: Math.max(popW, 220) }}
+          >
+            <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
+              <Search className="size-3.5 opacity-50" />
+              <input
+                ref={inputRef}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setHi((h) => Math.min(h + 1, filtered.length - 1));
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setHi((h) => Math.max(h - 1, 0));
+                  } else if (e.key === "Enter") {
+                    e.preventDefault();
+                    const it = filtered[hi];
+                    if (it) pick(it[0]);
+                  } else if (e.key === "Escape") {
+                    setOpen(false);
+                    setQ("");
+                  }
+                }}
+                placeholder="Cari…"
+                className="h-6 w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+            <ul
+              ref={listRef}
+              role="listbox"
+              className="max-h-64 overflow-y-auto py-1 text-xs"
+            >
+              {filtered.length === 0 ? (
+                <li className="px-2 py-2 text-muted-foreground">Tidak ditemukan.</li>
+              ) : (
+                filtered.map(([v, lbl], i) => {
+                  const selected = v === value;
+                  const active = i === hi;
+                  return (
+                    <li
+                      key={v}
+                      role="option"
+                      aria-selected={selected}
+                      onMouseEnter={() => setHi(i)}
+                      onClick={() => pick(v)}
+                      className={`flex cursor-pointer items-center gap-1.5 px-2 py-1.5 ${
+                        active ? "bg-muted" : ""
+                      }`}
+                      title={lbl}
+                    >
+                      <Check
+                        className={`size-3.5 shrink-0 ${selected ? "opacity-100" : "opacity-0"}`}
+                      />
+                      <span className="truncate">{lbl}</span>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
