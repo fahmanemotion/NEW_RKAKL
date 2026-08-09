@@ -246,6 +246,33 @@ export function buildKertasKerja(rows: UsulanStruktur[]): {
     totalJumlah += res.j;
   });
 
+  // Volume berjenjang untuk kertas kerja & RAB (mengikuti aturan di grid):
+  //  DETAIL/KOMPONEN = volume yang diinput/tersimpan;
+  //  RO   = Σ volume KOMPONEN di bawahnya;
+  //  KRO  = Σ volume RO di bawahnya.
+  // Dihitung post-order agar nilai anak siap sebelum induk.
+  const volAgg = new Map<string, number>();
+  const aggVol = (n: Node): number => {
+    n.children.forEach(aggVol);
+    let v = 0;
+    if (n.level === "DETAIL" || n.level === "KOMPONEN") {
+      v = Number(n.volume) || 0;
+    } else if (n.level === "RO") {
+      v = n.children.reduce(
+        (s, c) => s + (c.level === "KOMPONEN" ? (volAgg.get(c.id) ?? 0) : 0),
+        0,
+      );
+    } else if (n.level === "KRO") {
+      v = n.children.reduce(
+        (s, c) => s + (c.level === "RO" ? (volAgg.get(c.id) ?? 0) : 0),
+        0,
+      );
+    }
+    volAgg.set(n.id, v);
+    return v;
+  };
+  roots.forEach(aggVol);
+
   // Pass 2: ratakan (pre-order).
   const out: KKRow[] = [];
   const emit = (n: Node) => {
@@ -258,9 +285,18 @@ export function buildKertasKerja(rows: UsulanStruktur[]): {
       kode: n.kode || "",
       uraian: n.level === "HEADER" ? `>> ${n.uraian || ""}` : n.uraian || "",
       vol:
-        isDetail || n.level === "KRO" || n.level === "RO" ? n.volume : null,
+        isDetail || n.level === "KOMPONEN"
+          ? n.volume
+          : n.level === "RO" || n.level === "KRO"
+            ? volAgg.get(n.id) ?? null
+            : null,
       satuan:
-        isDetail || n.level === "KRO" || n.level === "RO" ? n.satuan : null,
+        isDetail ||
+        n.level === "KOMPONEN" ||
+        n.level === "KRO" ||
+        n.level === "RO"
+          ? n.satuan
+          : null,
       harga: isDetail ? n.harga : null,
       jumlah: n._j ?? 0,
       sumber: n.level === "AKUN" ? normSumber(n.sumber_dana) : "",
