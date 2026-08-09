@@ -36,6 +36,8 @@ export interface RabUnit {
   roUraian: string;
   roVolume: number | null;
   roSatuan: string | null;
+  komVolume: number | null;
+  komSatuan: string | null;
   programKode: string;
   programUraian: string;
   total: number;
@@ -82,6 +84,8 @@ function headerOf(ctx: Ctx, komponen: KKRow) {
     roUraian: ro?.uraian ?? "",
     roVolume: ro?.vol ?? null,
     roSatuan: ro?.satuan ?? null,
+    komVolume: komponen?.vol ?? null,
+    komSatuan: komponen?.satuan ?? null,
     programKode: program?.kode ?? "",
     programUraian: program?.uraian ?? ctx.programUraian,
   };

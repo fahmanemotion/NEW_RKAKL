@@ -492,6 +492,28 @@ type Emit = {
   vol: number | null; satuan: string | null; harga: number | null; jumlah: number;
 };
 
+/**
+ * Pecah jabatan panjang menjadi dua baris seimbang agar mudah dibaca di sel
+ * tanda tangan (mis. "Kuasa Pengguna Anggaran Politeknik Ilmu Pelayaran
+ * Makassar" → baris 1 "Kuasa Pengguna Anggaran", baris 2 nama institusinya).
+ * Titik pecah diutamakan sebelum kata institusi (Politeknik/Balai/Universitas/…),
+ * bila tak ada dipecah di tengah pada batas kata. Jabatan pendek dibiarkan.
+ */
+function wrapJabatan(s: string): string {
+  const t = (s || "").trim().replace(/\s+/g, " ");
+  if (!t) return t;
+  const words = t.split(" ");
+  if (words.length <= 4) return t;
+  const KEY =
+    /^(politeknik|poltekpel|balai|universitas|sekolah|institut|akademi|direktorat|badan|pusat)$/i;
+  let brk = -1;
+  for (let i = 2; i < words.length; i++) {
+    if (KEY.test(words[i])) { brk = i; break; }
+  }
+  if (brk < 0) brk = Math.ceil(words.length / 2);
+  return words.slice(0, brk).join(" ") + "\n" + words.slice(brk).join(" ");
+}
+
 function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signers): XLSXTypes.WorkSheet {
   // Kolom 0-based A..T (20). "Rincian Perhitungan" dipecah C..P: 5 pasang
   // (qty, satuan) dipisah "x" → C,D|E|F,G|H|I,J|K|L,M|N|O,P.
@@ -521,8 +543,8 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
   hdr("Komponen", `${unit.komponenKode}  ${unit.komponenUraian}`.trim());
   if (unit.level === "SUB_KOMPONEN")
     hdr("Sub Komponen", `${unit.subKode ?? ""}  ${unit.subUraian ?? ""}`.trim());
-  hdr("Volume", unit.roVolume ?? "");
-  hdr("Satuan Ukur", unit.roSatuan ?? "");
+  hdr("Volume", unit.komVolume ?? unit.roVolume ?? "");
+  hdr("Satuan Ukur", unit.komSatuan ?? unit.roSatuan ?? "");
   hdr("Alokasi Anggaran", unit.total);
   const hdrCount = aoa.length + 1 - hdrFirst;
   const alokasiRow = aoa.length;
@@ -589,7 +611,7 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
   const sig = aoa.length;
   const k = signers.kiri, n = signers.kanan;
   r = er(); r[A] = "Mengetahui"; r[P] = tgl; aoa.push(r);
-  r = er(); r[A] = k.jabatan; r[P] = n.jabatan; aoa.push(r);
+  r = er(); r[A] = wrapJabatan(k.jabatan); r[P] = wrapJabatan(n.jabatan); aoa.push(r);
   aoa.push(er()); aoa.push(er()); aoa.push(er());
   r = er(); r[A] = k.nama; r[P] = n.nama; aoa.push(r);
   r = er(); r[A] = k.pangkat; r[P] = n.pangkat; aoa.push(r);
@@ -726,7 +748,7 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
   ws["!rows"][0] = { hpt: 36 };
   ws["!rows"][headRow] = { hpt: 26 };
   ws["!rows"][terbilangRow - 1] = { hpt: 26 };
-  ws["!rows"][sig + 1] = { hpt: 28 };
+  ws["!rows"][sig + 1] = { hpt: 34 };
 
   ws["!cols"] = [
     { wch: 16 }, { wch: 44 },
