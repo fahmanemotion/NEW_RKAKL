@@ -556,6 +556,15 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
   r[Q] = "Volume"; r[R] = "Satuan"; r[S] = "Harga Satuan"; r[T] = "Jumlah";
   aoa.push(r);
 
+  // Sub-header kolom "Rincian Perhitungan": keterangan vol/sat (C..P).
+  // Dipindahkan ke sini dari tiap baris Akun agar tampil satu kali di bawah header.
+  const subHeadRow = aoa.length + 1; // baris 1-based sub-header
+  r = er();
+  r[C] = "Vol"; r[D] = "sat"; r[F] = "vol"; r[G] = "sat"; r[I] = "vol";
+  r[J] = "sat"; r[L] = "vol"; r[Mm] = "sat"; r[O] = "vol"; r[P] = "sat";
+  r[E] = "x"; r[H] = "x"; r[K] = "x"; r[Nn] = "x";
+  aoa.push(r);
+
   const emit: Emit[] = [];
   const ctxRow = (id: string, pid: string | null, kode: string, uraian: string, level: string) =>
     emit.push({ id, pid, kode, uraian, level, isDetail: false, rincian: "", segments: null, vol: null, satuan: null, harga: null, jumlah: unit.total });
@@ -581,10 +590,8 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
     r[A] = e.isDetail ? "" : e.kode;
     r[B] = "  ".repeat(indentFor(e.level)) + (e.isDetail ? "- " : "") + e.uraian;
     if (e.level === "AKUN") {
-      // Mini-header 5 pasang kolom rincian pada baris akun.
-      r[C] = "Vol"; r[D] = "sat"; r[F] = "vol"; r[G] = "sat"; r[I] = "vol";
-      r[J] = "sat"; r[L] = "vol"; r[Mm] = "sat"; r[O] = "vol"; r[P] = "sat";
-      r[E] = "x"; r[H] = "x"; r[K] = "x"; r[Nn] = "x";
+      // Mini-header vol/sat kini ditempatkan sekali sebagai sub-header di bawah
+      // baris "Rincian Perhitungan"; baris Akun dibiarkan kosong (C..P).
     }
     if (e.isDetail) {
       const rc = rincianCells(e.segments, e.vol, e.satuan); // 14 nilai C..P
@@ -672,6 +679,15 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
       border: BORDER,
     });
   }
+  // Sub-header vol/sat (baris di bawah "Rincian Perhitungan").
+  for (let c = 0; c < NC; c++) {
+    setStyle(enc(subHeadRow, c), {
+      font: { bold: true, sz: 9, color: { rgb: "FFFFFF" } },
+      fill: { patternType: "solid", fgColor: { rgb: "44546A" } },
+      alignment: { horizontal: "center", vertical: "center" },
+      border: BORDER,
+    });
+  }
   emit.forEach((e) => {
     const row1 = rowOf.get(e.id)!;
     const fill =
@@ -736,6 +752,9 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
     merges.push(Mg(rr, D, rr, T));
   }
   merges.push(Mg(headRow + 1, C, headRow + 1, P));
+  // Header dua baris: label kolom tunggal di-merge vertikal (header + sub-header).
+  for (const col of [A, B, Q, R, S, T])
+    merges.push(Mg(headRow + 1, col, subHeadRow, col));
   for (let i = 0; i < 3; i++) merges.push(Mg(jumlahRow + i, A, jumlahRow + i, S));
   merges.push(Mg(terbilangRow, B, terbilangRow, T));
   for (const rr of sigText) {
@@ -747,6 +766,7 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
   ws["!rows"] = [];
   ws["!rows"][0] = { hpt: 36 };
   ws["!rows"][headRow] = { hpt: 26 };
+  ws["!rows"][headRow + 1] = { hpt: 18 };
   ws["!rows"][terbilangRow - 1] = { hpt: 26 };
   ws["!rows"][sig + 1] = { hpt: 34 };
 
