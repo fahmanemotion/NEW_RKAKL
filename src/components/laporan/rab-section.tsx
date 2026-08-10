@@ -499,6 +499,25 @@ type Emit = {
  * Titik pecah diutamakan sebelum kata institusi (Politeknik/Balai/Universitas/…),
  * bila tak ada dipecah di tengah pada batas kata. Jabatan pendek dibiarkan.
  */
+/** Paksa seluruh sel pada sheet memakai font Arial. */
+function forceArial(XLSX: XLSXModule, ws: XLSXTypes.WorkSheet): void {
+  const ref = (ws as { ["!ref"]?: string })["!ref"];
+  if (!ref) return;
+  const rng = XLSX.utils.decode_range(ref);
+  for (let R = rng.s.r; R <= rng.e.r; R++) {
+    for (let Cc = rng.s.c; Cc <= rng.e.c; Cc++) {
+      const ad = XLSX.utils.encode_cell({ r: R, c: Cc });
+      const cell = (ws as Record<string, unknown>)[ad] as
+        | { s?: { font?: Record<string, unknown> } }
+        | undefined;
+      if (!cell) continue;
+      const st = (cell.s || {}) as { font?: Record<string, unknown> };
+      st.font = { ...(st.font || {}), name: "Arial" };
+      cell.s = st;
+    }
+  }
+}
+
 function wrapJabatan(s: string): string {
   const t = (s || "").trim().replace(/\s+/g, " ");
   if (!t) return t;
@@ -536,13 +555,22 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
   const hdr = (label: string, val: string | number) => {
     const x = er(); x[A] = label; x[C] = ":"; x[D] = val; aoa.push(x);
   };
+  // Baris kode+narasi: KODE di kolom D (bold), NARASI dalam kurung di G (normal).
+  const splitRows: number[] = [];
+  const hdrKode = (label: string, kode: string, uraian: string) => {
+    const x = er();
+    x[A] = label; x[C] = ":"; x[D] = (kode || "").trim();
+    const u = (uraian || "").trim();
+    x[G] = u ? `(${u})` : "";
+    aoa.push(x); splitRows.push(aoa.length);
+  };
   hdr("Kementerian Negara/Lembaga", "Kementerian Perhubungan");
   hdr("Unit Eselon II/Satker", ctx.satker);
   hdr("Program", unit.programUraian);
-  hdr("Keluaran (Output)", `${unit.roKode}  ${unit.roUraian}`.trim());
-  hdr("Komponen", `${unit.komponenKode}  ${unit.komponenUraian}`.trim());
+  hdrKode("Keluaran (Output)", unit.roKode, unit.roUraian);
+  hdrKode("Komponen", unit.komponenKode, unit.komponenUraian);
   if (unit.level === "SUB_KOMPONEN")
-    hdr("Sub Komponen", `${unit.subKode ?? ""}  ${unit.subUraian ?? ""}`.trim());
+    hdrKode("Sub Komponen", unit.subKode ?? "", unit.subUraian ?? "");
   hdr("Volume", unit.komVolume ?? unit.roVolume ?? "");
   hdr("Satuan Ukur", unit.komSatuan ?? unit.roSatuan ?? "");
   hdr("Alokasi Anggaran", unit.total);
@@ -663,13 +691,25 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
   for (let i = 0; i < hdrCount; i++) {
     const rr = hdrFirst + i;
     const isAlok = rr === alokasiRow;
+    const isSplit = splitRows.includes(rr);
     setStyle(enc(rr, A), { font: { sz: 9 }, alignment: { horizontal: "left", vertical: "center" } });
     setStyle(enc(rr, C), { font: { sz: 9 }, alignment: { horizontal: "center", vertical: "center" } });
-    setStyle(enc(rr, D), {
-      font: { sz: 9, bold: isAlok },
-      alignment: { horizontal: "left", vertical: "center", wrapText: true },
-      numFmt: isAlok ? RP : undefined,
-    });
+    if (isSplit) {
+      setStyle(enc(rr, D), {
+        font: { sz: 9, bold: true },
+        alignment: { horizontal: "left", vertical: "center" },
+      });
+      setStyle(enc(rr, G), {
+        font: { sz: 9 },
+        alignment: { horizontal: "left", vertical: "center", wrapText: true },
+      });
+    } else {
+      setStyle(enc(rr, D), {
+        font: { sz: 9, bold: isAlok },
+        alignment: { horizontal: "left", vertical: "center", wrapText: true },
+        numFmt: isAlok ? RP : undefined,
+      });
+    }
   }
   for (let c = 0; c < NC; c++) {
     setStyle(enc(headRow + 1, c), {
@@ -749,7 +789,12 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
   for (let i = 0; i < hdrCount; i++) {
     const rr = hdrFirst + i;
     merges.push(Mg(rr, A, rr, B));
-    merges.push(Mg(rr, D, rr, T));
+    if (splitRows.includes(rr)) {
+      merges.push(Mg(rr, D, rr, F)); // kode
+      merges.push(Mg(rr, G, rr, T)); // narasi
+    } else {
+      merges.push(Mg(rr, D, rr, T));
+    }
   }
   merges.push(Mg(headRow + 1, C, headRow + 1, P));
   // Header dua baris: label kolom tunggal di-merge vertikal (header + sub-header).
@@ -777,6 +822,8 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
     { wch: 5 }, { wch: 8 },
     { wch: 6 }, { wch: 8 }, { wch: 16 }, { wch: 18 },
   ];
+  // Seragamkan seluruh font sel menjadi Arial (default Excel Calibri).
+  forceArial(XLSX, ws);
   return ws;
 
 

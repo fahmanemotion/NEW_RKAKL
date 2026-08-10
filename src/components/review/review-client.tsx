@@ -725,6 +725,24 @@ function buildWorkbook(
   ws["!rows"][0] = { hpt: 36 };
   for (let rr = 4; rr <= 7; rr++) ws["!rows"][rr] = { hpt: 18 };
 
+  // Seragamkan seluruh font sel menjadi Arial.
+  {
+    const ref0 = (ws as { ["!ref"]?: string })["!ref"];
+    if (ref0) {
+      const rng0 = XLSX.utils.decode_range(ref0);
+      for (let R = rng0.s.r; R <= rng0.e.r; R++)
+        for (let Cc = rng0.s.c; Cc <= rng0.e.c; Cc++) {
+          const ad0 = XLSX.utils.encode_cell({ r: R, c: Cc });
+          const cell0 = (ws as Record<string, unknown>)[ad0] as
+            | { s?: { font?: Record<string, unknown> } }
+            | undefined;
+          if (!cell0) continue;
+          const st0 = (cell0.s || {}) as { font?: Record<string, unknown> };
+          st0.font = { ...(st0.font || {}), name: "Arial" };
+          cell0.s = st0;
+        }
+    }
+  }
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "DETAIL");
   return wb;
