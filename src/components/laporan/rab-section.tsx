@@ -820,7 +820,7 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
     { wch: 5 }, { wch: 8 }, { wch: 3 }, { wch: 5 }, { wch: 8 }, { wch: 3 },
     { wch: 5 }, { wch: 8 }, { wch: 3 }, { wch: 5 }, { wch: 8 }, { wch: 3 },
     { wch: 5 }, { wch: 8 },
-    { wch: 6 }, { wch: 8 }, { wch: 16 }, { wch: 18 },
+    { wch: 9 }, { wch: 8 }, { wch: 16 }, { wch: 18 },
   ];
   // Seragamkan seluruh font sel menjadi Arial (default Excel Calibri).
   forceArial(XLSX, ws);
