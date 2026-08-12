@@ -795,6 +795,8 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
     }
   }
   merges.push(Mg(headRow + 1, C, headRow + 1, P));
+  // Baris sub-header (kosong) di-merge C:P agar tampil bersih (bukan banyak kotak kecil).
+  merges.push(Mg(subHeadRow, C, subHeadRow, P));
   // Header dua baris: label kolom tunggal di-merge vertikal (header + sub-header).
   for (const col of [A, B, Q, R, S, T])
     merges.push(Mg(headRow + 1, col, subHeadRow, col));
