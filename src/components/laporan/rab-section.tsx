@@ -584,13 +584,11 @@ function buildRabSheet(XLSX: XLSXModule, unit: RabUnit, ctx: Ctx, signers: Signe
   r[Q] = "Volume"; r[R] = "Satuan"; r[S] = "Harga Satuan"; r[T] = "Jumlah";
   aoa.push(r);
 
-  // Sub-header kolom "Rincian Perhitungan": keterangan vol/sat (C..P).
-  // Dipindahkan ke sini dari tiap baris Akun agar tampil satu kali di bawah header.
+  // Baris sub-header di bawah "Rincian Perhitungan": label vol/sat DIHILANGKAN
+  // (dikosongkan) sesuai permintaan. Barisnya tetap dipertahankan beserta gaya
+  // (fill biru gelap & border) agar tinggi/tata letak header dua baris terjaga.
   const subHeadRow = aoa.length + 1; // baris 1-based sub-header
   r = er();
-  r[C] = "Vol"; r[D] = "sat"; r[F] = "vol"; r[G] = "sat"; r[I] = "vol";
-  r[J] = "sat"; r[L] = "vol"; r[Mm] = "sat"; r[O] = "vol"; r[P] = "sat";
-  r[E] = "x"; r[H] = "x"; r[K] = "x"; r[Nn] = "x";
   aoa.push(r);
 
   const emit: Emit[] = [];
